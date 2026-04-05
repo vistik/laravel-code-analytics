@@ -1,0 +1,63 @@
+<?php
+
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleRule;
+
+it('detects command signature change', function () {
+    $old = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:bar"; public function handle() { $this->info("hello"); } }';
+    $new = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:baz"; public function handle() { $this->info("hello"); } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Console/Commands/FooCommand.php', 'app/Console/Commands/FooCommand.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    $signatureChanges = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, '$signature'),
+    ));
+
+    expect($signatureChanges)->toHaveCount(1)
+        ->and($signatureChanges[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($signatureChanges[0]->severity)->toBe(Severity::MEDIUM)
+        ->and($signatureChanges[0]->description)->toContain('CLI interface changed');
+});
+
+it('detects handle method change', function () {
+    $old = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:bar"; public function handle() { $this->info("hello"); } }';
+    $new = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:bar"; public function handle() { $this->info("goodbye"); $this->line("done"); } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Console/Commands/FooCommand.php', 'app/Console/Commands/FooCommand.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    $handleChanges = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'handle()'),
+    ));
+
+    expect($handleChanges)->toHaveCount(1)
+        ->and($handleChanges[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($handleChanges[0]->severity)->toBe(Severity::MEDIUM)
+        ->and($handleChanges[0]->description)->toContain('Artisan command handle() changed');
+});
+
+it('ignores non-command files', function () {
+    $old = '<?php namespace App\Services; class FooService { protected $signature = "foo:bar"; public function handle() { return true; } }';
+    $new = '<?php namespace App\Services; class FooService { protected $signature = "foo:baz"; public function handle() { return false; } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Services/FooService.php', 'app/Services/FooService.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toBeEmpty();
+});
