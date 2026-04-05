@@ -8,7 +8,7 @@ test('layout JS uses entry-point groups as roots', function () {
 
     expect($js)
         ->toContain("var entryGroups = ['route', 'http', 'controller', 'job', 'console']")
-        ->toContain("entryGroups.indexOf(n.group) !== -1");
+        ->toContain('entryGroups.indexOf(n.group) !== -1');
 });
 
 test('layout JS falls back to topological roots when no entry points present', function () {
