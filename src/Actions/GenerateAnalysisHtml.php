@@ -483,18 +483,21 @@ class GenerateAnalysisHtml
         $colors = [];
         $labels = [];
         $order = [];
+        $scores = [];
         $i = 0;
         foreach (array_reverse(Severity::cases()) as $severity) {
             $key = $severity->value;
             $colors[] = "'{$key}':'{$severity->color()}'";
             $labels[] = "'{$key}':'{$severity->label()}'";
             $order[] = "'{$key}':{$i}";
+            $scores[] = "'{$key}':{$severity->score()}";
             $i++;
         }
 
         return 'const sevColors={'.implode(',', $colors).'};'
             .'const sevLabels={'.implode(',', $labels).'};'
-            .'const sevOrder={'.implode(',', $order).'};';
+            .'const sevOrder={'.implode(',', $order).'};'
+            .'const sevScores={'.implode(',', $scores).'};';
     }
 
     public function buildSeverityToggles(array $nodes): string
