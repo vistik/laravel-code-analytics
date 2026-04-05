@@ -197,7 +197,7 @@ class GenerateAnalysisHtml
         $analysisJson = json_encode($analysisData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $metricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
-        return view('analysis.inner', [
+        return view('laravel-code-analytics::analysis.inner', [
             'prNumber' => $prNumber,
             'prTitle' => $prTitle,
             'prUrl' => $prUrl,
@@ -668,7 +668,7 @@ class GenerateAnalysisHtml
         $wrapperMetricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $wrapperSeverityJs = $this->buildSeverityDataJs();
 
-        $html = view('analysis.wrapper', [
+        $html = view('laravel-code-analytics::analysis.wrapper', [
             'prNumber' => $prNumber,
             'escapedTitle' => $escapedTitle,
             'headlineHtml' => $headlineHtml,

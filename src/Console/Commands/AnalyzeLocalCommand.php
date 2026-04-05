@@ -12,7 +12,7 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class AnalyzeLocalCommand extends Command
 {
-    protected $signature = 'analyze:local
+    protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}
         {output? : Output HTML file path}
         {--base= : Base branch or commit to diff against (default: main)}
