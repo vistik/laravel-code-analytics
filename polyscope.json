@@ -3,7 +3,11 @@
         "run": [
             {
                 "label": "Analyze code",
-                "command": "./testbench code:analyze --open"
+                "command": "./testbench code:analyze --format=html --open"
+            },
+            {
+                "label": "Analyze code (MD)",
+                "command": "./testbench code:analyze --format=md --open"
             },
             {
                 "label": "Run tests",

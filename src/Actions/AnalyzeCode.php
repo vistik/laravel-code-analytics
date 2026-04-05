@@ -81,6 +81,7 @@ class AnalyzeCode
         ?string $prUrl = null,
         ?string $title = null,
         ?string $view = null,
+        string $format = 'html',
         ?Closure $onProgress = null,
     ): array {
         $this->onProgress = $onProgress;
@@ -518,47 +519,74 @@ class AnalyzeCode
         // ── Compute overall risk score ────────────────────────────────────────
         $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots);
 
-        // ── Generate HTML ─────────────────────────────────────────────────────
-        $this->progress('info', 'Generating HTML...');
-
+        // ── Generate report ───────────────────────────────────────────────────
         $outputDir = base_path('output');
         if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }
 
-        if ($outputPath === null) {
-            if ($this->repoDir !== null) {
-                // PR URL mode — use "pr-{number}" as the filename
-                $prNumSafe = preg_replace('/[^0-9]/', '', $this->branchName);
-                $outputPath = "{$outputDir}/pr-{$prNumSafe}.html";
-            } else {
-                $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
-                $outputPath = "{$outputDir}/local-{$safeBranch}.html";
-            }
-        }
+        if ($format === 'md') {
+            $this->progress('info', 'Generating Markdown report...');
 
-        $generator->writeSingleFile(
-            nodes: $nodes,
-            edges: $this->edges,
-            fileDiffs: $fileDiffs,
-            analysisData: $analysisData,
-            prNumber: $this->branchName,
-            prTitle: $prTitle,
-            prUrl: $prLinkUrl,
-            prAdditions: $totalAdditions,
-            prDeletions: $totalDeletions,
-            repo: $repoName,
-            headCommit: $this->headCommit,
-            fileCount: $fileCount,
-            connectedCount: 0,
-            extTogglesHtml: $extTogglesHtml,
-            folderTogglesHtml: $folderTogglesHtml,
-            severityTogglesHtml: $severityTogglesHtml,
-            outputPath: $outputPath,
-            riskScore: $riskResult,
-            metricsData: $metricsData,
-            defaultView: $view ?? 'grouped',
-        );
+            if ($outputPath === null) {
+                $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
+                $outputPath = $this->repoDir !== null
+                    ? "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).'.md'
+                    : "{$outputDir}/local-{$safeBranch}.md";
+            }
+
+            $mdGenerator = new GenerateMdReport;
+            $mdContent = $mdGenerator->execute(
+                nodes: $nodes,
+                edges: $this->edges,
+                fileDiffs: $fileDiffs,
+                analysisData: $analysisData,
+                title: $prTitle,
+                repo: $repoName,
+                headCommit: $this->headCommit,
+                prAdditions: $totalAdditions,
+                prDeletions: $totalDeletions,
+                fileCount: $fileCount,
+                riskScore: $riskResult,
+                metricsData: $metricsData,
+            );
+            $mdGenerator->writeFile($outputPath, $mdContent);
+        } else {
+            $this->progress('info', 'Generating HTML...');
+
+            if ($outputPath === null) {
+                if ($this->repoDir !== null) {
+                    $prNumSafe = preg_replace('/[^0-9]/', '', $this->branchName);
+                    $outputPath = "{$outputDir}/pr-{$prNumSafe}.html";
+                } else {
+                    $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
+                    $outputPath = "{$outputDir}/local-{$safeBranch}.html";
+                }
+            }
+
+            $generator->writeSingleFile(
+                nodes: $nodes,
+                edges: $this->edges,
+                fileDiffs: $fileDiffs,
+                analysisData: $analysisData,
+                prNumber: $this->branchName,
+                prTitle: $prTitle,
+                prUrl: $prLinkUrl,
+                prAdditions: $totalAdditions,
+                prDeletions: $totalDeletions,
+                repo: $repoName,
+                headCommit: $this->headCommit,
+                fileCount: $fileCount,
+                connectedCount: 0,
+                extTogglesHtml: $extTogglesHtml,
+                folderTogglesHtml: $folderTogglesHtml,
+                severityTogglesHtml: $severityTogglesHtml,
+                outputPath: $outputPath,
+                riskScore: $riskResult,
+                metricsData: $metricsData,
+                defaultView: $view ?? 'grouped',
+            );
+        }
 
         $this->progress('line', "  Generated: {$outputPath}");
         $this->progress('info', 'Done!');

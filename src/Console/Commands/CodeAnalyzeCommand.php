@@ -14,12 +14,13 @@ class CodeAnalyzeCommand extends Command
 {
     protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}
-        {output? : Output HTML file path}
+        {output? : Output file path (HTML or Markdown depending on --format)}
         {--base= : Base branch or commit to diff against (default: main)}
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
-        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, open, file_groups)}
+        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups)}
+        {--format=html : Output format: html or md}
         {--open : Open the generated file in the browser when done}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
@@ -34,6 +35,7 @@ class CodeAnalyzeCommand extends Command
             $baseBranch = $this->option('base') ?? $config['base'] ?? 'main';
             $title = $this->option('title') ?? $config['title'] ?? null;
             $view = $this->option('view') ?? $config['view'] ?? null;
+            $format = $this->option('format') ?? $config['format'] ?? 'html';
             $openFile = $this->option('open') || ($config['open'] ?? false);
 
             if (isset($config['file_groups'])) {
@@ -49,6 +51,7 @@ class CodeAnalyzeCommand extends Command
                 prUrl: $prUrl ?: null,
                 title: $title,
                 view: $view,
+                format: $format,
                 onProgress: function (string $level, string $message): void {
                     match ($level) {
                         'info' => $this->info($message),
