@@ -14,6 +14,8 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
+use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
 use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
@@ -23,6 +25,8 @@ use Vistik\LaravelCodeAnalytics\Support\PhpMetricsRunner;
 class AnalyzeCode
 {
     private RiskScoring $riskScorer;
+
+    private FileSignalScoring $fileSignalScorer;
 
     private string $repoPath;
 
@@ -61,8 +65,10 @@ class AnalyzeCode
     public function __construct(
         private readonly FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
         ?RiskScoring $riskScorer = null,
+        ?FileSignalScoring $fileSignalScorer = null,
     ) {
         $this->riskScorer = $riskScorer ?? new CalculateRiskScore;
+        $this->fileSignalScorer = $fileSignalScorer ?? new CalculateFileSignal;
     }
 
     /**
@@ -499,7 +505,17 @@ class AnalyzeCode
             $fileDiffs[$m[1]] = substr($block, $hunkStart);
         }
 
-        // ── Compute risk score ────────────────────────────────────────────────
+        // ── Compute per-file signal score ─────────────────────────────────────
+        foreach ($nodes as &$node) {
+            $node['_signal'] = $this->fileSignalScorer->calculate(
+                $node,
+                $analysisData[$node['path']] ?? [],
+                $metricsData[$node['path']] ?? null,
+            );
+        }
+        unset($node);
+
+        // ── Compute overall risk score ────────────────────────────────────────
         $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots);
 
         // ── Generate HTML ─────────────────────────────────────────────────────

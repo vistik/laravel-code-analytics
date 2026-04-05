@@ -88,8 +88,13 @@
   }
   .file-col-label { display: none; }
   .files-header-row { display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #21262d; font-size: 9px; color: #484f58; text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0; }
-  .file-col-risk { width: 44px; flex-shrink: 0; text-align: center; }
-  .file-col-risk .file-col-val { font-weight: 700; font-size: 16px; line-height: 1; }
+  .file-col-signal { width: 44px; flex-shrink: 0; text-align: center; position: relative; }
+  .file-col-signal .file-col-val { font-weight: 700; font-size: 16px; line-height: 1; cursor: default; }
+  .signal-tooltip { display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 200; min-width: 180px; white-space: nowrap; }
+  .file-col-signal:hover .signal-tooltip { display: block; }
+  .signal-tooltip-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: #8b949e; line-height: 1.8; }
+  .signal-tooltip-row .label { display: flex; align-items: center; gap: 5px; }
+  .signal-tooltip-row .val { color: #e6edf3; font-weight: 600; }
   .file-col-name { flex: 1; }
   .file-name-main {
     display: flex; align-items: center; gap: 6px;
@@ -123,8 +128,8 @@
   .files-panel.narrow .file-col-status,
   .files-panel.narrow .file-col-metric { display: none; }
   .files-panel.narrow .file-col-review { width: 24px; }
-  .files-panel.narrow .file-col-risk { width: 34px; }
-  .files-panel.narrow .file-col-risk .file-col-val { font-size: 13px; }
+  .files-panel.narrow .file-col-signal { width: 34px; }
+  .files-panel.narrow .file-col-signal .file-col-val { font-size: 13px; }
   .files-panel.narrow .file-col-changes { width: 54px; }
   .files-panel.narrow .file-changes { font-size: 11px; }
   .files-panel.narrow .file-col-findings { width: 50px; }
@@ -134,9 +139,9 @@
   .files-panel.very-narrow .file-col-metric,
   .files-panel.very-narrow .file-col-findings,
   .files-panel.very-narrow .file-col-changes { display: none; }
-  .files-panel.very-narrow .file-col-risk { width: 30px; }
-  .files-panel.very-narrow .file-col-risk .file-col-val { font-size: 12px; }
-  .files-panel.very-narrow .files-header-row .file-col-risk { display: none; }
+  .files-panel.very-narrow .file-col-signal { width: 30px; }
+  .files-panel.very-narrow .file-col-signal .file-col-val { font-size: 12px; }
+  .files-panel.very-narrow .files-header-row .file-col-signal { display: none; }
   .files-panel.very-narrow .file-name-main { font-size: 12px; }
 </style>
 </head>
@@ -171,7 +176,7 @@
     <div class="files-toolbar">
       <input type="text" class="files-search" id="filesSearch" placeholder="Filter files...">
       <select id="filesSort">
-        <option value="risk">Risk</option>
+        <option value="signal">Signal</option>
         <option value="severity">Severity</option>
         <option value="changes">Changes</option>
         <option value="name">Name</option>
@@ -211,27 +216,7 @@
 
   document.querySelectorAll('.tab[data-layout]').forEach(t => t.addEventListener('click', () => show(t.dataset.layout)));
 
-  // ── File risk scoring ──
-  const sevWeight = { very_high: 40, high: 25, medium: 10, low: 3, info: 0 };
-
-  function fileRiskScore(n) {
-    var score = 0;
-    var a = filesAnalysis[n.path];
-    if (a) {
-      for (var i = 0; i < a.length; i++) score += sevWeight[a[i].severity] || 0;
-    }
-    score += Math.sqrt(n.add + n.del) * 2;
-    var m = filesMetrics[n.path];
-    if (m) {
-      if (m.cc > 10) score += (m.cc - 10) * 2;
-      if (m.mi != null && m.mi < 65) score += (65 - m.mi) * 0.5;
-    }
-    if (n.watchLevel === 'dangerous') score += 20;
-    else if (n.watchLevel === 'important') score += 10;
-    return Math.round(score);
-  }
-
-  function riskColor(score) {
+  function signalColor(score) {
     if (score >= 60) return '#f85149';
     if (score >= 30) return '#d29922';
     if (score >= 10) return '#58a6ff';
@@ -249,9 +234,9 @@
   var reviewedFiles = new Set();
   var showReviewed = false;
   var changedFiles = filesNodes.filter(function(n) { return !n.isConnected; });
-  changedFiles.forEach(function(n) { n._risk = fileRiskScore(n); });
+  changedFiles.forEach(function(n) { n._signal = n._signal || 0; });
 
-  var currentSort = 'risk';
+  var currentSort = 'signal';
   var currentDir = -1; // descending
 
   function sortFiles(col) {
@@ -262,7 +247,7 @@
 
   function getSort(n) {
     switch (currentSort) {
-      case 'risk': return n._risk;
+      case 'signal': return n._signal;
       case 'severity': return (n.veryHighCount * 10000) + (n.highCount * 1000) + (n.mediumCount * 100) + (n.lowCount * 10) + n.infoCount;
       case 'changes': return n.add + n.del;
       case 'name': return n.id.toLowerCase();
@@ -271,6 +256,34 @@
       case 'status': return n.status;
       default: return 0;
     }
+  }
+
+  function buildSignalTooltip(n, m) {
+    var rows = '';
+    var sevs = [['very_high', n.veryHighCount], ['high', n.highCount], ['medium', n.mediumCount], ['low', n.lowCount], ['info', n.infoCount]];
+    for (var i = 0; i < sevs.length; i++) {
+      var sev = sevs[i][0], count = sevs[i][1];
+      if (!count) continue;
+      var pts = count * (sevScores[sev] || 0);
+      rows += '<div class="signal-tooltip-row">'
+        + '<span class="label"><span style="width:6px;height:6px;border-radius:50%;background:' + sevColors[sev] + ';display:inline-block;flex-shrink:0"></span>' + sevLabels[sev] + ' &times; ' + count + '</span>'
+        + '<span class="val">+' + pts + '</span>'
+        + '</div>';
+    }
+    var changePts = Math.round(Math.sqrt(n.add + n.del) * 2);
+    if (changePts) {
+      rows += '<div class="signal-tooltip-row"><span class="label">Changes</span><span class="val">+' + changePts + '</span></div>';
+    }
+    if (m) {
+      if ((m.cc || 0) > 10) {
+        rows += '<div class="signal-tooltip-row"><span class="label">Complexity (CC)</span><span class="val">+' + Math.round((m.cc - 10) * 2) + '</span></div>';
+      }
+      if (m.mi != null && m.mi < 65) {
+        rows += '<div class="signal-tooltip-row"><span class="label">Maintainability (MI)</span><span class="val">+' + Math.round((65 - m.mi) * 0.5) + '</span></div>';
+      }
+    }
+    if (!rows) return '';
+    return '<div class="signal-tooltip">' + rows + '</div>';
   }
 
   function renderFileList() {
@@ -294,7 +307,7 @@
       var n = list[i];
       var m = filesMetrics[n.path] || {};
       var st = statusStyles[n.status] || statusStyles.modified;
-      var rc = riskColor(n._risk);
+      var rc = signalColor(n._signal);
 
       var sevHtml = '';
       if (n.veryHighCount > 0) sevHtml += '<span class="file-sev-dot"><span style="background:' + sevColors.very_high + '"></span>' + n.veryHighCount + '</span>';
@@ -325,7 +338,7 @@
       }
       html += '<div class="file-row" data-node-id="' + n.id.replace(/"/g, '&quot;') + '">' +
         '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button></div>' +
-        '<div class="file-col file-col-risk"><span class="file-col-label">Risk</span><span class="file-col-val" style="color:' + rc + '">' + n._risk + '</span></div>' +
+        '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span>' + buildSignalTooltip(n, filesMetrics[n.path] || null) + '</div>' +
         '<div class="file-col file-col-name">' +
           '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + n.id.replace(/</g, '&lt;') + '</div>' +
           '<div class="file-name-path">' + n.path.replace(/</g, '&lt;') + '</div>' +
