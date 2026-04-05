@@ -90,10 +90,7 @@
   .file-col-label { display: none; }
   .files-header-row { display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #21262d; font-size: 9px; color: #484f58; text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0; }
   .file-col-signal { width: 44px; flex-shrink: 0; text-align: center; position: relative; z-index: 1; }
-  .file-col-signal:hover { z-index: 201; }
   .file-col-signal .file-col-val { font-weight: 700; font-size: 16px; line-height: 1; cursor: default; }
-  .signal-tooltip { display: none; position: absolute; top: calc(100% + 6px); right: -8px; left: auto; transform: none; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 200; min-width: 180px; white-space: nowrap; }
-  .file-col-signal:hover .signal-tooltip { display: block; }
   .signal-tooltip-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: #8b949e; line-height: 1.8; }
   .signal-tooltip-row .label { display: flex; align-items: center; gap: 5px; }
   .signal-tooltip-row .val { color: #e6edf3; font-weight: 600; }
@@ -260,7 +257,14 @@
     }
   }
 
-  function buildSignalTooltip(n, m) {
+  var signalTips = {};
+
+  // Global signal tooltip element, positioned by JS on mousemove
+  var signalTipEl = document.createElement('div');
+  signalTipEl.style.cssText = 'position:fixed;display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:9999;min-width:180px;white-space:nowrap;pointer-events:none;';
+  document.body.appendChild(signalTipEl);
+
+  function buildSignalTipRows(n, m) {
     var rows = '';
     var sevs = [['very_high', n.veryHighCount], ['high', n.highCount], ['medium', n.mediumCount], ['low', n.lowCount], ['info', n.infoCount]];
     for (var i = 0; i < sevs.length; i++) {
@@ -284,8 +288,7 @@
         rows += '<div class="signal-tooltip-row"><span class="label">Maintainability (MI)</span><span class="val">+' + Math.round((65 - m.mi) * 0.5) + '</span></div>';
       }
     }
-    if (!rows) return '';
-    return '<div class="signal-tooltip">' + rows + '</div>';
+    return rows;
   }
 
   function renderFileList() {
@@ -304,6 +307,7 @@
 
     document.getElementById('filesSort').value = currentSort;
 
+    signalTips = {};
     var html = '';
     for (var i = 0; i < list.length; i++) {
       var n = list[i];
@@ -338,9 +342,11 @@
                   : '<span style="color:#484f58;font-size:10px;margin-left:3px">\u2192</span>';
         }
       }
+      var tipRows = buildSignalTipRows(n, filesMetrics[n.path] || null);
+      if (tipRows) signalTips[n.id] = tipRows;
       html += '<div class="file-row" data-node-id="' + n.id.replace(/"/g, '&quot;') + '">' +
         '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button></div>' +
-        '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span>' + buildSignalTooltip(n, filesMetrics[n.path] || null) + '</div>' +
+        '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span></div>' +
         '<div class="file-col file-col-name">' +
           '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + n.id.replace(/</g, '&lt;') + '</div>' +
           '<div class="file-name-path">' + n.path.replace(/</g, '&lt;') + '</div>' +
@@ -404,6 +410,29 @@
       renderFileList();
     }
   }
+
+  // ── Signal tooltip mouse tracking ──
+  document.getElementById('filesRows').addEventListener('mousemove', function(e) {
+    var sigCol = e.target.closest('.file-col-signal');
+    if (!sigCol) { signalTipEl.style.display = 'none'; return; }
+    var row = sigCol.closest('.file-row');
+    if (!row) { signalTipEl.style.display = 'none'; return; }
+    var tip = signalTips[row.dataset.nodeId];
+    if (!tip) { signalTipEl.style.display = 'none'; return; }
+    signalTipEl.innerHTML = tip;
+    signalTipEl.style.display = 'block';
+    var x = e.clientX + 18;
+    var y = e.clientY + 8;
+    var tipW = signalTipEl.offsetWidth;
+    var tipH = signalTipEl.offsetHeight;
+    if (x + tipW > window.innerWidth - 8) x = e.clientX - tipW - 8;
+    if (y + tipH > window.innerHeight - 8) y = window.innerHeight - tipH - 8;
+    signalTipEl.style.left = x + 'px';
+    signalTipEl.style.top = y + 'px';
+  });
+  document.getElementById('filesRows').addEventListener('mouseleave', function() {
+    signalTipEl.style.display = 'none';
+  });
 
   // ── Wire events ──
   document.getElementById('filesSearch').addEventListener('input', renderFileList);
