@@ -2,11 +2,11 @@
 
 namespace Vistik\LaravelCodeAnalytics\RiskScoring;
 
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\ChangeSizeFactor;
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\DeletionRatioFactor;
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\FileSpreadFactor;
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\PhpMetricsFactor;
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\SeverityFindingsFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\ChangeSizeFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\DeletionRatioFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\FileSpreadFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\PhpMetricsFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\SeverityFindingsFactor;
 
 class CalculateRiskScore implements RiskScoring
 {

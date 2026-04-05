@@ -4,7 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Console\Commands;
 
 use Illuminate\Console\Command;
 use RuntimeException;
-use Vistik\LaravelCodeAnalytics\Actions\MakeLocalAnalysis;
+use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
@@ -24,7 +24,7 @@ class CodeAnalyzeCommand extends Command
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
-    public function handle(MakeLocalAnalysis $action): int
+    public function handle(AnalyzeCode $action): int
     {
         try {
             $config = $this->loadConfig();
@@ -37,7 +37,7 @@ class CodeAnalyzeCommand extends Command
             $openFile = $this->option('open') || ($config['open'] ?? false);
 
             if (isset($config['file_groups'])) {
-                $action = new MakeLocalAnalysis(groupResolver: $this->resolveGroupResolver($config));
+                $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($config));
             }
 
             $prUrl = $this->option('pr');

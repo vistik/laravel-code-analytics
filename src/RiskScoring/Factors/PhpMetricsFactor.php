@@ -1,6 +1,6 @@
 <?php
 
-namespace Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors;
+namespace Vistik\LaravelCodeAnalytics\RiskScoring\Factors;
 
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskData;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;

@@ -20,16 +20,9 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetricsRunner;
 
-class MakeLocalAnalysis
+class AnalyzeCode
 {
     private RiskScoring $riskScorer;
-
-    public function __construct(
-        private readonly FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
-        ?RiskScoring $riskScorer = null,
-    ) {
-        $this->riskScorer = $riskScorer ?? new CalculateRiskScore;
-    }
 
     private string $repoPath;
 
@@ -64,6 +57,13 @@ class MakeLocalAnalysis
     private array $edgeSet = [];
 
     private ?Closure $onProgress;
+
+    public function __construct(
+        private readonly FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
+        ?RiskScoring $riskScorer = null,
+    ) {
+        $this->riskScorer = $riskScorer ?? new CalculateRiskScore;
+    }
 
     /**
      * @return array{files: array<string, string>, risk: RiskScore}
@@ -225,7 +225,7 @@ class MakeLocalAnalysis
         unset($node);
 
         // ── Collect extensions, domains, severity counts ─────────────────────
-        $generator = new GenerateAnalysisHtml;
+        $generator = new GenerateHtmlReport;
 
         $domainPalette = [
             '#3fb950', '#58a6ff', '#d29922', '#f78166', '#d2a8ff',

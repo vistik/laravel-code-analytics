@@ -18,7 +18,7 @@ use Vistik\LaravelCodeAnalytics\Renderers\LayoutRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\TreeRenderer;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
-class GenerateAnalysisHtml
+class GenerateHtmlReport
 {
     /** @var array<string, LayoutRenderer> */
     public const RENDERERS = [
