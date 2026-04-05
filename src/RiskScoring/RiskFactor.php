@@ -2,7 +2,7 @@
 
 namespace Vistik\LaravelCodeAnalytics\RiskScoring;
 
-interface LocalRiskFactor
+interface RiskFactor
 {
     public function name(): string;
 

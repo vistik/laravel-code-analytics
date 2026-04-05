@@ -2,10 +2,10 @@
 
 namespace Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors;
 
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalRiskFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskData;
 
-class DeletionRatioFactor implements LocalRiskFactor
+class DeletionRatioFactor implements RiskFactor
 {
     public function name(): string
     {

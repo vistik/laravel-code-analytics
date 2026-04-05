@@ -14,7 +14,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
-use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateLocalRiskScore;
+use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
@@ -28,7 +28,7 @@ class MakeLocalAnalysis
         private readonly FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
         ?RiskScoring $riskScorer = null,
     ) {
-        $this->riskScorer = $riskScorer ?? new CalculateLocalRiskScore;
+        $this->riskScorer = $riskScorer ?? new CalculateRiskScore;
     }
 
     private string $repoPath;

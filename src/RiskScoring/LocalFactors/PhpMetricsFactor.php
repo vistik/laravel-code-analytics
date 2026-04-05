@@ -2,10 +2,10 @@
 
 namespace Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors;
 
-use Vistik\LaravelCodeAnalytics\RiskScoring\LocalRiskFactor;
+use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskData;
 
-class PhpMetricsFactor implements LocalRiskFactor
+class PhpMetricsFactor implements RiskFactor
 {
     public function name(): string
     {

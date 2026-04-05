@@ -10,7 +10,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
-class AnalyzeLocalCommand extends Command
+class CodeAnalyzeCommand extends Command
 {
     protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}

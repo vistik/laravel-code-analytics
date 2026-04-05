@@ -8,9 +8,9 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\FileSpreadFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\PhpMetricsFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors\SeverityFindingsFactor;
 
-class CalculateLocalRiskScore implements RiskScoring
+class CalculateRiskScore implements RiskScoring
 {
-    /** @var list<LocalRiskFactor> */
+    /** @var list<RiskFactor> */
     private array $factors;
 
     public function __construct()

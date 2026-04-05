@@ -3,7 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics;
 
 use Illuminate\Support\ServiceProvider;
-use Vistik\LaravelCodeAnalytics\Console\Commands\AnalyzeLocalCommand;
+use Vistik\LaravelCodeAnalytics\Console\Commands\CodeAnalyzeCommand;
 
 class LaravelCodeAnalyticsServiceProvider extends ServiceProvider
 {
@@ -11,7 +11,7 @@ class LaravelCodeAnalyticsServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
-                AnalyzeLocalCommand::class,
+                CodeAnalyzeCommand::class,
             ]);
 
             $this->publishes([
