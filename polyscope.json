@@ -1,11 +1,5 @@
 {
     "scripts": {
-        "setup": [
-
-        ],
-        "archive": [
-            
-        ],
         "run": [
             {
                 "label": "Analyze code",
