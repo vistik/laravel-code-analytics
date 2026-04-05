@@ -92,7 +92,7 @@
   .file-col-signal { width: 44px; flex-shrink: 0; text-align: center; position: relative; z-index: 1; }
   .file-col-signal:hover { z-index: 201; }
   .file-col-signal .file-col-val { font-weight: 700; font-size: 16px; line-height: 1; cursor: default; }
-  .signal-tooltip { display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 200; min-width: 180px; white-space: nowrap; }
+  .signal-tooltip { display: none; position: absolute; top: calc(100% + 6px); right: -8px; left: auto; transform: none; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 200; min-width: 180px; white-space: nowrap; }
   .file-col-signal:hover .signal-tooltip { display: block; }
   .signal-tooltip-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: #8b949e; line-height: 1.8; }
   .signal-tooltip-row .label { display: flex; align-items: center; gap: 5px; }
