@@ -86,7 +86,8 @@
     display: flex; flex-direction: column; justify-content: center;
     padding: 0 8px; min-width: 0;
   }
-  .file-col-label { font-size: 9px; color: #484f58; text-transform: uppercase; letter-spacing: 0.3px; line-height: 1; margin-bottom: 3px; }
+  .file-col-label { display: none; }
+  .files-header-row { display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #21262d; font-size: 9px; color: #484f58; text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0; }
   .file-col-risk { width: 44px; flex-shrink: 0; text-align: center; }
   .file-col-risk .file-col-val { font-weight: 700; font-size: 16px; line-height: 1; }
   .file-col-name { flex: 1; }
@@ -135,7 +136,7 @@
   .files-panel.very-narrow .file-col-changes { display: none; }
   .files-panel.very-narrow .file-col-risk { width: 30px; }
   .files-panel.very-narrow .file-col-risk .file-col-val { font-size: 12px; }
-  .files-panel.very-narrow .file-col-risk .file-col-label { display: none; }
+  .files-panel.very-narrow .files-header-row .file-col-risk { display: none; }
   .files-panel.very-narrow .file-name-main { font-size: 12px; }
 </style>
 </head>
@@ -177,6 +178,16 @@
         <option value="cc">CC</option>
         <option value="mi">MI</option>
       </select>
+    </div>
+    <div class="files-header-row">
+      <div class="file-col file-col-review"></div>
+      <div class="file-col file-col-risk">Risk</div>
+      <div class="file-col file-col-name"></div>
+      <div class="file-col file-col-status">Status</div>
+      <div class="file-col file-col-changes">Changes</div>
+      <div class="file-col file-col-findings">Findings</div>
+      <div class="file-col file-col-metric">CC</div>
+      <div class="file-col file-col-metric">MI</div>
     </div>
     <div class="files-scroll" id="filesScroll">
       <div id="filesRows"></div>
