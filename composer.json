@@ -1,8 +1,8 @@
 {
     "name": "vistik/laravel-code-analytics",
-    "description": "This is my package laravel-code-analytics",
+    "description": "AST-based code analysis, risk scoring, and interactive HTML visualizations for Laravel git diffs.",
     "keywords": [
-        "Vistik",
+        "vistik",
         "laravel",
         "laravel-code-analytics"
     ],
@@ -16,9 +16,10 @@
         }
     ],
     "require": {
-        "php": "^8.4",
-        "spatie/laravel-package-tools": "^1.16",
-        "illuminate/contracts": "^11.0||^12.0"
+        "php": "^8.2",
+        "laravel/framework": "^11.0|^12.0|^13.0",
+        "nikic/php-parser": "^5.0",
+        "phpmetrics/phpmetrics": "^2.9"
     },
     "require-dev": {
         "laravel/pint": "^1.14",
@@ -34,8 +35,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Vistik\\LaravelCodeAnalytics\\": "src/",
-            "Vistik\\LaravelCodeAnalytics\\Database\\Factories\\": "database/factories/"
+            "Vistik\\LaravelCodeAnalytics\\": "src/"
         }
     },
     "autoload-dev": {
@@ -63,10 +63,7 @@
         "laravel": {
             "providers": [
                 "Vistik\\LaravelCodeAnalytics\\LaravelCodeAnalyticsServiceProvider"
-            ],
-            "aliases": {
-                "LaravelCodeAnalytics": "Vistik\\LaravelCodeAnalytics\\Facades\\LaravelCodeAnalytics"
-            }
+            ]
         }
     },
     "minimum-stability": "dev",

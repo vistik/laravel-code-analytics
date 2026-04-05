@@ -2,24 +2,29 @@
 
 namespace Vistik\LaravelCodeAnalytics;
 
-use Spatie\LaravelPackageTools\Package;
-use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Vistik\LaravelCodeAnalytics\Commands\LaravelCodeAnalyticsCommand;
+use Illuminate\Support\ServiceProvider;
+use Vistik\LaravelCodeAnalytics\Console\Commands\AnalyzeLocalCommand;
 
-class LaravelCodeAnalyticsServiceProvider extends PackageServiceProvider
+class LaravelCodeAnalyticsServiceProvider extends ServiceProvider
 {
-    public function configurePackage(Package $package): void
+    public function boot(): void
     {
-        /*
-         * This class is a Package Service Provider
-         *
-         * More info: https://github.com/spatie/laravel-package-tools
-         */
-        $package
-            ->name('laravel-code-analytics')
-            ->hasConfigFile()
-            ->hasViews()
-            ->hasMigration('create_laravel_code_analytics_table')
-            ->hasCommand(LaravelCodeAnalyticsCommand::class);
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                AnalyzeLocalCommand::class,
+            ]);
+
+            $this->publishes([
+                __DIR__.'/../config/laravel-code-analytics.php' => config_path('laravel-code-analytics.php'),
+            ], 'laravel-code-analytics-config');
+        }
+    }
+
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__.'/../config/laravel-code-analytics.php',
+            'laravel-code-analytics'
+        );
     }
 }
