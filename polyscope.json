@@ -3,7 +3,7 @@
         "run": [
             {
                 "label": "Analyze code",
-                "command": "php -d memory_limit=4G artisan analyze:local --open"
+                "command": "./testbench code:analyze --open"
             },
             {
                 "label": "Run tests",
