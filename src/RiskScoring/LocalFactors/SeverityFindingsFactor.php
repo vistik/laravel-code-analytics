@@ -2,8 +2,8 @@
 
 namespace Vistik\LaravelCodeAnalytics\RiskScoring\LocalFactors;
 
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskData;
+use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 
 class SeverityFindingsFactor implements RiskFactor
 {
