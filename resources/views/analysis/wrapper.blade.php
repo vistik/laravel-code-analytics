@@ -80,8 +80,9 @@
   .file-row {
     display: flex; align-items: stretch; gap: 0; padding: 10px 16px;
     border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.1s;
+    position: relative; z-index: 0;
   }
-  .file-row:hover { background: #21262d; }
+  .file-row:hover { background: #21262d; z-index: 10; }
   .file-col {
     display: flex; flex-direction: column; justify-content: center;
     padding: 0 8px; min-width: 0;
