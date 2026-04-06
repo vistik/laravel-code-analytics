@@ -297,10 +297,25 @@ class AnalyzeCode
         // ── Build dependency maps ────────────────────────────────────────────
         $this->progress('info', 'Extracting dependencies...');
 
+        // Build FQCN → path map from actual file contents so any namespace structure works
+        $fqcnToFilePath = [];
+        foreach ($headContents as $path => $content) {
+            if ($content === null || $content === '' || ! str_ends_with($path, '.php')) {
+                continue;
+            }
+            $fqcn = $this->extractFqcnFromContent($content);
+            if ($fqcn !== null) {
+                $fqcnToFilePath[$fqcn] = $path;
+            }
+        }
+
+        // Also build path → FQCN reverse map for fqcnToNode building
+        $filePathToFqcn = array_flip($fqcnToFilePath);
+
         foreach ($nodes as $node) {
             $this->pathToNode[$node['path']] = $node['id'];
             if (str_ends_with($node['path'], '.php')) {
-                $fqcn = $this->pathToFqcn($node['path']);
+                $fqcn = $filePathToFqcn[$node['path']] ?? $this->pathToFqcn($node['path']);
                 if ($fqcn) {
                     $this->fqcnToNode[$fqcn] = $node['id'];
                 }
@@ -436,8 +451,17 @@ class AnalyzeCode
             // Run on base state to get "before" metrics for diff display
             $metricsBefore = [];
             if (! empty($oldSources)) {
+                // Build FQCN → path map from old sources for correct path resolution
+                $oldFqcnToPath = [];
+                foreach ($oldSources as $path => $content) {
+                    if ($content === null || $content === '') continue;
+                    $fqcn = $this->extractFqcnFromContent($content);
+                    if ($fqcn !== null) {
+                        $oldFqcnToPath[$fqcn] = $path;
+                    }
+                }
                 foreach ((new PhpMetricsRunner)->run($oldSources) as $fqcn => $m) {
-                    $path = $this->fqcnToPath($fqcn);
+                    $path = $oldFqcnToPath[$fqcn] ?? $this->fqcnToPath($fqcn);
                     if ($path !== null) {
                         $metricsBefore[$path] = $m;
                     }
@@ -448,7 +472,7 @@ class AnalyzeCode
             $phpHotSpots = $this->countHotSpots($metricsByFqcn);
 
             foreach ($metricsByFqcn as $fqcn => $m) {
-                $path = $this->fqcnToPath($fqcn);
+                $path = $fqcnToFilePath[$fqcn] ?? $this->fqcnToPath($fqcn);
                 if ($path === null) {
                     continue;
                 }
@@ -997,5 +1021,17 @@ class AnalyzeCode
         }
 
         return null;
+    }
+
+    private function extractFqcnFromContent(string $content): ?string
+    {
+        if (! preg_match('/^namespace\s+([^;{]+)/m', $content, $nsMatch)) {
+            return null;
+        }
+        if (! preg_match('/^\s*(?:(?:abstract|final|readonly)\s+)*(?:class|interface|trait|enum)\s+(\w+)/m', $content, $classMatch)) {
+            return null;
+        }
+
+        return trim($nsMatch[1]).'\\'.trim($classMatch[1]);
     }
 }
