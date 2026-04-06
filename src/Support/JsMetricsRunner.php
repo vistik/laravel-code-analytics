@@ -61,8 +61,9 @@ class JsMetricsRunner
             return [];
         }
 
-        // Resolve script path relative to this file (works in both dev and vendor installs)
-        $script = dirname(__DIR__, 2).'/bin/jsmetrics.js';
+        // Resolve script path relative to this file (works in both dev and vendor installs).
+        // The bundle includes @babel/parser inline — no npm install needed in the host app.
+        $script = dirname(__DIR__, 2).'/bin/jsmetrics.bundle.js';
         if (! file_exists($script)) {
             Log::info('bin/jsmetrics.js not found, skipping JS metrics.');
 
