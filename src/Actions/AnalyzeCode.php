@@ -5,7 +5,6 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 use Closure;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
-use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
@@ -14,6 +13,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
+use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
 use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
@@ -1013,5 +1013,4 @@ class AnalyzeCode
 
         return trim($nsMatch[1]).'\\'.trim($classMatch[1]);
     }
-
 }

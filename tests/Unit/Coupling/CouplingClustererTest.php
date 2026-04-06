@@ -64,8 +64,8 @@ it('respects the limit parameter', function () {
     $pairs = [];
     for ($i = 0; $i < 20; $i++) {
         $base = $i * 3;
-        $pairs[] = ['file_a' => "file{$base}.php", 'file_b' => "file".($base + 1).".php"];
-        $pairs[] = ['file_a' => "file".($base + 1).".php", 'file_b' => "file".($base + 2).".php"];
+        $pairs[] = ['file_a' => "file{$base}.php", 'file_b' => 'file'.($base + 1).'.php'];
+        $pairs[] = ['file_a' => 'file'.($base + 1).'.php', 'file_b' => 'file'.($base + 2).'.php'];
     }
 
     $result = (new CouplingClusterer)->cluster($pairs, minClusterSize: 3, limit: 5);

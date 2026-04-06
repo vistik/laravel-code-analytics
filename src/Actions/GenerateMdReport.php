@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateMdReport implements ReportGenerator
@@ -133,7 +134,7 @@ class GenerateMdReport implements ReportGenerator
                 if (empty($algoClusters)) {
                     continue;
                 }
-                $algoLabel = \Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm::tryFrom($algoValue)?->label() ?? ucfirst($algoValue);
+                $algoLabel = ClusteringAlgorithm::tryFrom($algoValue)?->label() ?? ucfirst($algoValue);
                 $lines[] = '## Coupling Clusters — '.$algoLabel.' ('.count($algoClusters).')';
                 $lines[] = '';
                 foreach ($algoClusters as $i => $cluster) {

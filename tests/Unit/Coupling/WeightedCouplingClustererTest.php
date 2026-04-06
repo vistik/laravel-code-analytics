@@ -1,5 +1,6 @@
 <?php
 
+use Vistik\LaravelCodeAnalytics\Coupling\Clusterer;
 use Vistik\LaravelCodeAnalytics\Coupling\WeightedCouplingClusterer;
 
 it('returns empty array when no edges given', function () {
@@ -144,5 +145,5 @@ it('sorts clusters by size descending', function () {
 it('implements the Clusterer interface', function () {
     $clusterer = new WeightedCouplingClusterer;
 
-    expect($clusterer)->toBeInstanceOf(\Vistik\LaravelCodeAnalytics\Coupling\Clusterer::class);
+    expect($clusterer)->toBeInstanceOf(Clusterer::class);
 });

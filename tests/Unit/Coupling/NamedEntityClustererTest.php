@@ -1,5 +1,6 @@
 <?php
 
+use Vistik\LaravelCodeAnalytics\Coupling\Clusterer;
 use Vistik\LaravelCodeAnalytics\Coupling\NamedEntityClusterer;
 
 it('returns empty array when no nodes given', function () {
@@ -121,5 +122,5 @@ it('sorts clusters by size descending', function () {
 });
 
 it('implements the Clusterer interface', function () {
-    expect(new NamedEntityClusterer)->toBeInstanceOf(\Vistik\LaravelCodeAnalytics\Coupling\Clusterer::class);
+    expect(new NamedEntityClusterer)->toBeInstanceOf(Clusterer::class);
 });

@@ -4,13 +4,13 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\FileMetrics;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\HotspotRatioBadgeDecider;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\MetricTrend;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsBadgeDeciderInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsScorerInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\WeightedDegradationScorer;
-use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
 use Vistik\LaravelCodeAnalytics\Renderers\ClusterRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\ForceGraphRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\GroupedRenderer;
