@@ -139,6 +139,11 @@
   }
   .file-review-btn:hover { background: #1a3a2a; color: #3fb950; border-color: #238636; }
   .file-review-btn.reviewed { background: #0d3520; color: #3fb950; border-color: #238636; }
+  .file-row-deleted { background: #130609; border-left: 3px solid #da3633; padding-left: 13px; }
+  .file-row-deleted:hover { background: #1c0b10; }
+  .file-row-deleted .file-name-text { text-decoration: line-through; text-decoration-color: #f85149; color: #8b949e; }
+  .file-row-deleted .file-name-path { opacity: 0.5; }
+  .file-deleted-icon { flex-shrink: 0; color: #f85149; opacity: 0.8; }
 
   /* ── Narrow panel (< 520px) ── */
   .files-panel.narrow .file-col-status,
@@ -391,11 +396,13 @@
       }
       var tipRows = buildSignalTipRows(n, filesMetrics[n.path] || null);
       if (tipRows) signalTips[n.id] = tipRows;
-      html += '<div class="file-row" data-node-id="' + n.id.replace(/"/g, '&quot;') + '">' +
+      var isDeleted = n.status === 'deleted';
+      var deletedIcon = isDeleted ? '<svg class="file-deleted-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z"/></svg>' : '';
+      html += '<div class="file-row' + (isDeleted ? ' file-row-deleted' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '">' +
         '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button></div>' +
         '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span></div>' +
         '<div class="file-col file-col-name">' +
-          '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span><span class="file-name-text">' + n.id.replace(/</g, '&lt;') + '</span>' + (n.ext ? '<span class="file-ext-badge">.' + n.ext + '</span>' : '') + '</div>' +
+          '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + deletedIcon + '<span class="file-name-text">' + n.id.replace(/</g, '&lt;') + '</span>' + (n.ext ? '<span class="file-ext-badge">.' + n.ext + '</span>' : '') + '</div>' +
           '<div class="file-name-path">' + n.path.replace(/</g, '&lt;') + '</div>' +
         '</div>' +
         '<div class="file-col file-col-status"><span class="file-col-label">Status</span><span class="file-col-val" style="color:' + st[1] + '">' + st[3] + '</span></div>' +
