@@ -2,6 +2,7 @@
 
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
+use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\FileMetrics;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\HotspotRatioBadgeDecider;
@@ -16,7 +17,6 @@ use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Renderers\LayoutRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\TreeRenderer;
-use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateHtmlReport implements ReportGenerator
