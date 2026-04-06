@@ -71,6 +71,18 @@
     font-size: 12px; padding: 4px 8px; border-radius: 6px; cursor: pointer;
   }
   .files-toolbar select:focus { outline: none; border-color: #58a6ff; }
+  .file-type-btn {
+    background: #21262d; border: 1px solid #30363d; color: #8b949e;
+    font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+    white-space: nowrap; transition: all 0.15s; font-family: ui-monospace, monospace;
+  }
+  .file-type-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
+  .file-type-btn.active { background: #0d1f38; border-color: #58a6ff; color: #58a6ff; }
+  .file-ext-badge {
+    font-size: 10px; font-family: ui-monospace, monospace; padding: 1px 5px;
+    border-radius: 4px; margin-left: 5px; vertical-align: middle; flex-shrink: 0;
+    background: #21262d; border: 1px solid #30363d; color: #6e7681;
+  }
   .files-search {
     background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
     font-size: 12px; padding: 5px 10px; border-radius: 6px; flex: 1; min-width: 0;
@@ -101,8 +113,9 @@
   .file-col-name { flex: 1; }
   .file-name-main {
     display: flex; align-items: center; gap: 6px;
-    font-size: 13px; font-weight: 500; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 13px; font-weight: 500; color: #e6edf3; overflow: hidden;
   }
+  .file-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .file-name-path { font-size: 11px; color: #484f58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
   .file-domain-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .file-col-status { width: 52px; flex-shrink: 0; text-align: center; }
@@ -178,6 +191,8 @@
     </div>
     <div class="files-toolbar">
       <input type="text" class="files-search" id="filesSearch" placeholder="Filter files...">
+      <button class="file-type-btn" id="filterJsJsx" onclick="toggleTypeFilter('js')" title="Show JS / JSX files only">JS/JSX</button>
+      <button class="file-type-btn" id="filterPhp" onclick="toggleTypeFilter('php')" title="Show PHP files only">PHP</button>
       <select id="filesSort">
         <option value="signal">Signal</option>
         <option value="severity">Severity</option>
@@ -247,6 +262,19 @@
 
   var currentSort = 'signal';
   var currentDir = -1; // descending
+  var activeTypeFilters = {}; // e.g. { js: true, php: true }
+
+  function toggleTypeFilter(type) {
+    if (activeTypeFilters[type]) {
+      delete activeTypeFilters[type];
+    } else {
+      activeTypeFilters = {};
+      activeTypeFilters[type] = true;
+    }
+    document.getElementById('filterJsJsx').classList.toggle('active', !!activeTypeFilters['js']);
+    document.getElementById('filterPhp').classList.toggle('active', !!activeTypeFilters['php']);
+    renderFileList();
+  }
 
   function sortFiles(col) {
     if (col === currentSort) { currentDir *= -1; }
@@ -305,8 +333,15 @@
 
   function renderFileList() {
     var filter = (document.getElementById('filesSearch').value || '').toLowerCase();
+    var hasTypeFilter = Object.keys(activeTypeFilters).length > 0;
     var list = changedFiles.filter(function(n) {
       if (!showReviewed && reviewedFiles.has(n.id)) return false;
+      if (hasTypeFilter) {
+        var ext = (n.ext || '').toLowerCase();
+        var match = (activeTypeFilters['js'] && (ext === 'js' || ext === 'jsx'))
+                 || (activeTypeFilters['php'] && ext === 'php');
+        if (!match) return false;
+      }
       if (!filter) return true;
       return n.id.toLowerCase().indexOf(filter) !== -1 || n.path.toLowerCase().indexOf(filter) !== -1;
     });
@@ -360,7 +395,7 @@
         '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button></div>' +
         '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span></div>' +
         '<div class="file-col file-col-name">' +
-          '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + n.id.replace(/</g, '&lt;') + '</div>' +
+          '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span><span class="file-name-text">' + n.id.replace(/</g, '&lt;') + '</span>' + (n.ext ? '<span class="file-ext-badge">.' + n.ext + '</span>' : '') + '</div>' +
           '<div class="file-name-path">' + n.path.replace(/</g, '&lt;') + '</div>' +
         '</div>' +
         '<div class="file-col file-col-status"><span class="file-col-label">Status</span><span class="file-col-val" style="color:' + st[1] + '">' + st[3] + '</span></div>' +
