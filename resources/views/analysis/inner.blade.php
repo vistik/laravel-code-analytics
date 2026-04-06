@@ -575,7 +575,7 @@ function openPanel(n) {
   var badgeText = sb[1];
 
   document.getElementById('panel-header').innerHTML =
-    '<div class="file-name">' + n.id + '</div>' +
+    '<div class="file-name"' + (n.status === 'deleted' ? ' style="text-decoration:line-through;text-decoration-color:#f85149;color:#8b949e"' : '') + '>' + n.id + '</div>' +
     '<div class="file-path">' + n.path + '</div>' +
     '<div class="badge-row">' +
       '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
@@ -1165,9 +1165,11 @@ function draw() {
       ctx.fillStyle = grad; ctx.fill();
     }
     if (n.status === 'deleted' && !n.isConnected) {
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2);
-      const grad = ctx.createRadialGradient(n.x, n.y, n.r, n.x, n.y, n.r + 6);
-      grad.addColorStop(0, '#f8514940'); grad.addColorStop(1, 'transparent');
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 16, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(n.x, n.y, n.r * 0.4, n.x, n.y, n.r + 16);
+      grad.addColorStop(0, dim ? '#f8514918' : '#f8514960');
+      grad.addColorStop(0.5, dim ? '#f8514908' : '#f8514930');
+      grad.addColorStop(1, 'transparent');
       ctx.fillStyle = grad; ctx.fill();
     }
     if (isPathSelected) {
@@ -1183,7 +1185,7 @@ function draw() {
     if (n.isConnected) {
       ctx.fillStyle = dim ? '#48405810' : ((isHov || isSel || isPathSelected) ? '#484f5860' : isPathNode ? '#484f5850' : '#484f5830');
     } else {
-      ctx.fillStyle = dim ? (n.color + '25') : (n.color + ((isHov || isSel || isPathSelected) ? 'ff' : isPathNode ? 'dd' : 'bb'));
+      ctx.fillStyle = dim ? (n.color + '25') : (n.color + ((isHov || isSel || isPathSelected) ? 'ff' : isPathNode ? 'dd' : (n.status === 'deleted' ? '65' : 'bb')));
     }
     ctx.fill();
     if (n.isConnected) {
@@ -1193,13 +1195,26 @@ function draw() {
       ctx.setLineDash([4, 3]); ctx.strokeStyle = dim ? (n.color + '25') : n.color;
       ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
     } else if (n.status === 'deleted') {
-      ctx.setLineDash([2, 4]); ctx.strokeStyle = dim ? '#f8514925' : '#f85149';
-      ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = dim ? '#f8514930' : '#f85149';
+      ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
     } else if (n.status === 'renamed') {
       ctx.setLineDash([6, 3]); ctx.strokeStyle = dim ? '#a5b4fc25' : '#a5b4fc';
       ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
     } else {
       ctx.strokeStyle = dim ? '#30363d30' : '#30363d'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    // Deleted X overlay
+    if (n.status === 'deleted' && !n.isConnected) {
+      const xOff = n.r * 0.48;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r - 2, 0, Math.PI * 2); ctx.clip();
+      ctx.beginPath();
+      ctx.moveTo(n.x - xOff, n.y - xOff); ctx.lineTo(n.x + xOff, n.y + xOff);
+      ctx.moveTo(n.x + xOff, n.y - xOff); ctx.lineTo(n.x - xOff, n.y + xOff);
+      ctx.strokeStyle = dim ? '#f8514920' : '#f8514970';
+      ctx.lineWidth = dim ? 1.5 : 2;
+      ctx.stroke();
+      ctx.restore();
     }
     // Severity indicator dot
     if (!dim && !n.isConnected && n.severity && n.severity !== 'info') {
@@ -1234,8 +1249,15 @@ function draw() {
 
     ctx.font = ((isHov || isSel || isPathSelected) ? 'bold ' : '') + fontSize + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = dim ? '#8b949e30' : (n.isConnected ? '#8b949e' : '#e6edf3');
+    ctx.fillStyle = dim ? '#8b949e30' : (n.isConnected ? '#8b949e' : (n.status === 'deleted' ? '#8b949ecc' : '#e6edf3'));
     ctx.fillText(n.displayLabel || n.id, n.x, labelY);
+    if (n.status === 'deleted' && !n.isConnected) {
+      const textW = ctx.measureText(n.displayLabel || n.id).width;
+      ctx.beginPath();
+      ctx.moveTo(n.x - textW / 2, labelY); ctx.lineTo(n.x + textW / 2, labelY);
+      ctx.strokeStyle = dim ? '#f8514925' : '#f8514990';
+      ctx.lineWidth = 1.5; ctx.stroke();
+    }
 
     if (hasFolder) {
       const subSize = Math.max(7, fontSize * 0.7);
