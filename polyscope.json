@@ -6,6 +6,10 @@
                 "command": "./testbench code:analyze --format=html --open"
             },
             {
+                "label": "Analyze code (Big PR)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4763 --format=html"
+            },
+            {
                 "label": "Analyze code (MD)",
                 "command": "./testbench code:analyze --format=md --open"
             },
