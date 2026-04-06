@@ -17,9 +17,13 @@
   .risk-score-denom { font-size: 11px; color: #6e7681; }
   .risk-label { font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid; font-weight: 500; }
   .risk-tooltip, .metrics-tooltip { display: none; position: absolute; top: calc(100% + 10px); right: 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; }
+  .risk-tooltip::before, .metrics-tooltip::before { content: ''; position: absolute; top: -12px; left: 0; right: 0; height: 12px; }
   .risk-tooltip { min-width: 210px; }
   .metrics-tooltip { white-space: nowrap; }
+  .metrics-tooltip tr[data-path] { cursor: pointer; }
+  .metrics-tooltip tr[data-path]:hover td { background: #1c2128; }
   .risk-badge:hover .risk-tooltip, .metrics-badge:hover .metrics-tooltip { display: block; }
+  .metrics-badge.tooltip-hidden .metrics-tooltip { display: none !important; }
   .topbar-badges { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
   .badge-divider { width: 1px; height: 24px; background: #30363d; }
   .tabs { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
@@ -497,6 +501,25 @@
       updateReviewedBadge();
       if (filesPanelEl.classList.contains('open')) renderFileList();
     }
+  });
+
+  // ── Metrics tooltip: click file to open it ──
+  document.addEventListener('click', function(e) {
+    var row = e.target.closest('.metrics-tooltip tr[data-path]');
+    if (!row) return;
+    var path = row.dataset.path;
+    var node = filesNodes.find(function(n) { return n.path === path; });
+    if (!node) return;
+    var badge = e.target.closest('.metrics-badge');
+    if (badge) {
+      badge.classList.add('tooltip-hidden');
+      badge.addEventListener('mouseleave', function clear() {
+        badge.classList.remove('tooltip-hidden');
+        badge.removeEventListener('mouseleave', clear);
+      });
+    }
+    var iframe = document.getElementById('view');
+    iframe.contentWindow.postMessage({ type: 'openFile', nodeId: node.id, fromFiles: false }, '*');
   });
 
   // ── Panel resize ──

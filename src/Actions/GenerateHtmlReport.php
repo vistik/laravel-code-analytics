@@ -249,7 +249,8 @@ class GenerateHtmlReport implements ReportGenerator
                 }
             }
 
-            if ($this->metricsScorer->isHotspot($current)) {
+            $isHotspot = $this->metricsScorer->isHotspot($current);
+            if ($isHotspot) {
                 $hotspotCount++;
             }
 
@@ -258,6 +259,7 @@ class GenerateHtmlReport implements ReportGenerator
                 'name' => basename($path),
                 'current' => $current,
                 'hasBefore' => $before !== null,
+                'isHotspot' => $isHotspot,
                 'metrics' => $m,
                 'deltas' => $deltas,
                 'degradationScore' => $this->metricsScorer->degradationScore($current, $before),
@@ -337,9 +339,13 @@ class GenerateHtmlReport implements ReportGenerator
             $newTag = ! $file['hasBefore']
                 ? '<span style="color:#3fb950;font-size:9px;font-weight:500;margin-right:5px">(new)</span>'
                 : '';
+            $hotspotDot = $file['isHotspot']
+                ? '<span style="color:#f85149;font-size:7px;margin-right:4px" title="hotspot">&#9679;</span>'
+                : '';
 
-            $rows .= '<tr>'
-                ."<td style=\"padding:2px 12px 2px 0;color:#c9d1d9;white-space:nowrap\">{$newTag}{$name}</td>"
+            $escapedPath = htmlspecialchars($file['path']);
+            $rows .= "<tr data-path=\"{$escapedPath}\">"
+                ."<td style=\"padding:2px 12px 2px 0;color:#c9d1d9;white-space:nowrap\">{$hotspotDot}{$newTag}{$name}</td>"
                 .$fmt('cc', $file['metrics'], $file['deltas'], true)
                 .$fmt('mi', $file['metrics'], $file['deltas'], false)
                 .$fmt('bugs', $file['metrics'], $file['deltas'], true)
