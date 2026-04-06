@@ -30,6 +30,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelMigrationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelNotificationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelQueueRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRouteRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelUnauthorizedRouteRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelServiceContainerRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelTableMigrationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MagicMethodRule;
@@ -84,6 +85,7 @@ class ChangeClassifier
                 new LaravelTableMigrationRule,
                 new LaravelDataMigrationRule,
                 new LaravelRouteRule,
+                new LaravelUnauthorizedRouteRule,
                 new LaravelEloquentRule,
                 new LaravelAuthRule,
                 new LaravelQueueRule,
