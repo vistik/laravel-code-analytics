@@ -81,6 +81,7 @@ class AnalyzeCode
         ?string $title = null,
         ?string $view = null,
         OutputFormat $format = OutputFormat::HTML,
+        ?Severity $minSeverity = null,
         ?Closure $onProgress = null,
     ): array {
         $this->onProgress = $onProgress;
@@ -528,6 +529,29 @@ class AnalyzeCode
             );
         }
         unset($node);
+
+        // ── Apply minSeverity filter ──────────────────────────────────────────
+        if ($minSeverity !== null) {
+            $minScore = $minSeverity->score();
+            $nodes = array_values(array_filter($nodes, function (array $node) use ($minScore): bool {
+                if ($node['severity'] === null) {
+                    return true;
+                }
+
+                return Severity::from($node['severity'])->score() >= $minScore;
+            }));
+
+            $filteredPaths = array_column($nodes, 'path');
+            $analysisData = array_intersect_key($analysisData, array_flip($filteredPaths));
+            $metricsData = array_intersect_key($metricsData, array_flip($filteredPaths));
+            $fileDiffs = array_intersect_key($fileDiffs, array_flip($filteredPaths));
+
+            $fileCount = count($nodes);
+            $totalAdditions = array_sum(array_column($nodes, 'add'));
+            $totalDeletions = array_sum(array_column($nodes, 'del'));
+
+            $this->progress('line', "  After min-severity filter ({$minSeverity->value}): {$fileCount} files.");
+        }
 
         // ── Compute overall risk score ────────────────────────────────────────
         $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots);
