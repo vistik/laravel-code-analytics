@@ -63,6 +63,7 @@ class CodeAnalyzeCommand extends Command
                 view: $view,
                 format: $format,
                 minSeverity: $minSeverity,
+                watchedFiles: $config['watched_files'] ?? null,
                 onProgress: function (string $level, string $message): void {
                     match ($level) {
                         'info' => $this->info($message),

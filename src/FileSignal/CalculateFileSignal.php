@@ -25,12 +25,6 @@ class CalculateFileSignal implements FileSignalScoring
             }
         }
 
-        if (($node['watchLevel'] ?? null) === 'dangerous') {
-            $score += 20;
-        } elseif (($node['watchLevel'] ?? null) === 'important') {
-            $score += 10;
-        }
-
         return (int) round($score);
     }
 }

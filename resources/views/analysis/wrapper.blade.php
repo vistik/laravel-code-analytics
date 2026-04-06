@@ -146,6 +146,13 @@
   .files-panel.very-narrow .file-col-signal .file-col-val { font-size: 12px; }
   .files-panel.very-narrow .files-header-row .file-col-signal { display: none; }
   .files-panel.very-narrow .file-name-main { font-size: 12px; }
+  .file-section-divider {
+    padding: 4px 16px; font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+    text-transform: uppercase; color: #484f58; border-bottom: 1px solid #21262d;
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .file-section-divider::after { content: ''; flex: 1; height: 1px; background: #21262d; }
+  .file-section-divider.watched { color: #d29922; }
 </style>
 </head>
 <body>
@@ -312,6 +319,8 @@
     });
 
     list.sort(function(a, b) {
+      // Watched files always surface above unwatched, regardless of sort criterion
+      if (!!a.watched !== !!b.watched) return a.watched ? -1 : 1;
       var va = getSort(a), vb = getSort(b);
       if (typeof va === 'string') return currentDir * va.localeCompare(vb);
       return currentDir * (va - vb);
@@ -320,9 +329,20 @@
     document.getElementById('filesSort').value = currentSort;
 
     signalTips = {};
+    var watchedCount = list.filter(function(n) { return !!n.watched; }).length;
     var html = '';
+    var inWatchedSection = false, watchedSectionClosed = false;
     for (var i = 0; i < list.length; i++) {
       var n = list[i];
+      if (watchedCount > 0) {
+        if (!inWatchedSection && n.watched) {
+          inWatchedSection = true;
+          html += '<div class="file-section-divider watched">&#9670; Watched</div>';
+        } else if (inWatchedSection && !n.watched && !watchedSectionClosed) {
+          watchedSectionClosed = true;
+          html += '<div class="file-section-divider">Other files</div>';
+        }
+      }
       var m = filesMetrics[n.path] || {};
       var st = statusStyles[n.status] || statusStyles.modified;
       var rc = signalColor(n._signal);
@@ -360,7 +380,7 @@
         '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button></div>' +
         '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span></div>' +
         '<div class="file-col file-col-name">' +
-          '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + n.id.replace(/</g, '&lt;') + '</div>' +
+          '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + n.id.replace(/</g, '&lt;') + (n.watched ? ' <span style="color:#d29922;font-size:10px" title="Watched' + (n.watchReason ? ': ' + n.watchReason : '') + '">&#9670;</span>' : '') + '</div>' +
           '<div class="file-name-path">' + n.path.replace(/</g, '&lt;') + '</div>' +
         '</div>' +
         '<div class="file-col file-col-status"><span class="file-col-label">Status</span><span class="file-col-val" style="color:' + st[1] + '">' + st[3] + '</span></div>' +
