@@ -1,0 +1,8 @@
+{
+  "name": "vistik/laravel-code-analytics",
+  "description": "AST-based code analysis, risk scoring, and interactive HTML visualizations for Laravel git diffs.",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/parser": "^7.29.2"
+  }
+}

@@ -629,7 +629,7 @@ function openPanel(n) {
   const usedBy = links.filter(l => isLinkVisible(l) && l.target === n).map(l => l.source);
   let bodyHtml = '';
 
-  // PHP Metrics section
+  // Code Metrics section (PHP via phpmetrics, JS/TS via complexity-report)
   var m = metricsData[n.path];
   if (m) {
     function metricColor(val, warn, bad) { return val >= bad ? '#f85149' : val >= warn ? '#d29922' : '#3fb950'; }
@@ -659,7 +659,8 @@ function openPanel(n) {
         '</div>';
     }
     var b = m.before || {};
-    bodyHtml += '<div class="deps-section"><h4>PHP Metrics</h4>' +
+    var metricsLabel = /\.(js|ts|jsx|tsx|vue|mjs|cjs)$/.test(n.path) ? 'JS Metrics' : 'PHP Metrics';
+    bodyHtml += '<div class="deps-section"><h4>' + metricsLabel + '</h4>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">' +
       metricCard('Cyclomatic Complexity', m.cc, '', 10, 20, false, b.cc) +
       metricCard('Maintainability', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, b.mi != null ? Math.round(b.mi) : null) +

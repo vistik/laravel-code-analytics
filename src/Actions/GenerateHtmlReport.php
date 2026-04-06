@@ -353,7 +353,7 @@ class GenerateHtmlReport implements ReportGenerator
         $thLeft = '<th style="padding:0 12px 6px 0;color:#6e7681;font-weight:500;text-align:left">';
 
         $tooltip = '<div class="metrics-tooltip">'
-            .'<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">PHP Code Quality</div>'
+            .'<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Code Quality</div>'
             .'<table style="border-collapse:collapse;font-size:11px">'
             ."<thead><tr>{$thLeft}File</th>{$th}CC</th>{$th}MI</th>{$th}Bugs</th>{$th}Coupling</th>{$th}LLOC</th>{$th}Methods</th></tr></thead>"
             ."<tbody>{$rows}</tbody>"
@@ -361,7 +361,7 @@ class GenerateHtmlReport implements ReportGenerator
             .'</div>';
 
         return '<div class="metrics-badge">'
-            .'<span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">PHP</span>'
+            .'<span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Code</span>'
             ."<span style=\"font-size:20px;font-weight:700;color:{$badgeColor};line-height:1\">{$total}</span>"
             .'<span style="font-size:11px;color:#6e7681">files</span>'
             ."<span style=\"font-size:11px;color:{$badgeColor};background:{$badge->bgColor()};padding:2px 8px;border-radius:10px;border:1px solid {$badge->borderColor()};font-weight:500\">{$badgeLabel}</span>"
