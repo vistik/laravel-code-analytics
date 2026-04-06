@@ -158,9 +158,7 @@ class LaravelMigrationModelCorrelator
 
             $tableName = $this->resolveTableName($path, $source);
 
-            if ($tableName !== null) {
-                $map[$tableName] = $path;
-            }
+            $map[$tableName] = $path;
         }
 
         if ($repoDir !== null) {
@@ -191,7 +189,7 @@ class LaravelMigrationModelCorrelator
 
                     $tableName = $this->resolveTableName($relativePath, $source);
 
-                    if ($tableName !== null && ! isset($map[$tableName])) {
+                    if (! isset($map[$tableName])) {
                         $map[$tableName] = $relativePath;
                     }
                 }
@@ -205,7 +203,7 @@ class LaravelMigrationModelCorrelator
      * Determine a model's table name from its file path and source code.
      * Checks for an explicit $table property first, then falls back to Laravel convention.
      */
-    private function resolveTableName(string $path, string $source): ?string
+    private function resolveTableName(string $path, string $source): string
     {
         try {
             $ast = $this->parser->parse($source);

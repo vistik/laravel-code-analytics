@@ -31,8 +31,6 @@ class AnalyzeCode
 
     private string $repoPath;
 
-    private string $baseBranch;
-
     private string $headCommit;
 
     private string $baseCommit;
@@ -109,7 +107,6 @@ class AnalyzeCode
         } else {
             // ── Local mode ───────────────────────────────────────────────────
             $this->repoPath = rtrim(realpath($repoPath) ?: $repoPath, '/');
-            $this->baseBranch = $baseBranch;
 
             // ── Validate git repo ─────────────────────────────────────────────
             $gitDir = trim(shell_exec("git -C {$this->repoPath} rev-parse --git-dir 2>/dev/null") ?? '');
@@ -413,7 +410,7 @@ class AnalyzeCode
         // ── Enrich nodes with analysis data ──────────────────────────────────
         foreach ($nodes as &$node) {
             $report = $fileReports[$node['path']] ?? null;
-            $changes = $report?->changes ?? [];
+            $changes = $report->changes ?? [];
             $node['severity'] = ! empty($changes) ? $report->maxSeverity()->value : null;
             $node['analysisCount'] = count($changes);
             $node['veryHighCount'] = count(array_filter($changes, fn ($c) => $c->severity === Severity::VERY_HIGH));
@@ -450,9 +447,6 @@ class AnalyzeCode
                 // Build FQCN → path map from old sources for correct path resolution
                 $oldFqcnToPath = [];
                 foreach ($oldSources as $path => $content) {
-                    if ($content === null || $content === '') {
-                        continue;
-                    }
                     $fqcn = $this->extractFqcnFromContent($content);
                     if ($fqcn !== null) {
                         $oldFqcnToPath[$fqcn] = $path;
@@ -607,7 +601,6 @@ class AnalyzeCode
         $this->headCommit = $prJson['headRefOid'] ?? '';
         $this->baseCommit = $prJson['baseRefOid'] ?? '';
         $this->branchName = "PR #{$prNumber}";
-        $this->baseBranch = $prJson['baseRefName'] ?? 'main';
         $this->isLaravel = false;
 
         $this->progress('line', '  Title: '.$prJson['title']);
@@ -745,7 +738,7 @@ class AnalyzeCode
         $treeListing = shell_exec("git -C {$repoDir} ls-tree {$commit} -- {$pathArgs} 2>/dev/null") ?? '';
 
         preg_match_all('/\b([0-9a-f]{40})\t/m', $treeListing, $matches);
-        $blobShas = $matches[1] ?? [];
+        $blobShas = $matches[1];
 
         if (empty($blobShas)) {
             return;
@@ -787,7 +780,7 @@ class AnalyzeCode
         $del = $file['deletions'];
 
         $fileDiff = $fileDiffMap[$path] ?? null;
-        $status = $fileDiff?->status ?? FileStatus::MODIFIED;
+        $status = $fileDiff->status ?? FileStatus::MODIFIED;
 
         $group = $this->groupResolver->resolve($path);
         $label = $this->generateLabel($path);
@@ -862,19 +855,19 @@ class AnalyzeCode
     private function extractReferences(string $content): array
     {
         preg_match_all('/^\s*use\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $useMatches);
-        $references = $useMatches[1] ?? [];
+        $references = $useMatches[1];
 
         preg_match_all('/(?:extends|implements|new|instanceof)\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $classMatches);
-        $references = array_merge($references, $classMatches[1] ?? []);
+        $references = array_merge($references, $classMatches[1]);
 
         preg_match_all('/([A-Z][A-Za-z0-9_]+)::/m', $content, $staticMatches);
-        $references = array_merge($references, $staticMatches[1] ?? []);
+        $references = array_merge($references, $staticMatches[1]);
 
         preg_match_all('/(?:protected|private|public|readonly)\s+([A-Z][A-Za-z0-9_\\\\]+)\s+\$/m', $content, $typeHintMatches);
-        $references = array_merge($references, $typeHintMatches[1] ?? []);
+        $references = array_merge($references, $typeHintMatches[1]);
 
         preg_match_all('/\)\s*:\s*\??\s*([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $returnTypeMatches);
-        $references = array_merge($references, $returnTypeMatches[1] ?? []);
+        $references = array_merge($references, $returnTypeMatches[1]);
 
         return array_unique($references);
     }
@@ -919,7 +912,7 @@ class AnalyzeCode
     private function matchViewReferences(string $content, string $sourceNodeId): void
     {
         preg_match_all('/(?:Inertia::render|inertia)\s*\(\s*[\'"]([^\'"]+)[\'"]/m', $content, $inertiaMatches);
-        foreach (($inertiaMatches[1] ?? []) as $page) {
+        foreach ($inertiaMatches[1] as $page) {
             foreach (['jsx', 'tsx', 'vue'] as $ext) {
                 $path = "resources/js/Pages/{$page}.{$ext}";
                 if (isset($this->pathToNode[$path])) {
@@ -930,7 +923,7 @@ class AnalyzeCode
         }
 
         preg_match_all('/\bview\s*\(\s*[\'"]([^\'"]+)[\'"]/m', $content, $viewMatches);
-        foreach (($viewMatches[1] ?? []) as $view) {
+        foreach ($viewMatches[1] as $view) {
             $viewPath = 'resources/views/'.str_replace('.', '/', $view).'.blade.php';
             if (isset($this->pathToNode[$viewPath])) {
                 $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
@@ -941,7 +934,7 @@ class AnalyzeCode
     private function matchComponentReferences(string $content, string $sourceNodeId, array $componentNameToNode): void
     {
         preg_match_all('/<([A-Z][A-Za-z0-9]+)(?:[\s\/>.])/m', $content, $jsxMatches);
-        $components = array_unique($jsxMatches[1] ?? []);
+        $components = array_unique($jsxMatches[1]);
 
         foreach ($components as $component) {
             if (isset($componentNameToNode[$component]) && $componentNameToNode[$component] !== $sourceNodeId) {

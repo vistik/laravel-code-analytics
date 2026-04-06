@@ -4,9 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
-use PhpParser\PrettyPrinter\Standard;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
@@ -57,12 +55,9 @@ class SideEffectRule implements Rule
 
     private NodeFinder $finder;
 
-    private Standard $printer;
-
     public function __construct()
     {
         $this->finder = new NodeFinder;
-        $this->printer = new Standard;
     }
 
     public function shortDescription(): string
@@ -197,12 +192,8 @@ class SideEffectRule implements Rule
         $oldThrows = $this->finder->findInstanceOf([$old], Expr\Throw_::class);
         $newThrows = $this->finder->findInstanceOf([$new], Expr\Throw_::class);
 
-        // Also check statement-style throws (PHP < 8.0 compat in AST)
-        $oldThrowStmts = $this->finder->findInstanceOf([$old], Stmt\Throw_::class);
-        $newThrowStmts = $this->finder->findInstanceOf([$new], Stmt\Throw_::class);
-
-        $oldCount = count($oldThrows) + count($oldThrowStmts);
-        $newCount = count($newThrows) + count($newThrowStmts);
+        $oldCount = count($oldThrows);
+        $newCount = count($newThrows);
 
         if ($newCount > $oldCount) {
             $changes[] = new ClassifiedChange(

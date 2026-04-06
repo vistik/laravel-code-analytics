@@ -8,7 +8,6 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\PrettyPrinter\Standard;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
@@ -20,13 +19,10 @@ class ControlFlowRule implements Rule
 
     private Standard $printer;
 
-    private AstComparer $comparer;
-
-    public function __construct(AstComparer $comparer)
+    public function __construct()
     {
         $this->finder = new NodeFinder;
         $this->printer = new Standard;
-        $this->comparer = $comparer;
     }
 
     public function shortDescription(): string

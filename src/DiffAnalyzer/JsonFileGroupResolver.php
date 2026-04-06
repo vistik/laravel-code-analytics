@@ -12,7 +12,7 @@ class JsonFileGroupResolver implements FileGroupResolver
     /** @var array<string, list<string>> */
     private array $groups;
 
-    public function __construct(private readonly string $path)
+    public function __construct(string $path)
     {
         if (! file_exists($path)) {
             throw new RuntimeException("Group resolver file not found: {$path}");

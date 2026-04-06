@@ -5,7 +5,6 @@ namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules;
 use PhpParser\Modifiers;
 use PhpParser\Node;
 use PhpParser\Node\Stmt;
-use PhpParser\PrettyPrinter\Standard;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
@@ -13,12 +12,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 
 class ClassStructureRule implements Rule
 {
-    private Standard $printer;
-
-    public function __construct()
-    {
-        $this->printer = new Standard;
-    }
+    public function __construct() {}
 
     public function shortDescription(): string
     {

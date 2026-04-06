@@ -137,7 +137,6 @@ class LaravelNotificationRule implements Rule
                 'attachments' => "Mailable attachments changed: {$key}",
                 'headers' => "Mailable headers changed: {$key}",
                 'build' => "Mailable build() changed: {$key}",
-                default => "Mailable {$methodName}() changed: {$key}",
             };
 
             $changes[] = new ClassifiedChange(

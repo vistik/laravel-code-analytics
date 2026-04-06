@@ -21,7 +21,7 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateHtmlReport implements ReportGenerator
 {
-    /** @var array<string, LayoutRenderer> */
+    /** @var array<string, class-string<LayoutRenderer>> */
     public const RENDERERS = [
         'force' => ForceGraphRenderer::class,
         'tree' => TreeRenderer::class,

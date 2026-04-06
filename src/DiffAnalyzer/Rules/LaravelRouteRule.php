@@ -202,7 +202,7 @@ class LaravelRouteRule implements Rule
         return $indexed;
     }
 
-    private function extractChainedName(Expr\StaticCall $routeCall): ?string
+    private function extractChainedName(Expr\StaticCall $routeCall): null
     {
         $parent = $routeCall->getAttribute('parent');
 

@@ -85,7 +85,7 @@ trait AnalyzesLaravelCode
 
     private function getClassName(string $key): string
     {
-        return explode('::', $key)[0] ?? '';
+        return explode('::', $key)[0];
     }
 
     private function pathContains(string $path, string $segment): bool

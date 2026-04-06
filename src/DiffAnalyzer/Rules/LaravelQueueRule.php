@@ -80,7 +80,6 @@ class LaravelQueueRule implements Rule
                         'ShouldBeUnique' => "{$name} is now unique (ShouldBeUnique added) — prevents duplicate jobs",
                         'ShouldBeEncrypted' => "{$name} payload is now encrypted",
                         'ShouldBeUniqueUntilProcessing' => "{$name} now unique until processing starts",
-                        default => "{$interface} added to {$name}",
                     };
 
                     $changes[] = new ClassifiedChange(

@@ -69,7 +69,7 @@ class ChangeClassifier
             new EnumRule,
             new AttributeRule,
             new MagicMethodRule,
-            new ControlFlowRule($comparer),
+            new ControlFlowRule,
             new OperatorRule,
             new ValueRule,
             new SideEffectRule,

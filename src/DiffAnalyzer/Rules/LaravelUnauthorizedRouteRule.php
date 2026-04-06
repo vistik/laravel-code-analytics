@@ -239,8 +239,7 @@ class LaravelUnauthorizedRouteRule implements Rule
 
             if ($value instanceof Expr\Array_) {
                 foreach ($value->items as $item) {
-                    if ($item instanceof Node\ArrayItem
-                        && $item->value instanceof Node\Scalar\String_
+                    if ($item->value instanceof Node\Scalar\String_
                         && $this->isAuthMiddleware($item->value->value)) {
                         return true;
                     }

@@ -3,7 +3,6 @@
 namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules;
 
 use PhpParser\Node\Stmt;
-use PhpParser\NodeFinder;
 use PhpParser\PrettyPrinter\Standard;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
@@ -12,13 +11,10 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 
 class EnumRule implements Rule
 {
-    private NodeFinder $finder;
-
     private Standard $printer;
 
     public function __construct()
     {
-        $this->finder = new NodeFinder;
         $this->printer = new Standard;
     }
 

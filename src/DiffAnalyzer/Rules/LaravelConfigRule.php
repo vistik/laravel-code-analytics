@@ -152,7 +152,7 @@ class LaravelConfigRule implements Rule
         foreach ($returns as $return) {
             if ($return->expr instanceof Expr\Array_) {
                 foreach ($return->expr->items as $item) {
-                    if ($item !== null && $item->key instanceof Node\Scalar\String_) {
+                    if ($item->key instanceof Node\Scalar\String_) {
                         $keys[] = $item->key->value;
                     }
                 }
