@@ -20,6 +20,8 @@ use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
 use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
+use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
+use Vistik\LaravelCodeAnalytics\Support\JsMetricsRunner;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetricsRunner;
 
@@ -503,6 +505,73 @@ class AnalyzeCode
             $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
         }
 
+        // ── Run JS complexity analysis for quality scoring ───────────────────
+        $jsHotSpots = 0;
+        if (! empty($frontendFiles)) {
+            $jsContents = [];
+            foreach ($frontendFiles as $node) {
+                $content = $headContents[$node['path']] ?? null;
+                if ($content !== null && $content !== '') {
+                    $jsContents[$node['path']] = $content;
+                }
+            }
+
+            if (! empty($jsContents)) {
+                $this->progress('info', 'Running JS complexity analysis...');
+
+                $jsRunner = new JsMetricsRunner;
+                $jsMetricsByPath = $jsRunner->run($jsContents);
+
+                // Also run on old sources for "before" comparison
+                $jsMetricsBefore = [];
+                if (! empty($oldSources)) {
+                    $oldJsContents = [];
+                    foreach ($frontendFiles as $node) {
+                        $path = $node['path'];
+                        if (isset($oldSources[$path])) {
+                            $oldJsContents[$path] = $oldSources[$path];
+                        }
+                    }
+                    if (! empty($oldJsContents)) {
+                        $jsMetricsBefore = (new JsMetricsRunner)->run($oldJsContents);
+                    }
+                }
+
+                $jsHotSpots = $this->countJsHotSpots($jsMetricsByPath);
+
+                foreach ($jsMetricsByPath as $path => $m) {
+                    $entry = array_filter([
+                        'cc' => $m->cyclomaticComplexity,
+                        'mi' => $m->maintainabilityIndex !== null ? round($m->maintainabilityIndex, 1) : null,
+                        'bugs' => $m->bugs !== null ? round($m->bugs, 3) : null,
+                        'lloc' => $m->logicalLinesOfCode,
+                        'methods' => $m->functionCount,
+                    ], fn ($v) => $v !== null);
+
+                    $beforeJsMetrics = $jsMetricsBefore[$path] ?? null;
+                    if ($beforeJsMetrics !== null) {
+                        $beforeEntry = array_filter([
+                            'cc' => $beforeJsMetrics->cyclomaticComplexity,
+                            'mi' => $beforeJsMetrics->maintainabilityIndex !== null ? round($beforeJsMetrics->maintainabilityIndex, 1) : null,
+                            'bugs' => $beforeJsMetrics->bugs !== null ? round($beforeJsMetrics->bugs, 3) : null,
+                            'lloc' => $beforeJsMetrics->logicalLinesOfCode,
+                            'methods' => $beforeJsMetrics->functionCount,
+                        ], fn ($v) => $v !== null);
+
+                        if (! empty($beforeEntry)) {
+                            $entry['before'] = $beforeEntry;
+                        }
+                    }
+
+                    if (! empty($entry)) {
+                        $metricsData[$path] = $entry;
+                    }
+                }
+
+                $this->progress('line', '  JS metrics computed for '.count($jsMetricsByPath).' files.');
+            }
+        }
+
         // ── Extract per-file diffs ────────────────────────────────────────────
         $fileDiffs = [];
         $diffBlocks = preg_split('/^diff --git /m', $this->diff);
@@ -554,7 +623,7 @@ class AnalyzeCode
         }
 
         // ── Compute overall risk score ────────────────────────────────────────
-        $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots);
+        $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots);
 
         // ── Generate report ───────────────────────────────────────────────────
         $outputDir = base_path('output');
@@ -783,6 +852,23 @@ class AnalyzeCode
                 || ($metrics->maintainabilityIndex ?? 100) < 85
                 || ($metrics->bugs ?? 0) > 0.1
                 || ($metrics->efferentCoupling ?? 0) > 15) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param  array<string, JsMetrics>  $metricsByPath
+     */
+    private function countJsHotSpots(array $metricsByPath): int
+    {
+        $count = 0;
+        foreach ($metricsByPath as $metrics) {
+            if (($metrics->cyclomaticComplexity ?? 0) > 10
+                || ($metrics->maintainabilityIndex ?? 100) < 85
+                || ($metrics->bugs ?? 0) > 0.1) {
                 $count++;
             }
         }
