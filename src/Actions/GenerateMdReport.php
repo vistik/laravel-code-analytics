@@ -2,21 +2,13 @@
 
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
+use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
-class GenerateMdReport
+class GenerateMdReport implements ReportGenerator
 {
-    /**
-     * Generate a Markdown report string from the analysis data.
-     *
-     * @param  array<int, array<string, mixed>>  $nodes
-     * @param  array<int, array{0: string, 1: string}>  $edges
-     * @param  array<string, string>  $fileDiffs
-     * @param  array<string, list<array<string, mixed>>>  $analysisData
-     * @param  array<string, array<string, mixed>>  $metricsData
-     */
-    public function execute(
+    public function generate(
         array $nodes,
         array $edges,
         array $fileDiffs,
@@ -148,9 +140,6 @@ class GenerateMdReport
         return implode("\n", $lines);
     }
 
-    /**
-     * Write the MD report to a file.
-     */
     public function writeFile(string $outputPath, string $content): void
     {
         file_put_contents($outputPath, $content);

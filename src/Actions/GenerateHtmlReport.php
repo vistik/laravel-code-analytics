@@ -16,9 +16,10 @@ use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Renderers\LayoutRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\TreeRenderer;
+use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
-class GenerateHtmlReport
+class GenerateHtmlReport implements ReportGenerator
 {
     /** @var array<string, LayoutRenderer> */
     public const RENDERERS = [
@@ -592,6 +593,47 @@ class GenerateHtmlReport
         return $buttons;
     }
 
+    public function generate(
+        array $nodes,
+        array $edges,
+        array $fileDiffs,
+        array $analysisData,
+        string $title,
+        string $repo,
+        string $headCommit,
+        int $prAdditions,
+        int $prDeletions,
+        int $fileCount,
+        ?RiskScore $riskScore = null,
+        array $metricsData = [],
+    ): string {
+        return $this->buildWrapperHtml(
+            nodes: $nodes,
+            edges: $edges,
+            fileDiffs: $fileDiffs,
+            analysisData: $analysisData,
+            prNumber: '',
+            prTitle: $title,
+            prUrl: '',
+            prAdditions: $prAdditions,
+            prDeletions: $prDeletions,
+            repo: $repo,
+            headCommit: $headCommit,
+            fileCount: $fileCount,
+            connectedCount: 0,
+            extTogglesHtml: $this->buildExtToggles($nodes),
+            folderTogglesHtml: $this->buildFolderToggles($nodes),
+            severityTogglesHtml: $this->buildSeverityToggles($nodes),
+            riskScore: $riskScore,
+            metricsData: $metricsData,
+        );
+    }
+
+    public function writeFile(string $outputPath, string $content): void
+    {
+        file_put_contents($outputPath, $content);
+    }
+
     /**
      * Generate a single HTML file containing all 5 layouts as embedded iframes with a tab switcher.
      *
@@ -620,6 +662,55 @@ class GenerateHtmlReport
         array $metricsData = [],
         string $defaultView = 'force',
     ): void {
+        file_put_contents($outputPath, $this->buildWrapperHtml(
+            nodes: $nodes,
+            edges: $edges,
+            fileDiffs: $fileDiffs,
+            analysisData: $analysisData,
+            prNumber: $prNumber,
+            prTitle: $prTitle,
+            prUrl: $prUrl,
+            prAdditions: $prAdditions,
+            prDeletions: $prDeletions,
+            repo: $repo,
+            headCommit: $headCommit,
+            fileCount: $fileCount,
+            connectedCount: $connectedCount,
+            extTogglesHtml: $extTogglesHtml,
+            folderTogglesHtml: $folderTogglesHtml,
+            severityTogglesHtml: $severityTogglesHtml,
+            layerStack: $layerStack,
+            riskScore: $riskScore,
+            metricsData: $metricsData,
+            defaultView: $defaultView,
+        ));
+    }
+
+    /**
+     * @param  array<string, array{cc?: int, mi?: float, bugs?: float, coupling?: int, lloc?: int, methods?: int}>  $metricsData
+     */
+    private function buildWrapperHtml(
+        array $nodes,
+        array $edges,
+        array $fileDiffs,
+        array $analysisData,
+        string $prNumber,
+        string $prTitle,
+        string $prUrl,
+        int $prAdditions,
+        int $prDeletions,
+        string $repo,
+        string $headCommit,
+        int $fileCount,
+        int $connectedCount,
+        string $extTogglesHtml,
+        string $folderTogglesHtml,
+        string $severityTogglesHtml,
+        ?LayerStack $layerStack = null,
+        ?RiskScore $riskScore = null,
+        array $metricsData = [],
+        string $defaultView = 'grouped',
+    ): string {
         $labels = ['force' => 'Force', 'tree' => 'Tree', 'grouped' => 'Grouped', 'cake' => 'Cake', 'arch' => 'Architecture'];
 
         $jsEntries = [];
@@ -671,7 +762,7 @@ class GenerateHtmlReport
         $wrapperMetricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $wrapperSeverityJs = $this->buildSeverityDataJs();
 
-        $html = view('laravel-code-analytics::analysis.wrapper', [
+        return view('laravel-code-analytics::analysis.wrapper', [
             'prNumber' => $prNumber,
             'escapedTitle' => $escapedTitle,
             'headlineHtml' => $headlineHtml,
@@ -687,7 +778,5 @@ class GenerateHtmlReport
             'wrapperMetricsJson' => $wrapperMetricsJson,
             'jsLayoutData' => $jsLayoutData,
         ])->render();
-
-        file_put_contents($outputPath, $html);
     }
 }
