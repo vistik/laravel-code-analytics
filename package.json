@@ -4,5 +4,11 @@
   "license": "MIT",
   "dependencies": {
     "@babel/parser": "^7.29.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  },
+  "scripts": {
+    "build": "esbuild bin/jsmetrics.js --bundle --platform=node --outfile=bin/jsmetrics.bundle.js --minify"
   }
 }
