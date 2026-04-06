@@ -10,6 +10,8 @@ use Vistik\LaravelCodeAnalytics\PhpMetrics\MetricTrend;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsBadgeDeciderInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsScorerInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\WeightedDegradationScorer;
+use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
+use Vistik\LaravelCodeAnalytics\Renderers\ClusterRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\ForceGraphRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\GroupedRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayeredArchRenderer;
@@ -28,6 +30,7 @@ class GenerateHtmlReport implements ReportGenerator
         'grouped' => GroupedRenderer::class,
         'cake' => LayeredCakeRenderer::class,
         'arch' => LayeredArchRenderer::class,
+        'clusters' => ClusterRenderer::class,
     ];
 
     public function __construct(
@@ -61,6 +64,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $clusters = [],
     ): string {
         return $this->render(
             nodes: $nodes,
@@ -83,6 +87,7 @@ class GenerateHtmlReport implements ReportGenerator
             layerStack: $layerStack,
             riskScore: $riskScore,
             metricsData: $metricsData,
+            clusters: $clusters,
         );
     }
 
@@ -187,6 +192,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         string $layoutSwitcher = '',
+        array $clusters = [],
     ): string {
         $rendererClass = self::RENDERERS[$layout] ?? ForceGraphRenderer::class;
         $isLayered = in_array($rendererClass, [LayeredCakeRenderer::class, LayeredArchRenderer::class]);
@@ -197,6 +203,7 @@ class GenerateHtmlReport implements ReportGenerator
         $diffsJson = json_encode($fileDiffs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $analysisJson = json_encode($analysisData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $metricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+        $clustersJson = json_encode($clusters, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
         return view('laravel-code-analytics::analysis.inner', [
             'prNumber' => $prNumber,
@@ -222,6 +229,7 @@ class GenerateHtmlReport implements ReportGenerator
             'frameHookJs' => $renderer->getFrameHookJs(),
             'riskPanel' => $this->buildRiskPanel($riskScore),
             'layoutSwitcher' => $layoutSwitcher,
+            'clustersJson' => $clustersJson,
         ])->render();
     }
 
@@ -741,6 +749,7 @@ class GenerateHtmlReport implements ReportGenerator
                 layerStack: $layerStack,
                 riskScore: null, // Risk panel lives in the wrapper topbar tooltip
                 metricsData: $metricsData,
+                clusters: $clusters,
             );
             // Hide the title-bar inside the iframe — it lives in the wrapper now
             $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}</style></head>', $html);
@@ -769,6 +778,15 @@ class GenerateHtmlReport implements ReportGenerator
 
         $clustersJson = json_encode($clusters, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
+        $algorithmLabelsJson = json_encode(
+            array_reduce(ClusteringAlgorithm::cases(), function ($carry, $algo) {
+                $carry[$algo->value] = $algo->label();
+
+                return $carry;
+            }, []),
+            JSON_HEX_TAG
+        );
+
         return view('laravel-code-analytics::analysis.wrapper', [
             'prNumber' => $prNumber,
             'escapedTitle' => $escapedTitle,
@@ -785,7 +803,8 @@ class GenerateHtmlReport implements ReportGenerator
             'wrapperMetricsJson' => $wrapperMetricsJson,
             'jsLayoutData' => $jsLayoutData,
             'clustersJson' => $clustersJson,
-            'hasClusters' => ! empty($clusters),
+            'algorithmLabelsJson' => $algorithmLabelsJson,
+            'hasClusters' => array_reduce(array_values($clusters), fn ($c, $l) => $c || ! empty($l), false),
         ])->render();
     }
 }

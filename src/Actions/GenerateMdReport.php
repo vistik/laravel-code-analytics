@@ -21,6 +21,7 @@ class GenerateMdReport implements ReportGenerator
         int $fileCount,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $clusters = [],
     ): string {
         $lines = [];
 
@@ -123,6 +124,27 @@ class GenerateMdReport implements ReportGenerator
                 $lines[] = "| `{$path}` | {$cc} | {$mi} | {$bugs} | {$coupling} | {$lloc} |";
             }
             $lines[] = '';
+        }
+
+        // ── Coupling Clusters ───────────────────────────────────────────────
+        $hasAnyClusters = array_reduce(array_values($clusters), fn ($c, $l) => $c || ! empty($l), false);
+        if ($hasAnyClusters) {
+            foreach ($clusters as $algoValue => $algoClusters) {
+                if (empty($algoClusters)) {
+                    continue;
+                }
+                $algoLabel = \Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm::tryFrom($algoValue)?->label() ?? ucfirst($algoValue);
+                $lines[] = '## Coupling Clusters — '.$algoLabel.' ('.count($algoClusters).')';
+                $lines[] = '';
+                foreach ($algoClusters as $i => $cluster) {
+                    $lines[] = '### Cluster '.($i + 1).' ('.$cluster['size'].' files)';
+                    $lines[] = '';
+                    foreach ($cluster['files'] as $file) {
+                        $lines[] = "- `{$file}`";
+                    }
+                    $lines[] = '';
+                }
+            }
         }
 
         // ── Dependencies ────────────────────────────────────────────────────

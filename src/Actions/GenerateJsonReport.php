@@ -20,6 +20,7 @@ class GenerateJsonReport implements ReportGenerator
         int $fileCount,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $clusters = [],
     ): string {
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
@@ -72,6 +73,7 @@ class GenerateJsonReport implements ReportGenerator
             'findings' => $findings,
             'metrics' => $metrics,
             'dependencies' => $dependencies,
+            'clusters' => $clusters,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 

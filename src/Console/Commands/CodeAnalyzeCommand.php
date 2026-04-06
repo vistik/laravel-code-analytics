@@ -39,10 +39,16 @@ class CodeAnalyzeCommand extends Command
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json");
+
             $openFile = $this->option('open') || ($config['open'] ?? false);
 
+            // Only instantiate directly (bypassing the container) when we need to
+            // inject custom dependencies. Otherwise keep the container-provided instance
+            // so tests can mock it via the service container.
             if (isset($config['file_groups'])) {
-                $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($config));
+                $action = new AnalyzeCode(
+                    groupResolver: $this->resolveGroupResolver($config),
+                );
             }
 
             $prUrl = $this->option('pr');

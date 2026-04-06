@@ -328,6 +328,9 @@ const edgesData = {!! $edgesJson !!};
 const fileDiffs = {!! $diffsJson !!};
 const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
+const allClustersData = {!! $clustersJson !!};
+var activeClustersAlgo = Object.keys(allClustersData)[0] || 'dependency';
+var clustersData = allClustersData[activeClustersAlgo] || [];
 {!! $severityDataJs !!}
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
@@ -369,6 +372,7 @@ var reviewedNodes = new Set();
 var hideReviewed = true;
 var pathfindNodes = new Set();
 var pathResult = { nodes: new Set(), edges: new Set() };
+var clusterPaths = new Set();
 
 function notifyParentVisibility() {
   if (window.parent !== window) {
@@ -467,7 +471,7 @@ function isChangeTypeFiltered(n) {
   var changeType = (n.status === 'renamed') ? 'modified' : (n.status || 'modified');
   return !!hiddenChangeTypes[changeType];
 }
-function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && !(hideConnected && n.isConnected) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n); }
+function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && !(hideConnected && n.isConnected) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n) && !n._clusterHidden; }
 function isLinkVisible(l) { return isVisible(l.source) && isVisible(l.target); }
 
 {!! $simulationJs !!}
@@ -1114,7 +1118,8 @@ function draw() {
     const isHovered = hoveredNode && (l.source === hoveredNode || l.target === hoveredNode);
     const isPath = pathActive && pathResult.edges.has(l);
     const highlight = isSelected || isHovered || isPath;
-    const dimmed = pathActive ? (!isPath && !isHovered) : (activeRef && !highlight);
+    const isClusterEdge = clusterPaths.size > 0 && clusterPaths.has(l.source.path) && clusterPaths.has(l.target.path);
+    const dimmed = clusterPaths.size > 0 ? (!isClusterEdge && !isHovered) : (pathActive ? (!isPath && !isHovered) : (activeRef && !highlight));
     const isConnEdge = l.source.isConnected || l.target.isConnected;
 
     // Direction color: outgoing (depends on) = red, incoming (used by) = green
@@ -1157,7 +1162,20 @@ function draw() {
     const isPathNode = pathActive && pathResult.nodes.has(n.id);
     const isPathSelected = pathfindNodes.has(n.id);
     const activeRef = hoveredNode || selectedNode;
-    const dim = pathActive ? (!isPathNode && !isHov) : (activeRef && !isHov && !isSel && !isConn);
+    const isClusterNode = clusterPaths.size > 0 && clusterPaths.has(n.path);
+    const clusterActive = clusterPaths.size > 0;
+    const dim = clusterActive ? (!isClusterNode && !isHov) : (pathActive ? (!isPathNode && !isHov) : (activeRef && !isHov && !isSel && !isConn));
+
+    // Cluster highlight ring
+    if (isClusterNode && !dim) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 7, 0, Math.PI * 2);
+      const cGrad = ctx.createRadialGradient(n.x, n.y, n.r, n.x, n.y, n.r + 7);
+      cGrad.addColorStop(0, '#58a6ff50'); cGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = cGrad; ctx.fill();
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
 
     if (n.status === 'added' && n.group !== 'test' && !n.isConnected) {
       ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2);
@@ -1279,6 +1297,15 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'unmarkFileReviewed') {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.delete(n.id); updateReviewedCount(); clearHidden(); }
+  }
+  if (e.data.type === 'highlightCluster') {
+    clusterPaths = new Set(e.data.paths || []);
+  }
+  if (e.data.type === 'setClusterAlgorithm') {
+    activeClustersAlgo = e.data.algorithm;
+    clustersData = allClustersData[activeClustersAlgo] || [];
+    panX = 0; panY = 0; zoom = 1;
+    if (typeof recomputeLayout === 'function') recomputeLayout();
   }
 });
 

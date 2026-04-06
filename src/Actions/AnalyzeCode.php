@@ -5,6 +5,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 use Closure;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
+use Vistik\LaravelCodeAnalytics\Enums\ClusteringAlgorithm;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
@@ -538,6 +539,23 @@ class AnalyzeCode
         // ── Compute overall risk score ────────────────────────────────────────
         $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots);
 
+        // ── Detect clusters with every algorithm ───────────────────────────────
+        $this->progress('info', 'Detecting clusters...');
+        $changedNodeIds = array_column($nodes, 'id');
+        $nodeIdToPath = array_column($nodes, 'path', 'id');
+
+        $allClusters = [];
+        foreach (ClusteringAlgorithm::cases() as $algo) {
+            $raw = $algo->clusterer()->cluster($this->edges, $changedNodeIds);
+            $mapped = array_map(function (array $cluster) use ($nodeIdToPath) {
+                $paths = array_filter(array_map(fn ($id) => $nodeIdToPath[$id] ?? null, $cluster['files']));
+
+                return ['files' => array_values($paths), 'size' => count($paths)];
+            }, $raw);
+            $allClusters[$algo->value] = array_values(array_filter($mapped, fn ($c) => $c['size'] >= 3));
+            $this->progress('line', '  '.$algo->label().': '.count($allClusters[$algo->value]).' clusters.');
+        }
+
         // ── Generate report ───────────────────────────────────────────────────
         $outputDir = base_path('output');
         if (! is_dir($outputDir)) {
@@ -569,6 +587,7 @@ class AnalyzeCode
             fileCount: $fileCount,
             riskScore: $riskResult,
             metricsData: $metricsData,
+            clusters: $allClusters,
         );
         $reportGenerator->writeFile($outputPath, $content);
 
@@ -994,4 +1013,5 @@ class AnalyzeCode
 
         return trim($nsMatch[1]).'\\'.trim($classMatch[1]);
     }
+
 }

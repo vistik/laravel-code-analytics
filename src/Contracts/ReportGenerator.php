@@ -13,6 +13,9 @@ interface ReportGenerator
      * @param  array<string, list<array<string, mixed>>>  $analysisData
      * @param  array<string, array<string, mixed>>  $metricsData
      */
+    /**
+     * @param  array<string, list<array{files: list<string>, size: int}>>  $clusters  Keyed by ClusteringAlgorithm value
+     */
     public function generate(
         array $nodes,
         array $edges,
@@ -26,6 +29,7 @@ interface ReportGenerator
         int $fileCount,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $clusters = [],
     ): string;
 
     public function writeFile(string $outputPath, string $content): void;

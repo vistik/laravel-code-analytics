@@ -168,6 +168,9 @@
   .cluster-file { display: flex; align-items: baseline; padding: 2px 0; font-size: 12px; white-space: nowrap; overflow: hidden; }
   .cluster-file-dir { color: #484f58; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
   .cluster-file-name { color: #c9d1d9; flex-shrink: 0; }
+  .cluster-card:hover { background: #21262d; }
+  .cluster-card.active { background: #1c2a3a; border-left: 3px solid #58a6ff; }
+  .cluster-card.active .cluster-file-name { color: #58a6ff; }
 </style>
 </head>
 <body>
@@ -181,13 +184,9 @@
     {!! $riskBadgeHtml !!}
   </div>
   <div class="tabs">
-    <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
-    </button>
+    <button class="tab" id="filesTab" onclick="toggleFilesPanel()">Files</button>
     @if ($hasClusters)
-    <button class="tab" id="clustersTab" onclick="toggleClustersPanel()">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4.001 4.001 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5zM11 4a.75.75 0 1 0 0 1.5 1.5 1.5 0 0 1 1.5 1.5.75.75 0 0 0 1.5 0A3 3 0 0 0 11 4zm.5 6.056a.75.75 0 0 1 .718-.037 5.002 5.002 0 0 1 2.757 4.252.75.75 0 1 1-1.498.058 3.502 3.502 0 0 0-1.925-2.975.75.75 0 0 1-.052-1.298z"/></svg>Clusters
-    </button>
+    <button class="tab" id="clustersTab" onclick="toggleClustersPanel()">Clusters</button>
     @endif
     {!! $tabButtons !!}
   </div>
@@ -231,7 +230,10 @@
   <div class="clusters-panel" id="clustersPanel">
     <div class="clusters-panel-header">
       <h3>Coupling Clusters</h3>
-      <button class="files-panel-close" onclick="toggleClustersPanel()">&times;</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="algoSelect" onchange="switchAlgorithm(this.value)" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:12px;padding:3px 8px;cursor:pointer"></select>
+        <button class="files-panel-close" onclick="toggleClustersPanel()">&times;</button>
+      </div>
     </div>
     <div class="clusters-scroll" id="clustersScroll">
       <div id="clustersRows"></div>
@@ -243,18 +245,43 @@
   const filesNodes = {!! $wrapperNodesJson !!};
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
-  const clustersData = {!! $clustersJson !!};
+  const allClustersData = {!! $clustersJson !!};
+  const algorithmLabels = {!! $algorithmLabelsJson !!};
+  var activeAlgorithm = Object.keys(allClustersData)[0] || 'dependency';
 
   const layouts = {
     {!! $jsLayoutData !!}
   };
+
+  var previousLayout = 'force';
 
   function show(name) {
     document.querySelectorAll('.tab[data-layout]').forEach(t => t.classList.toggle('active', t.dataset.layout === name));
     document.getElementById('view').srcdoc = atob(layouts[name]);
   }
 
-  document.querySelectorAll('.tab[data-layout]').forEach(t => t.addEventListener('click', () => show(t.dataset.layout)));
+  function closeClustersPanel() {
+    var cp = document.getElementById('clustersPanel');
+    var ct = document.getElementById('clustersTab');
+    if (cp && cp.classList.contains('open')) {
+      cp.classList.remove('open');
+      if (ct) ct.classList.remove('active');
+      if (activeClusterIndex >= 0) {
+        activeClusterIndex = -1;
+        document.getElementById('view').contentWindow.postMessage({ type: 'highlightCluster', paths: [] }, '*');
+      }
+      return true;
+    }
+    return false;
+  }
+
+  document.querySelectorAll('.tab[data-layout]').forEach(t => t.addEventListener('click', () => {
+    if (closeClustersPanel()) {
+      // clusters panel was open — highlight already cleared above
+    }
+    previousLayout = t.dataset.layout;
+    show(t.dataset.layout);
+  }));
 
   function signalColor(score) {
     if (score >= 60) return '#f85149';
@@ -452,12 +479,9 @@
       document.getElementById('filesTab').classList.remove('active');
     } else {
       openedFromFiles = false;
-      // Close clusters panel if open
-      var cp = document.getElementById('clustersPanel');
-      if (cp && cp.classList.contains('open')) {
-        cp.classList.remove('open');
-        var ct = document.getElementById('clustersTab');
-        if (ct) ct.classList.remove('active');
+      // Close clusters panel if open, and restore the previous layout
+      if (closeClustersPanel()) {
+        show(previousLayout);
       }
       var iframe = document.getElementById('view');
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
@@ -593,17 +617,22 @@
   });
 
   // ── Clusters panel ──
+  var activeClusterIndex = -1;
+
   function renderClusters() {
+    var currentClusters = allClustersData[activeAlgorithm] || [];
     var html = '';
-    if (!clustersData || !clustersData.length) {
+    if (!currentClusters || !currentClusters.length) {
       html = '<div style="padding:20px 16px;color:#6e7681;font-size:13px">No coupling clusters found.</div>';
     } else {
-      for (var i = 0; i < clustersData.length; i++) {
-        var cluster = clustersData[i];
-        html += '<div class="cluster-card">'
+      for (var i = 0; i < currentClusters.length; i++) {
+        var cluster = currentClusters[i];
+        var isActive = i === activeClusterIndex;
+        html += '<div class="cluster-card' + (isActive ? ' active' : '') + '" data-cluster-index="' + i + '" onclick="toggleClusterHighlight(' + i + ')" style="cursor:pointer">'
           + '<div class="cluster-card-header">'
           + '<span class="cluster-label">Cluster ' + (i + 1) + '</span>'
           + '<span class="cluster-size">' + cluster.size + ' files</span>'
+          + (isActive ? '<span style="font-size:10px;color:#58a6ff;margin-left:auto">highlighted</span>' : '')
           + '</div>';
         for (var j = 0; j < cluster.files.length; j++) {
           var f = cluster.files[j];
@@ -621,6 +650,39 @@
     document.getElementById('clustersRows').innerHTML = html;
   }
 
+  function populateAlgoSelect() {
+    var select = document.getElementById('algoSelect');
+    if (!select) return;
+    select.innerHTML = '';
+    Object.keys(allClustersData).forEach(function(key) {
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.text = algorithmLabels[key] || key;
+      if (key === activeAlgorithm) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  function switchAlgorithm(algo) {
+    activeAlgorithm = algo;
+    activeClusterIndex = -1;
+    document.getElementById('view').contentWindow.postMessage({ type: 'setClusterAlgorithm', algorithm: algo }, '*');
+    renderClusters();
+  }
+
+  function toggleClusterHighlight(index) {
+    var iframe = document.getElementById('view');
+    var currentClusters = allClustersData[activeAlgorithm] || [];
+    if (activeClusterIndex === index) {
+      activeClusterIndex = -1;
+      iframe.contentWindow.postMessage({ type: 'highlightCluster', paths: [] }, '*');
+    } else {
+      activeClusterIndex = index;
+      iframe.contentWindow.postMessage({ type: 'highlightCluster', paths: currentClusters[index].files }, '*');
+    }
+    renderClusters();
+  }
+
   function toggleClustersPanel() {
     var panel = document.getElementById('clustersPanel');
     var tab = document.getElementById('clustersTab');
@@ -628,16 +690,27 @@
     if (isOpen) {
       panel.classList.remove('open');
       if (tab) tab.classList.remove('active');
+      if (activeClusterIndex >= 0) {
+        activeClusterIndex = -1;
+        document.getElementById('view').contentWindow.postMessage({ type: 'highlightCluster', paths: [] }, '*');
+      }
+      // Restore the layout that was active before clusters
+      show(previousLayout);
     } else {
       // Close files panel if open
       if (filesPanelEl.classList.contains('open')) {
         filesPanelEl.classList.remove('open');
         document.getElementById('filesTab').classList.remove('active');
       }
-      // Close iframe detail panel
       document.getElementById('view').contentWindow.postMessage({ type: 'closePanel' }, '*');
+      // Remember current layout so we can restore it on close
+      var activeTab = document.querySelector('.tab[data-layout].active');
+      if (activeTab) previousLayout = activeTab.dataset.layout;
       panel.classList.add('open');
       if (tab) tab.classList.add('active');
+      populateAlgoSelect();
+      // Switch graph to cluster layout
+      show('clusters');
       renderClusters();
     }
   }
