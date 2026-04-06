@@ -235,13 +235,13 @@
 <div class="legend">
   <div class="legend-header">
     <span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Filters</span>
-    <button class="legend-chevron" id="legendChevron" onclick="toggleLegend()">
+    <button class="legend-chevron collapsed" id="legendChevron" onclick="toggleLegend()">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
   </div>
-  <div class="legend-body" id="legendBody">
+  <div class="legend-body" id="legendBody" style="display:none">
   {!! $riskPanel !!}
   <span style="font-size:11px;color:#8b949e">
     <span style="border-bottom:2px dashed #3fb950">Dashed border</span> = new file &middot;
