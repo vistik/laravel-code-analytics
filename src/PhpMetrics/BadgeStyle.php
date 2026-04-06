@@ -38,9 +38,8 @@ enum BadgeStyle: string
     public function label(int $hotspotCount = 0): string
     {
         return match ($this) {
-            self::Critical => 'Critical',
-            self::Warning => $hotspotCount.' '.($hotspotCount === 1 ? 'hotspot' : 'hotspots'),
             self::Clean => 'Clean',
+            default => $hotspotCount.' '.($hotspotCount === 1 ? 'hotspot' : 'hotspots'),
         };
     }
 }
