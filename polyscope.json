@@ -7,7 +7,7 @@
             },
             {
                 "label": "Analyze code (Big PR)",
-                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4763 --format=html"
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html"
             },
             {
                 "label": "Analyze code (MD)",
