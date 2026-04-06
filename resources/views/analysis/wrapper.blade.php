@@ -142,6 +142,32 @@
   .files-panel.very-narrow .file-col-signal .file-col-val { font-size: 12px; }
   .files-panel.very-narrow .files-header-row .file-col-signal { display: none; }
   .files-panel.very-narrow .file-name-main { font-size: 12px; }
+
+  /* ── Clusters panel ── */
+  .clusters-panel {
+    position: absolute; top: 0; right: 0; height: 100%;
+    background: #161b22; border-left: 1px solid #30363d; z-index: 30;
+    display: flex; flex-direction: column; width: 420px;
+    box-shadow: -4px 0 24px rgba(0,0,0,.5);
+    right: -100%; transition: right 0.25s ease;
+  }
+  .clusters-panel.open { right: 0; }
+  .clusters-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px; border-bottom: 1px solid #30363d; flex-shrink: 0;
+  }
+  .clusters-panel-header h3 { font-size: 14px; font-weight: 600; color: #e6edf3; }
+  .clusters-scroll { flex: 1 1 0%; overflow-y: auto; min-height: 0; }
+  .clusters-scroll::-webkit-scrollbar { width: 6px; }
+  .clusters-scroll::-webkit-scrollbar-track { background: transparent; }
+  .clusters-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  .cluster-card { padding: 12px 16px; border-bottom: 1px solid #21262d; }
+  .cluster-card-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .cluster-label { font-size: 11px; color: #6e7681; text-transform: uppercase; letter-spacing: 0.4px; }
+  .cluster-size { font-size: 13px; font-weight: 600; color: #58a6ff; }
+  .cluster-file { display: flex; align-items: baseline; padding: 2px 0; font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .cluster-file-dir { color: #484f58; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+  .cluster-file-name { color: #c9d1d9; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -158,6 +184,11 @@
     <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
     </button>
+    @if ($hasClusters)
+    <button class="tab" id="clustersTab" onclick="toggleClustersPanel()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4.001 4.001 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5zM11 4a.75.75 0 1 0 0 1.5 1.5 1.5 0 0 1 1.5 1.5.75.75 0 0 0 1.5 0A3 3 0 0 0 11 4zm.5 6.056a.75.75 0 0 1 .718-.037 5.002 5.002 0 0 1 2.757 4.252.75.75 0 1 1-1.498.058 3.502 3.502 0 0 0-1.925-2.975.75.75 0 0 1-.052-1.298z"/></svg>Clusters
+    </button>
+    @endif
     {!! $tabButtons !!}
   </div>
 </div>
@@ -197,12 +228,22 @@
       <div id="filesRows"></div>
     </div>
   </div>
+  <div class="clusters-panel" id="clustersPanel">
+    <div class="clusters-panel-header">
+      <h3>Coupling Clusters</h3>
+      <button class="files-panel-close" onclick="toggleClustersPanel()">&times;</button>
+    </div>
+    <div class="clusters-scroll" id="clustersScroll">
+      <div id="clustersRows"></div>
+    </div>
+  </div>
 </div>
 <script>
   {!! $wrapperSeverityJs !!}
   const filesNodes = {!! $wrapperNodesJson !!};
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
+  const clustersData = {!! $clustersJson !!};
 
   const layouts = {
     {!! $jsLayoutData !!}
@@ -411,6 +452,13 @@
       document.getElementById('filesTab').classList.remove('active');
     } else {
       openedFromFiles = false;
+      // Close clusters panel if open
+      var cp = document.getElementById('clustersPanel');
+      if (cp && cp.classList.contains('open')) {
+        cp.classList.remove('open');
+        var ct = document.getElementById('clustersTab');
+        if (ct) ct.classList.remove('active');
+      }
       var iframe = document.getElementById('view');
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
       panel.classList.add('open');
@@ -543,6 +591,56 @@
     filesPanelEl.style.transition = '';
     resizeOverlay.style.display = 'none';
   });
+
+  // ── Clusters panel ──
+  function renderClusters() {
+    var html = '';
+    if (!clustersData || !clustersData.length) {
+      html = '<div style="padding:20px 16px;color:#6e7681;font-size:13px">No coupling clusters found.</div>';
+    } else {
+      for (var i = 0; i < clustersData.length; i++) {
+        var cluster = clustersData[i];
+        html += '<div class="cluster-card">'
+          + '<div class="cluster-card-header">'
+          + '<span class="cluster-label">Cluster ' + (i + 1) + '</span>'
+          + '<span class="cluster-size">' + cluster.size + ' files</span>'
+          + '</div>';
+        for (var j = 0; j < cluster.files.length; j++) {
+          var f = cluster.files[j];
+          var slash = f.lastIndexOf('/');
+          var dir = slash >= 0 ? f.substring(0, slash + 1) : '';
+          var name = slash >= 0 ? f.substring(slash + 1) : f;
+          html += '<div class="cluster-file">'
+            + '<span class="cluster-file-dir">' + dir.replace(/</g, '&lt;') + '</span>'
+            + '<span class="cluster-file-name">' + name.replace(/</g, '&lt;') + '</span>'
+            + '</div>';
+        }
+        html += '</div>';
+      }
+    }
+    document.getElementById('clustersRows').innerHTML = html;
+  }
+
+  function toggleClustersPanel() {
+    var panel = document.getElementById('clustersPanel');
+    var tab = document.getElementById('clustersTab');
+    var isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      if (tab) tab.classList.remove('active');
+    } else {
+      // Close files panel if open
+      if (filesPanelEl.classList.contains('open')) {
+        filesPanelEl.classList.remove('open');
+        document.getElementById('filesTab').classList.remove('active');
+      }
+      // Close iframe detail panel
+      document.getElementById('view').contentWindow.postMessage({ type: 'closePanel' }, '*');
+      panel.classList.add('open');
+      if (tab) tab.classList.add('active');
+      renderClusters();
+    }
+  }
 
   show('force');
 </script>

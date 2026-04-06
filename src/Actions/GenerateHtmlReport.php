@@ -606,6 +606,7 @@ class GenerateHtmlReport implements ReportGenerator
         int $fileCount,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $clusters = [],
     ): string {
         return $this->buildWrapperHtml(
             nodes: $nodes,
@@ -626,6 +627,7 @@ class GenerateHtmlReport implements ReportGenerator
             severityTogglesHtml: $this->buildSeverityToggles($nodes),
             riskScore: $riskScore,
             metricsData: $metricsData,
+            clusters: $clusters,
         );
     }
 
@@ -661,6 +663,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         string $defaultView = 'force',
+        array $clusters = [],
     ): void {
         file_put_contents($outputPath, $this->buildWrapperHtml(
             nodes: $nodes,
@@ -683,6 +686,7 @@ class GenerateHtmlReport implements ReportGenerator
             riskScore: $riskScore,
             metricsData: $metricsData,
             defaultView: $defaultView,
+            clusters: $clusters,
         ));
     }
 
@@ -710,6 +714,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         string $defaultView = 'grouped',
+        array $clusters = [],
     ): string {
         $labels = ['force' => 'Force', 'tree' => 'Tree', 'grouped' => 'Grouped', 'cake' => 'Cake', 'arch' => 'Architecture'];
 
@@ -762,6 +767,8 @@ class GenerateHtmlReport implements ReportGenerator
         $wrapperMetricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $wrapperSeverityJs = $this->buildSeverityDataJs();
 
+        $clustersJson = json_encode($clusters, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+
         return view('laravel-code-analytics::analysis.wrapper', [
             'prNumber' => $prNumber,
             'escapedTitle' => $escapedTitle,
@@ -777,6 +784,8 @@ class GenerateHtmlReport implements ReportGenerator
             'wrapperAnalysisJson' => $wrapperAnalysisJson,
             'wrapperMetricsJson' => $wrapperMetricsJson,
             'jsLayoutData' => $jsLayoutData,
+            'clustersJson' => $clustersJson,
+            'hasClusters' => ! empty($clusters),
         ])->render();
     }
 }
