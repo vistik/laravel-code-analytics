@@ -454,7 +454,9 @@ class AnalyzeCode
                 // Build FQCN → path map from old sources for correct path resolution
                 $oldFqcnToPath = [];
                 foreach ($oldSources as $path => $content) {
-                    if ($content === null || $content === '') continue;
+                    if ($content === null || $content === '') {
+                        continue;
+                    }
                     $fqcn = $this->extractFqcnFromContent($content);
                     if ($fqcn !== null) {
                         $oldFqcnToPath[$fqcn] = $path;
