@@ -8,6 +8,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Watched Files
+    |--------------------------------------------------------------------------
+    |
+    | List files or path patterns that should always surface at the top of the
+    | file list, regardless of their signal score. Supports fnmatch-style globs
+    | and directory prefixes ending in '/'. An optional 'reason' is shown in
+    | the UI tooltip.
+    |
+    | Examples:
+    |   ['pattern' => 'app/Http/Kernel.php', 'reason' => 'Boot critical'],
+    |   ['pattern' => 'app/Models/*'],
+    |   ['pattern' => 'config/',             'reason' => 'Config changes'],
+    |
+    */
+
+    'watched_files' => [
+        // ['pattern' => 'app/Http/Kernel.php', 'reason' => 'Boot critical'],
+        // ['pattern' => 'app/Models/*'],
+        // ['pattern' => 'config/'],
+
+        // Temp: laravel/cloud PR #4604
+        ['pattern' => 'app/Http/Middleware/ValidateWorkOSSession.php', 'reason' => 'Auth middleware'],
+        ['pattern' => 'app/Http/Controllers/Auth/*', 'reason' => 'Auth controllers'],
+        ['pattern' => 'app/Enums/Feature.php', 'reason' => 'Feature flags'],
+        ['pattern' => 'app/Contracts/Services/MetricProvider.php', 'reason' => 'Core contract'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Architecture Layer Stack
     |--------------------------------------------------------------------------
     |

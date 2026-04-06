@@ -85,6 +85,7 @@ class AnalyzeCode
         OutputFormat $format = OutputFormat::HTML,
         ?Severity $minSeverity = null,
         ?Closure $onProgress = null,
+        ?array $watchedFiles = null,
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -201,11 +202,22 @@ class AnalyzeCode
         // ── Build nodes ──────────────────────────────────────────────────────
         $this->progress('info', 'Classifying files...');
 
+        $watchedFiles ??= config('analysis.watched_files') ?? config('laravel-code-analytics.watched_files', []);
+
         $nodes = [];
         $labelCounts = [];
 
         foreach ($files as $file) {
             $node = $this->classifyFile($file, $fileDiffMap);
+
+            foreach ($watchedFiles as $watch) {
+                if ($this->matchesWatchPattern($file['path'], $watch['pattern'] ?? '')) {
+                    $node['watched'] = true;
+                    $node['watchReason'] = $watch['reason'] ?? null;
+                    break;
+                }
+            }
+
             $labelCounts[$node['id']] = ($labelCounts[$node['id']] ?? 0) + 1;
             $nodes[] = $node;
         }
@@ -881,6 +893,19 @@ class AnalyzeCode
         if ($this->onProgress) {
             ($this->onProgress)($level, $message);
         }
+    }
+
+    private function matchesWatchPattern(string $path, string $pattern): bool
+    {
+        if ($pattern === '') {
+            return false;
+        }
+        // Directory prefix: pattern ending with '/' matches any file under that directory
+        if (str_ends_with($pattern, '/')) {
+            return str_starts_with($path, $pattern);
+        }
+
+        return fnmatch($pattern, $path) || $path === $pattern;
     }
 
     private function classifyFile(array $file, array $fileDiffMap): array

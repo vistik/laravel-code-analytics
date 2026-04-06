@@ -587,8 +587,7 @@ function openPanel(n) {
       (n.mediumCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.medium + ';flex-shrink:0;display:inline-block"></span>' + n.mediumCount + '</span>' : '') +
       (n.lowCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.low + ';flex-shrink:0;display:inline-block"></span>' + n.lowCount + '</span>' : '') +
       (n.infoCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.info + ';flex-shrink:0;display:inline-block"></span>' + n.infoCount + '</span>' : '') +
-      (n.watchLevel === 'dangerous' ? '<span class="badge" style="background:#f85149;color:#fff">&#9670; Watched &mdash; dangerous</span>' : '') +
-      (n.watchLevel === 'important' ? '<span class="badge" style="background:#d29922;color:#000">&#9670; Watched &mdash; important</span>' : '') +
+      (n.watched ? '<span class="badge" style="background:#d29922;color:#000">&#9670; Watched</span>' : '') +
     '</div>';
 
   var isReviewed = reviewedNodes.has(n.id);
@@ -1062,9 +1061,8 @@ canvas.addEventListener('mousemove', e => {
         if (parts.length > 0) severityLine = '<div class="stat">' + parts.join(' &middot; ') + '</div>';
       }
       var watchLine = '';
-      if (n.watchLevel) {
-        var wColor = n.watchLevel === 'dangerous' ? '#f85149' : '#d29922';
-        watchLine = '<div class="stat"><span style="color:' + wColor + '">&#9670; Watched &mdash; ' + n.watchLevel + '</span>' +
+      if (n.watched) {
+        watchLine = '<div class="stat"><span style="color:#d29922">&#9670; Watched</span>' +
           (n.watchReason ? ' <span style="color:#6e7681">' + n.watchReason + '</span>' : '') + '</div>';
       }
       tooltip.innerHTML =
@@ -1214,11 +1212,11 @@ function draw() {
       ctx.strokeStyle = '#161b22'; ctx.lineWidth = 1.5; ctx.stroke();
     }
     // Watched file indicator (eye icon as triangle marker)
-    if (!dim && n.watchLevel) {
+    if (!dim && n.watched) {
       const s = Math.max(5, Math.min(8, n.r * 0.2));
       const ix = n.x - n.r * 0.7;
       const iy = n.y - n.r * 0.7;
-      const watchColor = n.watchLevel === 'dangerous' ? '#f85149' : '#d29922';
+      const watchColor = '#d29922';
       // Draw diamond shape
       ctx.beginPath();
       ctx.moveTo(ix, iy - s);
