@@ -14,6 +14,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
 use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
 use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
@@ -81,7 +82,7 @@ class AnalyzeCode
         ?string $prUrl = null,
         ?string $title = null,
         ?string $view = null,
-        string $format = 'html',
+        OutputFormat $format = OutputFormat::HTML,
         ?Closure $onProgress = null,
     ): array {
         $this->onProgress = $onProgress;
@@ -232,8 +233,6 @@ class AnalyzeCode
         unset($node);
 
         // ── Collect extensions, domains, severity counts ─────────────────────
-        $generator = new GenerateHtmlReport;
-
         $domainPalette = [
             '#3fb950', '#58a6ff', '#d29922', '#f78166', '#d2a8ff',
             '#f778ba', '#79c0ff', '#7ee787', '#ff7b72', '#e3b341',
@@ -258,9 +257,6 @@ class AnalyzeCode
             $node['domainColor'] = $domainColorMap[$node['domain']] ?? '#8b949e';
         }
         unset($node);
-
-        $extTogglesHtml = $generator->buildExtToggles($nodes);
-        $folderTogglesHtml = $generator->buildFolderToggles($nodes);
 
         // ── Fetch file contents from HEAD via git cat-file --batch ───────────
         $this->progress('info', 'Reading file contents...');
@@ -512,9 +508,6 @@ class AnalyzeCode
             $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
         }
 
-        // ── Build severity toggles ───────────────────────────────────────────
-        $severityTogglesHtml = $generator->buildSeverityToggles($nodes);
-
         // ── Extract per-file diffs ────────────────────────────────────────────
         $fileDiffs = [];
         $diffBlocks = preg_split('/^diff --git /m', $this->diff);
@@ -551,68 +544,33 @@ class AnalyzeCode
             mkdir($outputDir, 0755, true);
         }
 
-        if ($format === 'md') {
-            $this->progress('info', 'Generating Markdown report...');
+        $reportGenerator = $format->generator();
 
-            if ($outputPath === null) {
-                $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
-                $outputPath = $this->repoDir !== null
-                    ? "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).'.md'
-                    : "{$outputDir}/local-{$safeBranch}.md";
-            }
+        $this->progress('info', "Generating {$format->value} report...");
 
-            $mdGenerator = new GenerateMdReport;
-            $mdContent = $mdGenerator->execute(
-                nodes: $nodes,
-                edges: $this->edges,
-                fileDiffs: $fileDiffs,
-                analysisData: $analysisData,
-                title: $prTitle,
-                repo: $repoName,
-                headCommit: $this->headCommit,
-                prAdditions: $totalAdditions,
-                prDeletions: $totalDeletions,
-                fileCount: $fileCount,
-                riskScore: $riskResult,
-                metricsData: $metricsData,
-            );
-            $mdGenerator->writeFile($outputPath, $mdContent);
-        } else {
-            $this->progress('info', 'Generating HTML...');
-
-            if ($outputPath === null) {
-                if ($this->repoDir !== null) {
-                    $prNumSafe = preg_replace('/[^0-9]/', '', $this->branchName);
-                    $outputPath = "{$outputDir}/pr-{$prNumSafe}.html";
-                } else {
-                    $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
-                    $outputPath = "{$outputDir}/local-{$safeBranch}.html";
-                }
-            }
-
-            $generator->writeSingleFile(
-                nodes: $nodes,
-                edges: $this->edges,
-                fileDiffs: $fileDiffs,
-                analysisData: $analysisData,
-                prNumber: $this->branchName,
-                prTitle: $prTitle,
-                prUrl: $prLinkUrl,
-                prAdditions: $totalAdditions,
-                prDeletions: $totalDeletions,
-                repo: $repoName,
-                headCommit: $this->headCommit,
-                fileCount: $fileCount,
-                connectedCount: 0,
-                extTogglesHtml: $extTogglesHtml,
-                folderTogglesHtml: $folderTogglesHtml,
-                severityTogglesHtml: $severityTogglesHtml,
-                outputPath: $outputPath,
-                riskScore: $riskResult,
-                metricsData: $metricsData,
-                defaultView: $view ?? 'grouped',
-            );
+        if ($outputPath === null) {
+            $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
+            $ext = $format->fileExtension();
+            $outputPath = $this->repoDir !== null
+                ? "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).".{$ext}"
+                : "{$outputDir}/local-{$safeBranch}.{$ext}";
         }
+
+        $content = $reportGenerator->generate(
+            nodes: $nodes,
+            edges: $this->edges,
+            fileDiffs: $fileDiffs,
+            analysisData: $analysisData,
+            title: $prTitle,
+            repo: $repoName,
+            headCommit: $this->headCommit,
+            prAdditions: $totalAdditions,
+            prDeletions: $totalDeletions,
+            fileCount: $fileCount,
+            riskScore: $riskResult,
+            metricsData: $metricsData,
+        );
+        $reportGenerator->writeFile($outputPath, $content);
 
         $this->progress('line', "  Generated: {$outputPath}");
         $this->progress('info', 'Done!');

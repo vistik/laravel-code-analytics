@@ -8,19 +8,20 @@ use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
+use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class CodeAnalyzeCommand extends Command
 {
     protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}
-        {output? : Output file path (HTML or Markdown depending on --format)}
+        {output? : Output file path (HTML, Markdown, or JSON depending on --format)}
         {--base= : Base branch or commit to diff against (default: main)}
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
         {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups)}
-        {--format=html : Output format: html or md}
+        {--format=html : Output format: html, md, or json}
         {--open : Open the generated file in the browser when done}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
@@ -35,7 +36,9 @@ class CodeAnalyzeCommand extends Command
             $baseBranch = $this->option('base') ?? $config['base'] ?? 'main';
             $title = $this->option('title') ?? $config['title'] ?? null;
             $view = $this->option('view') ?? $config['view'] ?? null;
-            $format = $this->option('format') ?? $config['format'] ?? 'html';
+            $formatString = $this->option('format') ?? $config['format'] ?? 'html';
+            $format = OutputFormat::tryFrom($formatString)
+                ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json");
             $openFile = $this->option('open') || ($config['open'] ?? false);
 
             if (isset($config['file_groups'])) {
