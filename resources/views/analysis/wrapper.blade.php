@@ -222,6 +222,12 @@
     return '#3fb950';
   }
 
+  function valColor(pts) {
+    if (pts >= 20) return '#f85149';
+    if (pts >= 8) return '#d29922';
+    return '#3fb950';
+  }
+
   var statusStyles = {
     added: ['#0d3520', '#3fb950', '#238636', 'New'],
     deleted: ['#3d1214', '#f85149', '#da3633', 'Deleted'],
@@ -273,19 +279,21 @@
       var pts = count * (sevScores[sev] || 0);
       rows += '<div class="signal-tooltip-row">'
         + '<span class="label"><span style="width:6px;height:6px;border-radius:50%;background:' + sevColors[sev] + ';display:inline-block;flex-shrink:0"></span>' + sevLabels[sev] + ' &times; ' + count + '</span>'
-        + '<span class="val">+' + pts + '</span>'
+        + '<span class="val" style="color:' + valColor(pts) + '">+' + pts + '</span>'
         + '</div>';
     }
     var changePts = Math.round(Math.sqrt(n.add + n.del) * 2);
     if (changePts) {
-      rows += '<div class="signal-tooltip-row"><span class="label">Changes</span><span class="val">+' + changePts + '</span></div>';
+      rows += '<div class="signal-tooltip-row"><span class="label">Lines changed (&plusmn;' + (n.add + n.del) + ')</span><span class="val" style="color:' + valColor(changePts) + '">+' + changePts + '</span></div>';
     }
     if (m) {
       if ((m.cc || 0) > 10) {
-        rows += '<div class="signal-tooltip-row"><span class="label">Complexity (CC)</span><span class="val">+' + Math.round((m.cc - 10) * 2) + '</span></div>';
+        var ccPts = Math.round((m.cc - 10) * 2);
+        rows += '<div class="signal-tooltip-row"><span class="label">Complexity (CC)</span><span class="val" style="color:' + valColor(ccPts) + '">+' + ccPts + '</span></div>';
       }
       if (m.mi != null && m.mi < 65) {
-        rows += '<div class="signal-tooltip-row"><span class="label">Maintainability (MI)</span><span class="val">+' + Math.round((65 - m.mi) * 0.5) + '</span></div>';
+        var miPts = Math.round((65 - m.mi) * 0.5);
+        rows += '<div class="signal-tooltip-row"><span class="label">Maintainability (MI)</span><span class="val" style="color:' + valColor(miPts) + '">+' + miPts + '</span></div>';
       }
     }
     return rows;
