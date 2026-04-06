@@ -7,6 +7,7 @@ use RuntimeException;
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
@@ -20,8 +21,9 @@ class CodeAnalyzeCommand extends Command
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
-        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups)}
+        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity)}
         {--format=html : Output format: html, md, or json}
+        {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--open : Open the generated file in the browser when done}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
@@ -41,6 +43,11 @@ class CodeAnalyzeCommand extends Command
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json");
             $openFile = $this->option('open') || ($config['open'] ?? false);
 
+            $minSeverityString = $this->option('min-severity') ?? $config['min_severity'] ?? null;
+            $minSeverity = $minSeverityString !== null
+                ? (Severity::tryFrom($minSeverityString) ?? throw new RuntimeException("Invalid min-severity: {$minSeverityString}. Valid options: info, low, medium, high, very_high"))
+                : null;
+
             if (isset($config['file_groups'])) {
                 $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($config));
             }
@@ -55,6 +62,7 @@ class CodeAnalyzeCommand extends Command
                 title: $title,
                 view: $view,
                 format: $format,
+                minSeverity: $minSeverity,
                 onProgress: function (string $level, string $message): void {
                     match ($level) {
                         'info' => $this->info($message),
