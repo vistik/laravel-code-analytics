@@ -18,6 +18,7 @@ class GenerateJsonReport implements ReportGenerator
         int $prAdditions,
         int $prDeletions,
         int $fileCount,
+        string $prUrl = '',
         ?RiskScore $riskScore = null,
         array $metricsData = [],
     ): string {

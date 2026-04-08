@@ -666,6 +666,7 @@ class AnalyzeCode
             prAdditions: $totalAdditions,
             prDeletions: $totalDeletions,
             fileCount: $fileCount,
+            prUrl: $prLinkUrl,
             riskScore: $riskResult,
             metricsData: $metricsData,
         );

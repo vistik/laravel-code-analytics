@@ -564,7 +564,7 @@ function highlightPHP(code) {
 // ── Panel ─────────────────────────────────────────────────────────────────────
 function openPanel(n) {
   selectedNode = n;
-  const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
+  const ghFileUrl = PR_URL + '/changes#diff-' + n.hash;
   const total = n.add + n.del;
   const addPct = total > 0 ? (n.add / total * 100) : 0;
   const delPct = total > 0 ? (n.del / total * 100) : 0;
