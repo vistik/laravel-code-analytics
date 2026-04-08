@@ -238,10 +238,6 @@ class AstComparer
         foreach ($unmatchedOld as $oldName => $oldNode) {
             $oldMethodHashes = $this->getMethodBodyHashes($oldNode);
 
-            if ($oldMethodHashes === []) {
-                continue;
-            }
-
             $bestMatch = null;
             $bestSimilarity = 0.0;
 
@@ -252,11 +248,15 @@ class AstComparer
 
                 $newMethodHashes = $this->getMethodBodyHashes($newNode);
 
-                if ($newMethodHashes === []) {
+                if ($oldMethodHashes === [] && $newMethodHashes === []) {
+                    // Neither has methods: compare parent class, interfaces, and traits
+                    $similarity = $this->calculateStructuralSimilarity($oldNode, $newNode);
+                } elseif ($oldMethodHashes === [] || $newMethodHashes === []) {
+                    // One has methods, the other doesn't — not a rename
                     continue;
+                } else {
+                    $similarity = $this->calculateSimilarity($oldMethodHashes, $newMethodHashes);
                 }
-
-                $similarity = $this->calculateSimilarity($oldMethodHashes, $newMethodHashes);
 
                 if ($similarity > $bestSimilarity) {
                     $bestSimilarity = $similarity;
@@ -328,6 +328,33 @@ class AstComparer
         }
 
         return $matching / $totalMethods;
+    }
+
+    /**
+     * Calculate similarity between two class-like nodes that have no methods,
+     * based on their structural features (parent class, implemented interfaces, used traits).
+     * Returns 1.0 if all structural features match, 0.0 otherwise.
+     */
+    private function calculateStructuralSimilarity(Node $old, Node $new): float
+    {
+        if (! ($old instanceof Stmt\Class_) || ! ($new instanceof Stmt\Class_)) {
+            return get_class($old) === get_class($new) ? 1.0 : 0.0;
+        }
+
+        if ($old->extends?->toString() !== $new->extends?->toString()) {
+            return 0.0;
+        }
+
+        $oldImpls = array_map(fn (Node\Name $n) => $n->toString(), $old->implements);
+        $newImpls = array_map(fn (Node\Name $n) => $n->toString(), $new->implements);
+        sort($oldImpls);
+        sort($newImpls);
+
+        if ($oldImpls !== $newImpls) {
+            return 0.0;
+        }
+
+        return 1.0;
     }
 
     /**
