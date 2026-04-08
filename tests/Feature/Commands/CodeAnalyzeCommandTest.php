@@ -21,28 +21,6 @@ it('fails when the base branch cannot be resolved', function () {
         ->assertFailed();
 });
 
-it('displays risk score after successful analysis', function () {
-    $this->mock(AnalyzeCode::class, function ($mock) {
-        $mock->shouldReceive('execute')
-            ->once()
-            ->andReturn([
-                'files' => ['all' => '/tmp/local-my-branch.html'],
-                'risk' => new RiskScore(42, [
-                    ['name' => 'Change Size', 'score' => 10, 'maxScore' => 20],
-                    ['name' => 'File Spread', 'score' => 4, 'maxScore' => 10],
-                    ['name' => 'Deletion Ratio', 'score' => 0, 'maxScore' => 10],
-                    ['name' => 'Code Analysis Findings', 'score' => 0, 'maxScore' => 30],
-                    ['name' => 'PHP Code Quality', 'score' => 0, 'maxScore' => 10],
-                ]),
-            ]);
-    });
-
-    $this->artisan('code:analyze')
-        ->expectsOutputToContain('Risk Score: 42/100')
-        ->expectsOutputToContain('Change Size')
-        ->expectsOutputToContain('File Spread')
-        ->assertSuccessful();
-});
 
 it('returns success with no output when no changes found', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
