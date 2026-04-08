@@ -87,6 +87,7 @@ class AnalyzeCode
         ?Severity $minSeverity = null,
         ?Closure $onProgress = null,
         ?array $watchedFiles = null,
+        ?array $filePatterns = null,
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -187,6 +188,30 @@ class AnalyzeCode
             if (empty($files)) {
                 throw new RuntimeException('No files found in diff output.');
             }
+        }
+
+        // ── Apply file pattern filter ─────────────────────────────────────────
+        if ($filePatterns !== null) {
+            $files = array_values(array_filter($files, function (array $file) use ($filePatterns): bool {
+                foreach ($filePatterns as $pattern) {
+                    if (fnmatch($pattern, $file['path']) || str_contains($file['path'], $pattern)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }));
+
+            $totalAdditions = array_sum(array_column($files, 'additions'));
+            $totalDeletions = array_sum(array_column($files, 'deletions'));
+
+            if (empty($files)) {
+                $this->progress('warn', 'No files matched the --file filter.');
+
+                return ['files' => [], 'risk' => new RiskScore(0)];
+            }
+
+            $this->progress('line', '  File filter applied: '.implode(', ', $filePatterns));
         }
 
         $fileCount = count($files);
@@ -638,6 +663,14 @@ class AnalyzeCode
             $analysisData = array_intersect_key($analysisData, array_flip($filteredPaths));
             $metricsData = array_intersect_key($metricsData, array_flip($filteredPaths));
             $fileDiffs = array_intersect_key($fileDiffs, array_flip($filteredPaths));
+
+            // Also filter individual findings within each file by the same threshold
+            foreach ($analysisData as $path => $findings) {
+                $analysisData[$path] = array_values(array_filter(
+                    $findings,
+                    fn ($f) => isset($f['severity']) && Severity::from($f['severity'])->score() >= $minScore,
+                ));
+            }
 
             $fileCount = count($nodes);
             $totalAdditions = array_sum(array_column($nodes, 'add'));

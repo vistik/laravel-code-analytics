@@ -21,9 +21,10 @@ class CodeAnalyzeCommand extends Command
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
-        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity)}
+        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file)}
         {--format=html : Output format: html, md, or json}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
+        {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--open : Open the generated file in the browser when done}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
@@ -54,6 +55,8 @@ class CodeAnalyzeCommand extends Command
 
             $prUrl = $this->option('pr');
 
+            $filePatterns = $this->option('file') ?: ($config['file'] ?? null) ?: null;
+
             $result = $action->execute(
                 repoPath: $repoPath,
                 outputPath: $outputPath,
@@ -64,6 +67,7 @@ class CodeAnalyzeCommand extends Command
                 format: $format,
                 minSeverity: $minSeverity,
                 watchedFiles: $config['watched_files'] ?? null,
+                filePatterns: $filePatterns ?: null,
                 onProgress: function (string $level, string $message): void {
                     match ($level) {
                         'info' => $this->info($message),
