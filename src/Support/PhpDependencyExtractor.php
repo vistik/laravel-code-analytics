@@ -3,9 +3,16 @@
 namespace Vistik\LaravelCodeAnalytics\Support;
 
 use PhpParser\ErrorHandler\Collecting;
+use PhpParser\Node;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Identifier;
+use PhpParser\Node\IntersectionType;
 use PhpParser\Node\Name;
+use PhpParser\Node\NullableType;
+use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt;
+use PhpParser\Node\UnionType;
 use PhpParser\NodeFinder;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
@@ -78,7 +85,7 @@ class PhpDependencyExtractor
     }
 
     /**
-     * @param  array<int, \PhpParser\Node>  $nodes
+     * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
      */
     private function collectConstructorInjections(array $nodes, array &$refs): void
@@ -100,7 +107,7 @@ class PhpDependencyExtractor
     }
 
     /**
-     * @param  array<int, \PhpParser\Node>  $nodes
+     * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
      */
     private function collectMethodInjections(array $nodes, array &$refs): void
@@ -122,7 +129,7 @@ class PhpDependencyExtractor
     }
 
     /**
-     * @param  array<int, \PhpParser\Node>  $nodes
+     * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
      */
     private function collectNewInstances(array $nodes, array &$refs): void
@@ -144,7 +151,7 @@ class PhpDependencyExtractor
      * Detects app(Foo::class), resolve(Foo::class), App::make(Foo::class),
      * app()->make(Foo::class), $this->app->make(Foo::class).
      *
-     * @param  array<int, \PhpParser\Node>  $nodes
+     * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
      */
     private function collectContainerResolutions(array $nodes, array &$refs): void
@@ -160,7 +167,7 @@ class PhpDependencyExtractor
                 continue;
             }
             if (isset($call->args[0])) {
-                $argValue = $call->args[0] instanceof \PhpParser\Node\Arg ? $call->args[0]->value : null;
+                $argValue = $call->args[0] instanceof Arg ? $call->args[0]->value : null;
                 foreach ($this->classConstFetchName($argValue) as $name) {
                     $refs[$name][] = self::CONTAINER_RESOLVED;
                 }
@@ -177,14 +184,14 @@ class PhpDependencyExtractor
             if (! in_array($className, ['App', 'Application'], true)) {
                 continue;
             }
-            if (! ($call->name instanceof \PhpParser\Node\Identifier)) {
+            if (! ($call->name instanceof Identifier)) {
                 continue;
             }
             if (! in_array($call->name->name, ['make', 'resolve', 'get'], true)) {
                 continue;
             }
             if (isset($call->args[0])) {
-                $argValue = $call->args[0] instanceof \PhpParser\Node\Arg ? $call->args[0]->value : null;
+                $argValue = $call->args[0] instanceof Arg ? $call->args[0]->value : null;
                 foreach ($this->classConstFetchName($argValue) as $name) {
                     $refs[$name][] = self::CONTAINER_RESOLVED;
                 }
@@ -194,14 +201,14 @@ class PhpDependencyExtractor
         // $this->app->make(Foo::class) / app()->make(Foo::class)
         foreach ($this->finder->findInstanceOf($nodes, Expr\MethodCall::class) as $call) {
             /** @var Expr\MethodCall $call */
-            if (! ($call->name instanceof \PhpParser\Node\Identifier)) {
+            if (! ($call->name instanceof Identifier)) {
                 continue;
             }
             if (! in_array($call->name->name, ['make', 'resolve', 'get'], true)) {
                 continue;
             }
             if (isset($call->args[0])) {
-                $argValue = $call->args[0] instanceof \PhpParser\Node\Arg ? $call->args[0]->value : null;
+                $argValue = $call->args[0] instanceof Arg ? $call->args[0]->value : null;
                 foreach ($this->classConstFetchName($argValue) as $name) {
                     $refs[$name][] = self::CONTAINER_RESOLVED;
                 }
@@ -210,7 +217,7 @@ class PhpDependencyExtractor
     }
 
     /**
-     * @param  array<int, \PhpParser\Node>  $nodes
+     * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
      */
     private function collectStaticCalls(array $nodes, array &$refs): void
@@ -237,7 +244,7 @@ class PhpDependencyExtractor
                 continue;
             }
             // Only add if constant is not "class" (bare Foo::class used as string is type_reference)
-            if ($fetch->name instanceof \PhpParser\Node\Identifier && $fetch->name->name !== 'class') {
+            if ($fetch->name instanceof Identifier && $fetch->name->name !== 'class') {
                 $refs[$name][] = self::STATIC_CALL;
             }
         }
@@ -246,7 +253,7 @@ class PhpDependencyExtractor
     /**
      * Covers property types, return types, extends/implements, use imports.
      *
-     * @param  array<int, \PhpParser\Node>  $nodes
+     * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
      */
     private function collectTypeReferences(array $nodes, array &$refs): void
@@ -310,7 +317,7 @@ class PhpDependencyExtractor
      *
      * @return list<string>
      */
-    private function resolveTypeNames(\PhpParser\Node $typeNode): array
+    private function resolveTypeNames(Node $typeNode): array
     {
         if ($typeNode instanceof Name) {
             $name = $typeNode->toString();
@@ -322,11 +329,11 @@ class PhpDependencyExtractor
             return [];
         }
 
-        if ($typeNode instanceof \PhpParser\Node\NullableType) {
+        if ($typeNode instanceof NullableType) {
             return $this->resolveTypeNames($typeNode->type);
         }
 
-        if ($typeNode instanceof \PhpParser\Node\UnionType || $typeNode instanceof \PhpParser\Node\IntersectionType) {
+        if ($typeNode instanceof UnionType || $typeNode instanceof IntersectionType) {
             $names = [];
             foreach ($typeNode->types as $t) {
                 $names = array_merge($names, $this->resolveTypeNames($t));
@@ -344,16 +351,16 @@ class PhpDependencyExtractor
      *
      * @return list<string>
      */
-    private function classConstFetchName(?\PhpParser\Node $node): array
+    private function classConstFetchName(?Node $node): array
     {
         if ($node instanceof Expr\ClassConstFetch
             && $node->class instanceof Name
-            && $node->name instanceof \PhpParser\Node\Identifier
+            && $node->name instanceof Identifier
             && $node->name->name === 'class') {
             return [$node->class->toString()];
         }
 
-        if ($node instanceof \PhpParser\Node\Scalar\String_) {
+        if ($node instanceof String_) {
             if (preg_match('/^[A-Z][A-Za-z0-9_\\\\]+$/', $node->value)) {
                 return [$node->value];
             }

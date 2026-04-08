@@ -1037,7 +1037,7 @@ class AnalyzeCode
     /**
      * Extract class references from PHP source, classified by how they are used.
      *
-     * @return array<string, string>  FQCN/short-name → dependency type
+     * @return array<string, string> FQCN/short-name → dependency type
      */
     private function extractReferences(string $content): array
     {
