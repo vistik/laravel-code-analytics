@@ -2,20 +2,40 @@
     "scripts": {
         "run": [
             {
-                "label": "Analyze code",
+                "label": "Analyze code (--format=html)",
                 "command": "./testbench code:analyze --format=html --open"
             },
             {
-                "label": "Analyze code (Big PR)",
-                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html"
-            },
-            {
-                "label": "Analyze code (MD)",
+                "label": "Analyze code (--format=md)",
                 "command": "./testbench code:analyze --format=md --open"
             },
             {
-                "label": "Analyze code (json)",
+                "label": "Analyze code (--format=json)",
                 "command": "./testbench code:analyze --format=json --open"
+            },
+            {
+                "label": "Analyze code [Big PR] (--format=html)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html"
+            },
+            {
+                "label": "Analyze code [Big PR] (--format=json)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=json"
+            },
+            {
+                "label": "Analyze code [Big PR] (--format=md)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=md"
+            },
+            {
+                "label": "Analyze code [Big PR] (--format=html --min-severity=high)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html --min-severity=high"
+            },
+            {
+                "label": "Analyze code [Big PR] (--format=json --min-severity=high)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=json --min-severity=high"
+            },
+            {
+                "label": "Analyze code [Big PR] (--format=md --min-severity=high)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=md --min-severity=high"
             },
             {
                 "label": "Run tests",
