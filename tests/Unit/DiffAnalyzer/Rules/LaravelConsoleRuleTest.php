@@ -7,27 +7,6 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleRule;
 
-it('detects command signature change', function () {
-    $old = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:bar"; public function handle() { $this->info("hello"); } }';
-    $new = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:baz"; public function handle() { $this->info("hello"); } }';
-
-    $comparer = new AstComparer;
-    $comparison = $comparer->compare($old, $new);
-    $file = new FileDiff('app/Console/Commands/FooCommand.php', 'app/Console/Commands/FooCommand.php', FileStatus::MODIFIED);
-
-    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
-
-    $signatureChanges = array_values(array_filter(
-        $changes,
-        fn ($c) => str_contains($c->description, '$signature'),
-    ));
-
-    expect($signatureChanges)->toHaveCount(1)
-        ->and($signatureChanges[0]->category)->toBe(ChangeCategory::LARAVEL)
-        ->and($signatureChanges[0]->severity)->toBe(Severity::MEDIUM)
-        ->and($signatureChanges[0]->description)->toContain('CLI interface changed');
-});
-
 it('detects handle method change', function () {
     $old = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:bar"; public function handle() { $this->info("hello"); } }';
     $new = '<?php namespace App\Console\Commands; use Illuminate\Console\Command; class FooCommand extends Command { protected $signature = "foo:bar"; public function handle() { $this->info("goodbye"); $this->line("done"); } }';

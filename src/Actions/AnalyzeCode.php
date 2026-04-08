@@ -31,7 +31,7 @@ class AnalyzeCode
 
     private FileSignalScoring $fileSignalScorer;
 
-    private string $repoPath;
+    private string $repoPath = '';
 
     private string $headCommit;
 
@@ -366,7 +366,7 @@ class AnalyzeCode
         $this->progress('info', 'Running AST analysis...');
 
         $astComparer = new AstComparer;
-        $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel);
+        $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel, $this->repoPath ?: null);
 
         // Fetch old sources (base commit) in parallel
         $needsOldSource = [];
