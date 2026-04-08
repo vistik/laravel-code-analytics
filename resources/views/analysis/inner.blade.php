@@ -174,7 +174,16 @@
   .diff-section h4 {
     font-size: 12px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px;
     padding: 12px 24px 8px; position: sticky; top: 0; background: #161b22; z-index: 1;
+    display: flex; align-items: center;
   }
+  .diff-view-controls { margin-left: auto; display: flex; gap: 4px; }
+  .diff-view-btn {
+    background: none; border: 1px solid #30363d; color: #6e7681; padding: 2px 8px;
+    border-radius: 4px; font-size: 11px; cursor: pointer; text-transform: none;
+    letter-spacing: normal; font-family: inherit;
+  }
+  .diff-view-btn:hover { background: #21262d; color: #c9d1d9; }
+  .diff-view-btn.active { border-color: #58a6ff; color: #58a6ff; }
   .diff-table {
     width: 100%; border-collapse: collapse; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
     font-size: 12px; line-height: 1.5;
@@ -190,6 +199,9 @@
   .diff-table .diff-ln-add { background: #0a2e1a; }
   .diff-table .diff-ln-del { background: #30111a; }
   .diff-table .diff-ctx { color: #c9d1d9; }
+  /* Split view */
+  .diff-table.split .diff-code { width: 45%; }
+  .diff-table.split .diff-empty { opacity: 0.4; }
   .diff-annotation {
     position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
     width: 7px; height: 7px; border-radius: 50%; cursor: pointer; z-index: 2;
@@ -561,6 +573,187 @@ function highlightPHP(code) {
   return out;
 }
 
+// ── Diff view ─────────────────────────────────────────────────────────────────
+var diffViewMode = localStorage.getItem('diffViewMode') || 'unified';
+var diffAnnotationsData = [];
+
+function parseDiffLines(rawDiff) {
+  var lines = rawDiff.split('\n');
+  var result = [];
+  var i = 0;
+  while (i < lines.length) {
+    var line = lines[i];
+    if (line.startsWith('@@')) {
+      var hm = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/);
+      result.push({ type: 'hunk', raw: line, oldStart: hm ? parseInt(hm[1]) : 1, newStart: hm ? parseInt(hm[2]) : 1 });
+      i++;
+    } else if (line.startsWith('\\')) {
+      i++;
+    } else if (line.startsWith('-') || line.startsWith('+')) {
+      var dels = [], adds = [];
+      while (i < lines.length) {
+        if (lines[i].startsWith('\\')) { i++; continue; }
+        if (lines[i].startsWith('-')) { dels.push(lines[i].substring(1)); i++; }
+        else if (lines[i].startsWith('+')) { adds.push(lines[i].substring(1)); i++; }
+        else break;
+      }
+      result.push({ type: 'change', dels: dels, adds: adds });
+    } else {
+      result.push({ type: 'ctx', text: line.length > 0 ? line.substring(1) : '' });
+      i++;
+    }
+  }
+  return result;
+}
+
+function renderUnifiedDiff(parsed, isPHP) {
+  var html = '';
+  var oldLn = 0, newLn = 0;
+  for (var r = 0; r < parsed.length; r++) {
+    var row = parsed[r];
+    if (row.type === 'hunk') {
+      oldLn = row.oldStart; newLn = row.newStart;
+      var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html += '<tr><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-hunk">' + esc + '</td></tr>';
+    } else if (row.type === 'ctx') {
+      var h = isPHP ? highlightPHP(row.text) : escapeHtml(row.text);
+      html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '"><td class="diff-ln">' + oldLn + '</td><td class="diff-ln">' + newLn + '</td><td class="diff-ctx"> ' + h + '</td></tr>';
+      oldLn++; newLn++;
+    } else {
+      for (var j = 0; j < row.dels.length; j++) {
+        var h = isPHP ? highlightPHP(row.dels[j]) : escapeHtml(row.dels[j]);
+        html += '<tr data-old-ln="' + oldLn + '"><td class="diff-ln diff-ln-del">' + oldLn + '</td><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + h + '</td></tr>';
+        oldLn++;
+      }
+      for (var j = 0; j < row.adds.length; j++) {
+        var h = isPHP ? highlightPHP(row.adds[j]) : escapeHtml(row.adds[j]);
+        html += '<tr data-new-ln="' + newLn + '"><td class="diff-ln diff-ln-add"></td><td class="diff-ln diff-ln-add">' + newLn + '</td><td class="diff-add">+' + h + '</td></tr>';
+        newLn++;
+      }
+    }
+  }
+  return html;
+}
+
+function renderSplitDiff(parsed, isPHP) {
+  var html = '';
+  var oldLn = 0, newLn = 0;
+  for (var r = 0; r < parsed.length; r++) {
+    var row = parsed[r];
+    if (row.type === 'hunk') {
+      oldLn = row.oldStart; newLn = row.newStart;
+      var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html += '<tr><td colspan="4" class="diff-hunk">' + esc + '</td></tr>';
+    } else if (row.type === 'ctx') {
+      var h = isPHP ? highlightPHP(row.text) : escapeHtml(row.text);
+      html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '">' +
+        '<td class="diff-ln">' + oldLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
+        '<td class="diff-ln">' + newLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
+        '</tr>';
+      oldLn++; newLn++;
+    } else {
+      var dels = row.dels, adds = row.adds;
+      var bOld = oldLn, bNew = newLn;
+      var maxLen = Math.max(dels.length, adds.length);
+      for (var j = 0; j < maxLen; j++) {
+        var hasDel = j < dels.length, hasAdd = j < adds.length;
+        var trAttrs = (hasDel ? ' data-old-ln="' + (bOld + j) + '"' : '') + (hasAdd ? ' data-new-ln="' + (bNew + j) + '"' : '');
+        html += '<tr' + trAttrs + '>';
+        if (hasDel) {
+          var dh = isPHP ? highlightPHP(dels[j]) : escapeHtml(dels[j]);
+          html += '<td class="diff-ln diff-ln-del">' + (bOld + j) + '</td><td class="diff-del diff-code">-' + dh + '</td>';
+        } else {
+          html += '<td class="diff-ln diff-ln-del"></td><td class="diff-del diff-code diff-empty"></td>';
+        }
+        if (hasAdd) {
+          var ah = isPHP ? highlightPHP(adds[j]) : escapeHtml(adds[j]);
+          html += '<td class="diff-ln diff-ln-add">' + (bNew + j) + '</td><td class="diff-add diff-code">+' + ah + '</td>';
+        } else {
+          html += '<td class="diff-ln diff-ln-add"></td><td class="diff-add diff-code diff-empty"></td>';
+        }
+        html += '</tr>';
+      }
+      oldLn += dels.length;
+      newLn += adds.length;
+    }
+  }
+  return html;
+}
+
+function scrollToDiffRow(target) {
+  if (!target) return;
+  document.querySelectorAll('.diff-table tr.diff-highlight').forEach(function(r) { r.classList.remove('diff-highlight'); });
+  target.classList.add('diff-highlight');
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function findDiffRowByLine(line) {
+  var target = document.querySelector('.diff-table tr[data-new-ln="' + line + '"]');
+  if (target) return target;
+  var allRows = document.querySelectorAll('.diff-table tr[data-new-ln]');
+  var closest = null, closestDist = Infinity;
+  allRows.forEach(function(r) {
+    var ln = parseInt(r.getAttribute('data-new-ln'));
+    var dist = Math.abs(ln - parseInt(line));
+    if (dist < closestDist) { closestDist = dist; closest = r; }
+  });
+  return closest;
+}
+
+function findDiffRowByLocation(location) {
+  var method = location.indexOf('::') !== -1 ? location.split('::').pop() : location;
+  var rows = document.querySelectorAll('.diff-table tr');
+  for (var i = 0; i < rows.length; i++) {
+    var cell = rows[i].querySelector('td:last-child');
+    if (cell && cell.textContent.indexOf('function ' + method) !== -1) return rows[i];
+  }
+  for (var i = 0; i < rows.length; i++) {
+    var cell = rows[i].querySelector('td:last-child');
+    if (cell && cell.textContent.indexOf(method) !== -1) return rows[i];
+  }
+  return null;
+}
+
+function placeAnnotationDots() {
+  document.querySelectorAll('.diff-annotation').forEach(function(d) { d.remove(); });
+  var byRow = new Map();
+  diffAnnotationsData.forEach(function(a) {
+    var tr = a.line ? findDiffRowByLine(a.line) : findDiffRowByLocation(a.location);
+    if (!tr) return;
+    if (!byRow.has(tr)) byRow.set(tr, []);
+    byRow.get(tr).push(a);
+  });
+  var diffTip = document.getElementById('diffTip');
+  byRow.forEach(function(anns, tr) {
+    anns.sort(function(a, b) { return (sevOrder[a.severity] || 4) - (sevOrder[b.severity] || 4); });
+    var color = sevColors[anns[0].severity] || sevColors.info;
+    var tooltipHtml = anns.map(function(a) {
+      return '<div class="tip-entry">' +
+        '<span class="tip-dot" style="background:' + (sevColors[a.severity] || sevColors.info) + '"></span>' +
+        '<span class="tip-sev" style="color:' + (sevColors[a.severity] || sevColors.info) + '">' + (sevLabels[a.severity] || 'Info') + '</span>' +
+        '<span>' + a.description.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span></div>';
+    }).join('');
+    var lnCell = tr.querySelector('.diff-ln');
+    if (!lnCell) return;
+    var dot = document.createElement('span');
+    dot.className = 'diff-annotation';
+    dot.style.background = color;
+    lnCell.appendChild(dot);
+    dot.addEventListener('mouseenter', function() {
+      diffTip.innerHTML = tooltipHtml;
+      diffTip.style.display = 'block';
+      var rect = dot.getBoundingClientRect();
+      diffTip.style.left = (rect.right + 8) + 'px';
+      diffTip.style.top = (rect.top - 4) + 'px';
+      var tipRect = diffTip.getBoundingClientRect();
+      if (tipRect.bottom > window.innerHeight - 8) {
+        diffTip.style.top = (window.innerHeight - 8 - tipRect.height) + 'px';
+      }
+    });
+    dot.addEventListener('mouseleave', function() { diffTip.style.display = 'none'; });
+  });
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 function openPanel(n) {
   selectedNode = n;
@@ -719,40 +912,18 @@ function openPanel(n) {
     bodyHtml += '</div>';
   }
 
-  // Render inline diff
+  // Render diff
   var rawDiff = fileDiffs[n.path];
   if (rawDiff) {
-    bodyHtml += '<div class="diff-section"><h4>Diff</h4><table class="diff-table">';
-    var lines = rawDiff.split('\n');
-    var oldLn = 0, newLn = 0;
     var isPHP = n.path.endsWith('.php');
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      var prefix = '';
-      var code = line;
-      if (line.startsWith('@@@@')) {
-        var hm = line.match(/@@@@ -(\d+)(?:,\d+)? \+(\d+)/);
-        if (hm) { oldLn = parseInt(hm[1]); newLn = parseInt(hm[2]); }
-        var escaped = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        bodyHtml += '<tr><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-hunk">' + escaped + '</td></tr>';
-        continue;
-      } else if (line.startsWith('+') || line.startsWith('-')) {
-        prefix = line[0]; code = line.substring(1);
-      } else if (line.startsWith('\\')) { continue; }
-      var highlighted = isPHP ? highlightPHP(code) : escapeHtml(code);
-      highlighted = prefix + highlighted;
-      if (prefix === '+') {
-        bodyHtml += '<tr data-new-ln="' + newLn + '"><td class="diff-ln diff-ln-add"></td><td class="diff-ln diff-ln-add">' + newLn + '</td><td class="diff-add">' + highlighted + '</td></tr>';
-        newLn++;
-      } else if (prefix === '-') {
-        bodyHtml += '<tr data-old-ln="' + oldLn + '"><td class="diff-ln diff-ln-del">' + oldLn + '</td><td class="diff-ln diff-ln-del"></td><td class="diff-del">' + highlighted + '</td></tr>';
-        oldLn++;
-      } else {
-        bodyHtml += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '"><td class="diff-ln">' + oldLn + '</td><td class="diff-ln">' + newLn + '</td><td class="diff-ctx">' + highlighted + '</td></tr>';
-        oldLn++; newLn++;
-      }
-    }
-    bodyHtml += '</table></div>';
+    var parsedDiff = parseDiffLines(rawDiff);
+    var tableRows = diffViewMode === 'split' ? renderSplitDiff(parsedDiff, isPHP) : renderUnifiedDiff(parsedDiff, isPHP);
+    bodyHtml += '<div class="diff-section">' +
+      '<h4>Diff<span class="diff-view-controls">' +
+      '<button class="diff-view-btn' + (diffViewMode !== 'split' ? ' active' : '') + '" data-view="unified">Unified</button>' +
+      '<button class="diff-view-btn' + (diffViewMode === 'split' ? ' active' : '') + '" data-view="split">Split</button>' +
+      '</span></h4>' +
+      '<table class="diff-table ' + diffViewMode + '">' + tableRows + '</table></div>';
   }
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
@@ -771,104 +942,40 @@ function openPanel(n) {
     });
   }
 
-  // Wire up analysis row click-to-scroll-to-diff
-  function scrollToDiffRow(target) {
-    if (!target) return;
-    document.querySelectorAll('.diff-table tr.diff-highlight').forEach(function(r) {
-      r.classList.remove('diff-highlight');
-    });
-    target.classList.add('diff-highlight');
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  function findDiffRowByLine(line) {
-    var target = document.querySelector('.diff-table tr[data-new-ln="' + line + '"]');
-    if (target) return target;
-    var allRows = document.querySelectorAll('.diff-table tr[data-new-ln]');
-    var closest = null, closestDist = Infinity;
-    allRows.forEach(function(r) {
-      var ln = parseInt(r.getAttribute('data-new-ln'));
-      var dist = Math.abs(ln - parseInt(line));
-      if (dist < closestDist) { closestDist = dist; closest = r; }
-    });
-    return closest;
-  }
-
-  function findDiffRowByLocation(location) {
-    // Extract method name from "Class::method" format
-    var method = location.indexOf('::') !== -1 ? location.split('::').pop() : location;
-    var rows = document.querySelectorAll('.diff-table tr');
-    for (var i = 0; i < rows.length; i++) {
-      var cell = rows[i].querySelector('td:last-child');
-      if (cell && cell.textContent.indexOf('function ' + method) !== -1) return rows[i];
-    }
-    // Fallback: search for the method name anywhere in diff
-    for (var i = 0; i < rows.length; i++) {
-      var cell = rows[i].querySelector('td:last-child');
-      if (cell && cell.textContent.indexOf(method) !== -1) return rows[i];
-    }
-    return null;
-  }
-
-  var annotationColors = sevColors;
-  // Map: diff row element -> [{severity, description}]
-  var diffRowAnnotations = new Map();
-
+  // Wire up analysis row clicks and collect annotation data for dots
+  diffAnnotationsData = [];
   document.querySelectorAll('.analysis-row[data-line], .analysis-row[data-location]').forEach(function(row) {
     var line = row.getAttribute('data-line');
     var location = row.getAttribute('data-location');
-    var target = null;
-    if (line) {
-      target = findDiffRowByLine(line);
-    } else if (location) {
-      target = findDiffRowByLocation(location);
-    }
-    if (!target) return;
     row.classList.add('clickable');
-    row.addEventListener('click', function() { scrollToDiffRow(target); });
-
-    // Collect annotations per diff row
-    var severity = row.getAttribute('data-severity') || 'info';
-    var descSpan = row.querySelectorAll('span')[1]; // second span is the description text
-    var description = descSpan ? descSpan.textContent : '';
-    if (!diffRowAnnotations.has(target)) diffRowAnnotations.set(target, []);
-    diffRowAnnotations.get(target).push({ severity: severity, description: description });
-  });
-
-  // Place annotation dots on diff rows
-  var diffTip = document.getElementById('diffTip');
-
-  diffRowAnnotations.forEach(function(annotations, tr) {
-    annotations.sort(function(a, b) { return (sevOrder[a.severity] || 4) - (sevOrder[b.severity] || 4); });
-    var color = annotationColors[annotations[0].severity] || sevColors.info;
-    var tooltipHtml = annotations.map(function(a) {
-      return '<div class="tip-entry">' +
-        '<span class="tip-dot" style="background:' + (annotationColors[a.severity] || sevColors.info) + '"></span>' +
-        '<span class="tip-sev" style="color:' + (annotationColors[a.severity] || sevColors.info) + '">' + (sevLabels[a.severity] || 'Info') + '</span>' +
-        '<span>' + a.description.replace(/&/g,'&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span></div>';
-    }).join('');
-
-    var lnCell = tr.querySelector('.diff-ln');
-    if (!lnCell) return;
-    var dot = document.createElement('span');
-    dot.className = 'diff-annotation';
-    dot.style.background = color;
-    lnCell.appendChild(dot);
-
-    dot.addEventListener('mouseenter', function(e) {
-      diffTip.innerHTML = tooltipHtml;
-      diffTip.style.display = 'block';
-      var rect = dot.getBoundingClientRect();
-      diffTip.style.left = (rect.right + 8) + 'px';
-      diffTip.style.top = (rect.top - 4) + 'px';
-      // Clamp to viewport bottom
-      var tipRect = diffTip.getBoundingClientRect();
-      if (tipRect.bottom > window.innerHeight - 8) {
-        diffTip.style.top = (window.innerHeight - 8 - tipRect.height) + 'px';
-      }
+    row.addEventListener('click', function() {
+      var l = this.getAttribute('data-line');
+      var loc = this.getAttribute('data-location');
+      scrollToDiffRow(l ? findDiffRowByLine(l) : findDiffRowByLocation(loc));
     });
-    dot.addEventListener('mouseleave', function() {
-      diffTip.style.display = 'none';
+    var severity = row.getAttribute('data-severity') || 'info';
+    var descSpan = row.querySelectorAll('span')[1];
+    var description = descSpan ? descSpan.textContent : '';
+    diffAnnotationsData.push({ line: line, location: location, severity: severity, description: description });
+  });
+  placeAnnotationDots();
+
+  // Wire diff view toggle
+  document.querySelectorAll('.diff-view-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var mode = this.getAttribute('data-view');
+      if (mode === diffViewMode) return;
+      diffViewMode = mode;
+      localStorage.setItem('diffViewMode', mode);
+      document.querySelectorAll('.diff-view-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-view') === mode);
+      });
+      var rd = fileDiffs[n.path];
+      if (!rd) return;
+      var parsed = parseDiffLines(rd);
+      var rows = mode === 'split' ? renderSplitDiff(parsed, n.path.endsWith('.php')) : renderUnifiedDiff(parsed, n.path.endsWith('.php'));
+      var table = document.querySelector('.diff-table');
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); }
     });
   });
 
