@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\Concerns;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Scalar;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\PrettyPrinter\Standard;
@@ -149,5 +150,77 @@ trait AnalyzesLaravelCode
         }
 
         return null;
+    }
+
+    private function extractPropertyStringValue(Stmt\Property $prop): ?string
+    {
+        foreach ($prop->props as $propertyProp) {
+            if ($propertyProp->default instanceof Scalar\String_) {
+                return $propertyProp->default->value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse a Laravel command signature and return its arguments and options.
+     *
+     * @return array<string, array{type: 'argument'|'option', default: ?string, required: bool}>
+     */
+    private function parseSignatureTokens(string $signature): array
+    {
+        $tokens = [];
+
+        if (! preg_match_all('/\{([^}]+)\}/', $signature, $matches)) {
+            return $tokens;
+        }
+
+        foreach ($matches[1] as $raw) {
+            // Strip description (everything after first colon)
+            $token = trim((string) preg_replace('/\s*:.*$/s', '', $raw));
+
+            if (str_starts_with($token, '--')) {
+                // Named option: --name, --name=default, --N|name, --N|name=default
+                $token = substr($token, 2);
+
+                if (str_contains($token, '|')) {
+                    $token = explode('|', $token, 2)[1];
+                }
+
+                $default = null;
+                $required = false;
+
+                if (str_contains($token, '=')) {
+                    [$name, $default] = explode('=', $token, 2);
+                    $required = $default === '';
+                    $default = $default !== '' ? $default : null;
+                } else {
+                    $name = $token;
+                }
+
+                $tokens['--'.trim($name)] = ['type' => 'option', 'default' => $default, 'required' => $required];
+            } else {
+                // Positional argument: name, name?, name=default, name*, name?*
+                $default = null;
+
+                if (str_contains($token, '=')) {
+                    [$name, $default] = explode('=', $token, 2);
+                } else {
+                    $name = $token;
+                }
+
+                $optional = str_contains($name, '?');
+                $cleanName = rtrim(trim($name), '?*');
+
+                $tokens[$cleanName] = [
+                    'type' => 'argument',
+                    'default' => $default,
+                    'required' => ! $optional && $default === null,
+                ];
+            }
+        }
+
+        return $tokens;
     }
 }

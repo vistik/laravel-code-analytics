@@ -21,7 +21,11 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelApiResourceRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelAuthRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelCacheRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentAddedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentDefaultChangedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentRemovedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleSignatureChangedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDataMigrationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEloquentRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEnvironmentRule;
@@ -50,7 +54,7 @@ class ChangeClassifier
     /** @var list<Rule> */
     private array $rules;
 
-    public function __construct(AstComparer $comparer, bool $isLaravel = true)
+    public function __construct(AstComparer $comparer, bool $isLaravel = true, private readonly ?string $repoPath = null)
     {
         $this->rules = [
             // Generic rules
@@ -95,6 +99,10 @@ class ChangeClassifier
                 new LaravelApiResourceRule,
                 new LaravelLivewireRule,
                 new LaravelConsoleRule,
+                new LaravelConsoleSignatureChangedRule($this->repoPath),
+                new LaravelConsoleArgumentAddedRule,
+                new LaravelConsoleArgumentRemovedRule,
+                new LaravelConsoleArgumentDefaultChangedRule,
                 new LaravelEnvironmentRule,
                 new LaravelCacheRule,
             ];

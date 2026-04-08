@@ -52,30 +52,6 @@ class LaravelConsoleRule implements Rule
     private function analyzeCommandSignature(array $comparison, array &$changes): void
     {
         foreach ($comparison['properties'] as $key => $pair) {
-            if (! str_ends_with($key, '::$signature') && ! str_ends_with($key, '::$name')) {
-                continue;
-            }
-
-            $propName = str_ends_with($key, '::$signature') ? 'signature' : 'name';
-
-            if ($pair['old'] !== null && $pair['new'] !== null) {
-                $oldVal = $this->printer->prettyPrint([$pair['old']]);
-                $newVal = $this->printer->prettyPrint([$pair['new']]);
-
-                if ($oldVal !== $newVal) {
-                    $changes[] = new ClassifiedChange(
-                        category: ChangeCategory::LARAVEL,
-                        severity: Severity::MEDIUM,
-                        description: "Artisan command \${$propName} changed on {$this->getClassName($key)} — CLI interface changed",
-                        location: $key,
-                        line: $pair['new']->getStartLine(),
-                    );
-                }
-            }
-        }
-
-        // Also check $description changes
-        foreach ($comparison['properties'] as $key => $pair) {
             if (! str_ends_with($key, '::$description')) {
                 continue;
             }
