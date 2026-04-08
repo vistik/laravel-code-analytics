@@ -21,7 +21,6 @@ it('fails when the base branch cannot be resolved', function () {
         ->assertFailed();
 });
 
-
 it('returns success with no output when no changes found', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')

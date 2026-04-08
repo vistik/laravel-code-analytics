@@ -5,6 +5,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
+use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
 
@@ -57,7 +58,7 @@ function addAndStageFile(string $repoDir, string $relativePath, string $content)
 function removeTempDir(string $dir): void
 {
     if (PHP_OS_FAMILY === 'Windows') {
-        shell_exec("rmdir /s /q ".escapeshellarg($dir));
+        shell_exec('rmdir /s /q '.escapeshellarg($dir));
     } else {
         shell_exec('rm -rf '.escapeshellarg($dir));
     }
@@ -663,7 +664,8 @@ describe('execute — raw mode', function () {
 
 describe('execute — injectable scorers', function () {
     it('uses a custom risk scorer when provided', function () {
-        $mockScorer = new class implements \Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring {
+        $mockScorer = new class implements RiskScoring
+        {
             public function calculate(array $nodes, int $additions, int $deletions, int $fileCount, int $phpHotSpots): RiskScore
             {
                 return new RiskScore(42);
