@@ -7,6 +7,28 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ClassStructureRule;
 
+it('detects class renamed', function () {
+    $old = '<?php class AuthenticateWorkOSController extends Controller {}';
+    $new = '<?php class AuthenticateController extends Controller {}';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/AuthenticateController.php', 'app/AuthenticateController.php', FileStatus::MODIFIED);
+
+    $changes = (new ClassStructureRule)->analyze($file, $comparison);
+
+    $renamedChanges = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'renamed'),
+    ));
+
+    expect($renamedChanges)->toHaveCount(1)
+        ->and($renamedChanges[0]->category)->toBe(ChangeCategory::CLASS_STRUCTURE)
+        ->and($renamedChanges[0]->severity)->toBe(Severity::MEDIUM)
+        ->and($renamedChanges[0]->description)->toContain('AuthenticateWorkOSController')
+        ->and($renamedChanges[0]->description)->toContain('AuthenticateController');
+});
+
 it('detects class added', function () {
     $old = '<?php class Foo {}';
     $new = '<?php class Foo {} class Bar {}';
