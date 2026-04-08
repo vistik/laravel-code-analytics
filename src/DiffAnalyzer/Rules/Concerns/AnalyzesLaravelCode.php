@@ -144,7 +144,7 @@ trait AnalyzesLaravelCode
     {
         if (isset($call->args[0]) && $call->args[0] instanceof Node\Arg) {
             $value = $call->args[0]->value;
-            if ($value instanceof Node\Scalar\String_) {
+            if ($value instanceof Scalar\String_) {
                 return $value->value;
             }
         }
