@@ -46,7 +46,7 @@ class GenerateJsonReport implements ReportGenerator
 
         $metrics = [];
         foreach ($metricsData as $path => $m) {
-            $metrics[] = [
+            $entry = [
                 'file' => $path,
                 'cc' => $m['cc'] ?? null,
                 'mi' => $m['mi'] ?? null,
@@ -54,6 +54,12 @@ class GenerateJsonReport implements ReportGenerator
                 'coupling' => $m['coupling'] ?? null,
                 'lloc' => $m['lloc'] ?? null,
             ];
+
+            if (! empty($m['method_metrics'])) {
+                $entry['method_metrics'] = $m['method_metrics'];
+            }
+
+            $metrics[] = $entry;
         }
 
         $dependencies = array_map(fn ($edge) => [
