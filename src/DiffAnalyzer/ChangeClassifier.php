@@ -33,6 +33,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelLivewireRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelMigrationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelNotificationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelQueueRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRedirectRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRouteRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelServiceContainerRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelTableMigrationRule;
@@ -95,6 +96,7 @@ class ChangeClassifier
                 new LaravelEloquentRule,
                 new LaravelAuthRule,
                 new LaravelQueueRule,
+                new LaravelRedirectRule,
                 new LaravelNotificationRule,
                 new LaravelServiceContainerRule,
                 new LaravelConfigRule,
