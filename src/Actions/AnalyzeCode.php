@@ -90,6 +90,7 @@ class AnalyzeCode
         ?array $watchedFiles = null,
         ?array $filePatterns = null,
         bool $raw = false,
+        bool $includeFileContents = false,
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -652,6 +653,31 @@ class AnalyzeCode
             $fileDiffs[$m[1]] = substr($block, $hunkStart);
         }
 
+        // ── Collect full file contents for "Full file" diff view ─────────────
+        $fileContents = [];
+        if ($includeFileContents) {
+            $diffPaths = array_keys($fileDiffs);
+            if (! empty($diffPaths)) {
+                if ($this->repoDir !== null) {
+                    $rawContents = $this->readFileContentsFromGit($diffPaths);
+                } else {
+                    $rawContents = [];
+                    foreach ($diffPaths as $path) {
+                        $fullPath = "{$this->repoPath}/{$path}";
+                        if (is_file($fullPath)) {
+                            $content = file_get_contents($fullPath);
+                            $rawContents[$path] = $content !== false ? $content : null;
+                        }
+                    }
+                }
+                foreach ($rawContents as $path => $content) {
+                    if ($content !== null && strlen($content) <= 500_000) {
+                        $fileContents[$path] = $content;
+                    }
+                }
+            }
+        }
+
         // ── Compute per-file signal score ─────────────────────────────────────
         foreach ($nodes as &$node) {
             $node['_signal'] = $this->fileSignalScorer->calculate(
@@ -677,6 +703,7 @@ class AnalyzeCode
             $analysisData = array_intersect_key($analysisData, array_flip($filteredPaths));
             $metricsData = array_intersect_key($metricsData, array_flip($filteredPaths));
             $fileDiffs = array_intersect_key($fileDiffs, array_flip($filteredPaths));
+            $fileContents = array_intersect_key($fileContents, array_flip($filteredPaths));
 
             // Also filter individual findings within each file by the same threshold
             foreach ($analysisData as $path => $findings) {
@@ -715,6 +742,7 @@ class AnalyzeCode
             prUrl: $prLinkUrl,
             riskScore: $riskResult,
             metricsData: $metricsData,
+            fileContents: $fileContents,
         );
 
         if ($raw) {

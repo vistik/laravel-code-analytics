@@ -22,6 +22,7 @@ class GenerateMdReport implements ReportGenerator
         string $prUrl = '',
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): string {
         $lines = [];
 

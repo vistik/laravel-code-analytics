@@ -61,6 +61,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): string {
         return $this->render(
             nodes: $nodes,
@@ -83,6 +84,7 @@ class GenerateHtmlReport implements ReportGenerator
             layerStack: $layerStack,
             riskScore: $riskScore,
             metricsData: $metricsData,
+            fileContents: $fileContents,
         );
     }
 
@@ -116,6 +118,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): array {
         $layouts = $allLayouts || ! $outputPath
             ? array_keys(self::RENDERERS)
@@ -154,6 +157,7 @@ class GenerateHtmlReport implements ReportGenerator
                 riskScore: $riskScore,
                 metricsData: $metricsData,
                 layoutSwitcher: $switcherHtml,
+                fileContents: $fileContents,
             );
 
             file_put_contents($file, $html);
@@ -187,6 +191,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         string $layoutSwitcher = '',
+        array $fileContents = [],
     ): string {
         $rendererClass = self::RENDERERS[$layout] ?? ForceGraphRenderer::class;
         $isLayered = in_array($rendererClass, [LayeredCakeRenderer::class, LayeredArchRenderer::class]);
@@ -197,6 +202,7 @@ class GenerateHtmlReport implements ReportGenerator
         $diffsJson = json_encode($fileDiffs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $analysisJson = json_encode($analysisData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $metricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+        $fileContentsJson = json_encode((object) $fileContents, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
         $methodThresholds = config('laravel-code-analytics.method_metric_thresholds', [
             'cc' => ['warn' => 5,  'bad' => 10],
@@ -217,6 +223,7 @@ class GenerateHtmlReport implements ReportGenerator
             'nodesJson' => $nodesJson,
             'edgesJson' => $edgesJson,
             'diffsJson' => $diffsJson,
+            'fileContentsJson' => $fileContentsJson,
             'analysisJson' => $analysisJson,
             'metricsJson' => $metricsJson,
             'methodThresholdsJson' => $methodThresholdsJson,
@@ -664,6 +671,7 @@ class GenerateHtmlReport implements ReportGenerator
         string $prUrl = '',
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): string {
         return $this->buildWrapperHtml(
             nodes: $nodes,
@@ -684,6 +692,7 @@ class GenerateHtmlReport implements ReportGenerator
             severityTogglesHtml: $this->buildSeverityToggles($nodes),
             riskScore: $riskScore,
             metricsData: $metricsData,
+            fileContents: $fileContents,
         );
     }
 
@@ -719,6 +728,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         string $defaultView = 'force',
+        array $fileContents = [],
     ): void {
         file_put_contents($outputPath, $this->buildWrapperHtml(
             nodes: $nodes,
@@ -741,6 +751,7 @@ class GenerateHtmlReport implements ReportGenerator
             riskScore: $riskScore,
             metricsData: $metricsData,
             defaultView: $defaultView,
+            fileContents: $fileContents,
         ));
     }
 
@@ -768,6 +779,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         string $defaultView = 'grouped',
+        array $fileContents = [],
     ): string {
         $labels = ['force' => 'Force', 'tree' => 'Tree', 'grouped' => 'Grouped', 'cake' => 'Cake', 'arch' => 'Architecture'];
 
@@ -794,6 +806,7 @@ class GenerateHtmlReport implements ReportGenerator
                 layerStack: $layerStack,
                 riskScore: null, // Risk panel lives in the wrapper topbar tooltip
                 metricsData: $metricsData,
+                fileContents: $fileContents,
             );
             // Hide the title-bar inside the iframe — it lives in the wrapper now
             $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}</style></head>', $html);

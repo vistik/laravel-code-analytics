@@ -21,6 +21,7 @@ class GenerateMetricsReport implements ReportGenerator
         string $prUrl = '',
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): string {
         $severityCounts = ['very_high' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'info' => 0];
         $totalFindings = 0;

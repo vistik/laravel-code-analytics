@@ -24,7 +24,8 @@ class CodeAnalyzeCommand extends Command
         {--format=html : Output format: html, md, json, metrics, or metrics-details}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
-        {--open : Open the generated file in the browser when done}';
+        {--open : Open the generated file in the browser when done}
+        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -42,6 +43,7 @@ class CodeAnalyzeCommand extends Command
             $format = OutputFormat::tryFrom($formatString)
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details");
             $openFile = $this->option('open') || ($config['open'] ?? false);
+            $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
 
             if ($openFile && $outputPath === null) {
                 $ext = $format->fileExtension();
@@ -76,6 +78,7 @@ class CodeAnalyzeCommand extends Command
                 filePatterns: $filePatterns ?: null,
                 onProgress: null,
                 raw: ! $openFile && $outputPath === null,
+                includeFileContents: $includeFileContents,
             );
 
             if (! $openFile) {

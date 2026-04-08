@@ -21,6 +21,7 @@ class GenerateJsonReport implements ReportGenerator
         string $prUrl = '',
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): string {
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));

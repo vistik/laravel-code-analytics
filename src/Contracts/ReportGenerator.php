@@ -27,6 +27,7 @@ interface ReportGenerator
         string $prUrl = '',
         ?RiskScore $riskScore = null,
         array $metricsData = [],
+        array $fileContents = [],
     ): string;
 
     public function writeFile(string $outputPath, string $content): void;

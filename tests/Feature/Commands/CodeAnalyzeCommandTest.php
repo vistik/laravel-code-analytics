@@ -257,3 +257,43 @@ it('uses default resolver when config has no file_groups key', function () {
 
     unlink($path);
 });
+
+// ── --full-files option ──────────────────────────────────────────────────────
+
+it('passes includeFileContents=true when --full-files flag is set', function () {
+    $this->mock(AnalyzeCode::class, function ($mock) {
+        $mock->shouldReceive('execute')
+            ->once()
+            ->withArgs(fn (...$args) => $args[12] === true)
+            ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
+    });
+
+    $this->artisan('code:analyze', ['--full-files' => true])->assertSuccessful();
+});
+
+it('passes includeFileContents=false by default', function () {
+    $this->mock(AnalyzeCode::class, function ($mock) {
+        $mock->shouldReceive('execute')
+            ->once()
+            ->withArgs(fn (...$args) => $args[12] === false)
+            ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
+    });
+
+    $this->artisan('code:analyze')->assertSuccessful();
+});
+
+it('passes includeFileContents=true from config full_files key', function () {
+    $path = tempnam(sys_get_temp_dir(), 'vast-cfg-');
+    file_put_contents($path, json_encode(['full_files' => true]));
+
+    $this->mock(AnalyzeCode::class, function ($mock) {
+        $mock->shouldReceive('execute')
+            ->once()
+            ->withArgs(fn (...$args) => $args[12] === true)
+            ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
+    });
+
+    $this->artisan('code:analyze', ['--config' => $path])->assertSuccessful();
+
+    unlink($path);
+});

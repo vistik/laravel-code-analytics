@@ -338,6 +338,7 @@ const groupLabel = {
 const filesData = {!! $nodesJson !!};
 const edgesData = {!! $edgesJson !!};
 const fileDiffs = {!! $diffsJson !!};
+const fileContents = {!! $fileContentsJson !!};
 const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
 const methodThresholds = {!! $methodThresholdsJson !!};
@@ -682,6 +683,61 @@ function renderSplitDiff(parsed, isPHP) {
   return html;
 }
 
+function renderFullFile(fileContent, parsedDiff, isPHP) {
+  // Build maps from parsedDiff: which new-file lines are added, and which deleted
+  // lines appear before each new-file line.
+  var addedLines = {};
+  var deletedBefore = {}; // newLn -> array of deleted line texts
+
+  var oldLn = 0, newLn = 0;
+  for (var r = 0; r < parsedDiff.length; r++) {
+    var row = parsedDiff[r];
+    if (row.type === 'hunk') {
+      oldLn = row.oldStart; newLn = row.newStart;
+    } else if (row.type === 'ctx') {
+      oldLn++; newLn++;
+    } else if (row.type === 'change') {
+      var insPoint = newLn;
+      if (row.dels.length > 0) {
+        if (!deletedBefore[insPoint]) deletedBefore[insPoint] = [];
+        for (var d = 0; d < row.dels.length; d++) deletedBefore[insPoint].push(row.dels[d]);
+        oldLn += row.dels.length;
+      }
+      for (var j = 0; j < row.adds.length; j++) addedLines[newLn + j] = true;
+      newLn += row.adds.length;
+    }
+  }
+
+  var lines = fileContent.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+
+  var html = '';
+  for (var i = 0; i < lines.length; i++) {
+    var ln = i + 1;
+    var dels = deletedBefore[ln] || [];
+    for (var d = 0; d < dels.length; d++) {
+      var dh = isPHP ? highlightPHP(dels[d]) : escapeHtml(dels[d]);
+      html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
+    }
+    var h = isPHP ? highlightPHP(lines[i]) : escapeHtml(lines[i]);
+    var isAdded = !!addedLines[ln];
+    html += '<tr data-new-ln="' + ln + '">' +
+      '<td class="diff-ln' + (isAdded ? ' diff-ln-add' : '') + '">' + ln + '</td>' +
+      '<td class="' + (isAdded ? 'diff-add' : 'diff-ctx') + '">' + (isAdded ? '+' : ' ') + h + '</td>' +
+      '</tr>';
+  }
+  // Deletions past end of new file (lines deleted at end)
+  var endKeys = Object.keys(deletedBefore).map(Number).filter(function(k) { return k > lines.length; }).sort(function(a,b){return a-b;});
+  for (var ki = 0; ki < endKeys.length; ki++) {
+    var eds = deletedBefore[endKeys[ki]];
+    for (var d = 0; d < eds.length; d++) {
+      var dh = isPHP ? highlightPHP(eds[d]) : escapeHtml(eds[d]);
+      html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
+    }
+  }
+  return html;
+}
+
 function scrollToDiffRow(target) {
   if (!target) return;
   document.querySelectorAll('.diff-table tr.diff-highlight').forEach(function(r) { r.classList.remove('diff-highlight'); });
@@ -985,13 +1041,22 @@ function openPanel(n) {
   if (rawDiff) {
     var isPHP = n.path.endsWith('.php');
     var parsedDiff = parseDiffLines(rawDiff);
-    var tableRows = diffViewMode === 'split' ? renderSplitDiff(parsedDiff, isPHP) : renderUnifiedDiff(parsedDiff, isPHP);
+    var fullContent = fileContents[n.path];
+    var tableRows;
+    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP);
+    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, isPHP);
+    else tableRows = renderUnifiedDiff(parsedDiff, isPHP);
+    var activeMode = (diffViewMode === 'full' && !fullContent) ? 'unified' : diffViewMode;
+    var fullBtn = fullContent
+      ? '<button class="diff-view-btn' + (activeMode === 'full' ? ' active' : '') + '" data-view="full">Full file</button>'
+      : '';
     bodyHtml += '<div class="diff-section">' +
       '<h4>Diff<span class="diff-view-controls">' +
-      '<button class="diff-view-btn' + (diffViewMode !== 'split' ? ' active' : '') + '" data-view="unified">Unified</button>' +
-      '<button class="diff-view-btn' + (diffViewMode === 'split' ? ' active' : '') + '" data-view="split">Split</button>' +
+      '<button class="diff-view-btn' + (activeMode === 'unified' ? ' active' : '') + '" data-view="unified">Unified</button>' +
+      '<button class="diff-view-btn' + (activeMode === 'split' ? ' active' : '') + '" data-view="split">Split</button>' +
+      fullBtn +
       '</span></h4>' +
-      '<table class="diff-table ' + diffViewMode + '">' + tableRows + '</table></div>';
+      '<table class="diff-table ' + activeMode + '">' + tableRows + '</table></div>';
   }
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
@@ -1092,8 +1157,12 @@ function openPanel(n) {
       });
       var rd = fileDiffs[n.path];
       if (!rd) return;
+      var isPHP = n.path.endsWith('.php');
       var parsed = parseDiffLines(rd);
-      var rows = mode === 'split' ? renderSplitDiff(parsed, n.path.endsWith('.php')) : renderUnifiedDiff(parsed, n.path.endsWith('.php'));
+      var rows;
+      if (mode === 'split') rows = renderSplitDiff(parsed, isPHP);
+      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP);
+      else rows = renderUnifiedDiff(parsed, isPHP);
       var table = document.querySelector('.diff-table');
       if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); }
     });

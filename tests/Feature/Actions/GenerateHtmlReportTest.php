@@ -115,3 +115,38 @@ test('metrics badge shows no trend indicator when there is no before data', func
         ->not->toContain('&#8595;')
         ->not->toContain('&#8594;');
 });
+
+// ── fileContents / Full file diff view ───────────────────────────────────────
+
+test('rendered html contains empty fileContents object when none provided', function () {
+    expect(makeHtml())->toContain('const fileContents = {}');
+});
+
+test('rendered html embeds provided file contents', function () {
+    $html = (new GenerateHtmlReport)->execute(
+        nodes: [], edges: [], fileDiffs: [], analysisData: [],
+        prNumber: '1', prTitle: 'Test', prUrl: '',
+        prAdditions: 0, prDeletions: 0, repo: 'test', headCommit: 'abc1234',
+        fileCount: 0, connectedCount: 0, extTogglesHtml: '', folderTogglesHtml: '',
+        fileContents: ['app/Foo.php' => "<?php\necho 'hello';\n"],
+    );
+
+    expect($html)
+        ->toContain('const fileContents = ')
+        ->toContain('"app/Foo.php"');
+});
+
+test('blade view injects fileContentsJson variable', function () {
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    expect(file_get_contents($viewPath))->toContain('{!! $fileContentsJson !!}');
+});
+
+test('blade view contains renderFullFile function', function () {
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    expect(file_get_contents($viewPath))->toContain('function renderFullFile(');
+});
+
+test('blade view contains Full file button', function () {
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    expect(file_get_contents($viewPath))->toContain('Full file');
+});
