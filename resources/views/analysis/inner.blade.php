@@ -368,7 +368,7 @@ const nodes = filesData.map((f, i) => {
   return node;
 });
 
-const links = edgesData.map(([s, t]) => ({ source: nodeMap[s], target: nodeMap[t] })).filter(l => l.source && l.target);
+const links = edgesData.map(([s, t, type]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'type_reference' })).filter(l => l.source && l.target);
 
 // ── Visibility toggles ────────────────────────────────────────────────────────
 let selectedNode = null;
@@ -819,8 +819,10 @@ function openPanel(n) {
       '<div class="change-bar-label"><span>' + n.add + ' additions</span><span>' + n.del + ' deletions</span></div>';
   }
 
-  const dependsOn = links.filter(l => isLinkVisible(l) && l.source === n).map(l => l.target);
-  const usedBy = links.filter(l => isLinkVisible(l) && l.target === n).map(l => l.source);
+  const dependsOnLinks = links.filter(l => isLinkVisible(l) && l.source === n);
+  const usedByLinks = links.filter(l => isLinkVisible(l) && l.target === n);
+  const dependsOn = dependsOnLinks.map(l => l.target);
+  const usedBy = usedByLinks.map(l => l.source);
   let bodyHtml = '';
 
   // Code Metrics section (PHP via phpmetrics, JS/TS via complexity-report)
@@ -951,19 +953,29 @@ function openPanel(n) {
     bodyHtml += '<div class="deps-section"><h4>Summary</h4><p style="font-size:13px;color:#c9d1d9;line-height:1.6">' + n.desc + '</p></div>';
   }
 
+  var depTypeLabel = { constructor_injection: 'injected', method_injection: 'method param', new_instance: 'new', container_resolved: 'app()', static_call: 'static', type_reference: 'type' };
+  var depTypeBadgeColor = { constructor_injection: '#1f6feb', method_injection: '#388bfd', new_instance: '#d29922', container_resolved: '#8957e5', static_call: '#6e7681', type_reference: '#30363d' };
   if (dependsOn.length) {
     bodyHtml += '<div class="deps-section"><h4>Depends on (' + dependsOn.length + ')</h4>';
-    for (const d of dependsOn) {
+    for (const l of dependsOnLinks) {
+      var d = l.target;
       var depStat = d.isConnected ? '<span style="color:#6e7681;margin-left:auto;font-size:11px">not changed</span>' : '<span style="color:#8b949e;margin-left:auto;font-size:11px">+' + d.add + ' &minus;' + d.del + '</span>';
-      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + depStat + '</div>';
+      var dtLabel = depTypeLabel[l.depType] || l.depType;
+      var dtColor = depTypeBadgeColor[l.depType] || '#30363d';
+      var dtBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + dtColor + ';color:#e6edf3;margin-left:6px;white-space:nowrap">' + dtLabel + '</span>';
+      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + dtBadge + depStat + '</div>';
     }
     bodyHtml += '</div>';
   }
   if (usedBy.length) {
     bodyHtml += '<div class="deps-section"><h4>Used by (' + usedBy.length + ')</h4>';
-    for (const d of usedBy) {
+    for (const l of usedByLinks) {
+      var d = l.source;
       var depStat = d.isConnected ? '<span style="color:#6e7681;margin-left:auto;font-size:11px">not changed</span>' : '<span style="color:#8b949e;margin-left:auto;font-size:11px">+' + d.add + ' &minus;' + d.del + '</span>';
-      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + depStat + '</div>';
+      var dtLabel = depTypeLabel[l.depType] || l.depType;
+      var dtColor = depTypeBadgeColor[l.depType] || '#30363d';
+      var dtBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + dtColor + ';color:#e6edf3;margin-left:6px;white-space:nowrap">' + dtLabel + '</span>';
+      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + dtBadge + depStat + '</div>';
     }
     bodyHtml += '</div>';
   }
@@ -1338,16 +1350,26 @@ function draw() {
       else if (l.target === activeRef) dirColor = 'rgba(63,185,80,0.85)';  // green: used by
     }
 
-    // Line
+    // Line — style varies by dependency type
+    // constructor_injection: solid, thicker | method_injection: solid | new_instance: long dash
+    // container_resolved: dash-dot | static_call: dotted | type_reference: faint solid
+    var depDash = [];
+    if (!isConnEdge) {
+      if      (l.depType === 'new_instance')       depDash = [8, 4];
+      else if (l.depType === 'container_resolved') depDash = [6, 3, 2, 3];
+      else if (l.depType === 'static_call')        depDash = [2, 4];
+      else if (l.depType === 'type_reference')     depDash = [3, 6];
+    }
     ctx.beginPath(); ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y);
     if (isConnEdge && !highlight) {
       ctx.setLineDash([4, 4]);
       ctx.strokeStyle = dimmed ? 'rgba(48,54,61,0.1)' : 'rgba(72,79,88,0.35)';
     } else {
-      ctx.setLineDash([]);
+      ctx.setLineDash(highlight ? [] : depDash);
       ctx.strokeStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.3)');
     }
-    ctx.lineWidth = isPath ? 3 : highlight ? 2.5 : 1.5; ctx.stroke(); ctx.setLineDash([]);
+    var depWidth = (l.depType === 'constructor_injection' || l.depType === 'container_resolved') ? 2 : 1.5;
+    ctx.lineWidth = isPath ? 3 : highlight ? 2.5 : depWidth; ctx.stroke(); ctx.setLineDash([]);
 
     // Arrowhead (always drawn, brighter when highlighted)
     const dx = l.target.x - l.source.x, dy = l.target.y - l.source.y;
