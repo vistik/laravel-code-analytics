@@ -22,6 +22,7 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
 use Vistik\LaravelCodeAnalytics\Support\JsMetricsRunner;
+use Vistik\LaravelCodeAnalytics\Support\PhpDependencyExtractor;
 use Vistik\LaravelCodeAnalytics\Support\PhpMethodMetricsCalculator;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetricsRunner;
@@ -56,7 +57,7 @@ class AnalyzeCode
     /** @var array<string, string> */
     private array $pathToNode = [];
 
-    /** @var list<array{0: string, 1: string}> */
+    /** @var list<array{0: string, 1: string, 2: string}> */
     private array $edges = [];
 
     /** @var array<string, true> */
@@ -1000,27 +1001,17 @@ class AnalyzeCode
         return $group->description($action, basename($path));
     }
 
+    /**
+     * Extract class references from PHP source, classified by how they are used.
+     *
+     * @return array<string, string>  FQCN/short-name → dependency type
+     */
     private function extractReferences(string $content): array
     {
-        preg_match_all('/^\s*use\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $useMatches);
-        $references = $useMatches[1];
-
-        preg_match_all('/(?:extends|implements|new|instanceof)\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $classMatches);
-        $references = array_merge($references, $classMatches[1]);
-
-        preg_match_all('/([A-Z][A-Za-z0-9_]+)::/m', $content, $staticMatches);
-        $references = array_merge($references, $staticMatches[1]);
-
-        preg_match_all('/(?:protected|private|public|readonly)\s+([A-Z][A-Za-z0-9_\\\\]+)\s+\$/m', $content, $typeHintMatches);
-        $references = array_merge($references, $typeHintMatches[1]);
-
-        preg_match_all('/\)\s*:\s*\??\s*([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $returnTypeMatches);
-        $references = array_merge($references, $returnTypeMatches[1]);
-
-        return array_unique($references);
+        return (new PhpDependencyExtractor)->extract($content);
     }
 
-    private function addEdge(string $sourceId, string $targetId): void
+    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::TYPE_REFERENCE): void
     {
         if ($sourceId === $targetId) {
             return;
@@ -1031,17 +1022,20 @@ class AnalyzeCode
             return;
         }
 
-        $this->edges[] = [$sourceId, $targetId];
+        $this->edges[] = [$sourceId, $targetId, $type];
         $this->edgeSet[$key] = true;
     }
 
+    /**
+     * @param  array<string, string>  $references  FQCN/short-name → dependency type
+     */
     private function matchReferences(array $references, string $sourceNodeId): void
     {
-        foreach ($references as $ref) {
+        foreach ($references as $ref => $type) {
             $ref = ltrim($ref, '\\');
 
             if (isset($this->fqcnToNode[$ref])) {
-                $this->addEdge($sourceNodeId, $this->fqcnToNode[$ref]);
+                $this->addEdge($sourceNodeId, $this->fqcnToNode[$ref], $type);
 
                 continue;
             }
@@ -1050,7 +1044,7 @@ class AnalyzeCode
             foreach ($this->fqcnToNode as $fqcn => $nodeId) {
                 $fqcnShort = basename(str_replace('\\', '/', $fqcn));
                 if ($fqcnShort === $shortName) {
-                    $this->addEdge($sourceNodeId, $nodeId);
+                    $this->addEdge($sourceNodeId, $nodeId, $type);
                     break;
                 }
             }
