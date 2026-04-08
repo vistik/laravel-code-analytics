@@ -709,12 +709,12 @@ class AnalyzeCode
             return ['files' => [], 'risk' => $riskResult, 'content' => $content];
         }
 
-        $outputDir = base_path('output');
-        if (! is_dir($outputDir)) {
-            mkdir($outputDir, 0755, true);
-        }
-
         if ($outputPath === null) {
+            $outputDir = base_path('output');
+            if (! is_dir($outputDir)) {
+                mkdir($outputDir, 0755, true);
+            }
+
             $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
             $ext = $format->fileExtension();
             $outputPath = $this->repoDir !== null

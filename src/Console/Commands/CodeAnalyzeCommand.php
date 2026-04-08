@@ -43,6 +43,13 @@ class CodeAnalyzeCommand extends Command
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json");
             $openFile = $this->option('open') || ($config['open'] ?? false);
 
+            if ($openFile && $outputPath === null) {
+                $ext = $format->fileExtension();
+                $tmp = tempnam(sys_get_temp_dir(), 'code-analyze-');
+                unlink($tmp);
+                $outputPath = $tmp.'.'.$ext;
+            }
+
             $minSeverityString = $this->option('min-severity') ?? $config['min_severity'] ?? null;
             $minSeverity = $minSeverityString !== null
                 ? (Severity::tryFrom($minSeverityString) ?? throw new RuntimeException("Invalid min-severity: {$minSeverityString}. Valid options: info, low, medium, high, very_high"))
