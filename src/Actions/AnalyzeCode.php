@@ -88,6 +88,7 @@ class AnalyzeCode
         ?Severity $minSeverity = null,
         ?Closure $onProgress = null,
         ?array $watchedFiles = null,
+        bool $raw = false,
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -651,22 +652,9 @@ class AnalyzeCode
         $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots);
 
         // ── Generate report ───────────────────────────────────────────────────
-        $outputDir = base_path('output');
-        if (! is_dir($outputDir)) {
-            mkdir($outputDir, 0755, true);
-        }
-
         $reportGenerator = $format->generator();
 
         $this->progress('info', "Generating {$format->value} report...");
-
-        if ($outputPath === null) {
-            $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
-            $ext = $format->fileExtension();
-            $outputPath = $this->repoDir !== null
-                ? "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).".{$ext}"
-                : "{$outputDir}/local-{$safeBranch}.{$ext}";
-        }
 
         $content = $reportGenerator->generate(
             nodes: $nodes,
@@ -683,6 +671,24 @@ class AnalyzeCode
             riskScore: $riskResult,
             metricsData: $metricsData,
         );
+
+        if ($raw) {
+            return ['files' => [], 'risk' => $riskResult, 'content' => $content];
+        }
+
+        $outputDir = base_path('output');
+        if (! is_dir($outputDir)) {
+            mkdir($outputDir, 0755, true);
+        }
+
+        if ($outputPath === null) {
+            $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
+            $ext = $format->fileExtension();
+            $outputPath = $this->repoDir !== null
+                ? "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).".{$ext}"
+                : "{$outputDir}/local-{$safeBranch}.{$ext}";
+        }
+
         $reportGenerator->writeFile($outputPath, $content);
 
         $this->progress('line', "  Generated: {$outputPath}");
