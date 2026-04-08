@@ -136,7 +136,7 @@ it('passes custom title from --title option to execute', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $title) => $title === 'My Custom Title')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title) => $title === 'My Custom Title')
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -150,7 +150,7 @@ it('passes custom title from config to execute', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $title) => $title === 'Config Title')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title) => $title === 'Config Title')
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -166,7 +166,7 @@ it('cli --title takes precedence over config title', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $title) => $title === 'CLI Title')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title) => $title === 'CLI Title')
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -181,7 +181,7 @@ it('passes custom view from --view option to execute', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $title, $view) => $view === 'tree')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === 'tree')
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -195,7 +195,7 @@ it('passes custom view from config to execute', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $title, $view) => $view === 'arch')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === 'arch')
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -211,7 +211,7 @@ it('cli --view takes precedence over config view', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $title, $view) => $view === 'grouped')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === 'grouped')
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -241,7 +241,7 @@ it('passes includeFileContents=true when --full-files flag is set', function () 
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn (...$args) => $args[12] === true)
+            ->withArgs(fn (...$args) => $args[13] === true)
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -252,7 +252,7 @@ it('passes includeFileContents=false by default', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn (...$args) => $args[12] === false)
+            ->withArgs(fn (...$args) => $args[13] === false)
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -266,7 +266,7 @@ it('passes includeFileContents=true from config full_files key', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn (...$args) => $args[12] === true)
+            ->withArgs(fn (...$args) => $args[13] === true)
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
