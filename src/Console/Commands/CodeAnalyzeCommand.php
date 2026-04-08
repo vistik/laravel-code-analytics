@@ -10,7 +10,6 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class CodeAnalyzeCommand extends Command
 {
@@ -68,32 +67,22 @@ class CodeAnalyzeCommand extends Command
                 minSeverity: $minSeverity,
                 watchedFiles: $config['watched_files'] ?? null,
                 filePatterns: $filePatterns ?: null,
-                onProgress: function (string $level, string $message): void {
-                    match ($level) {
-                        'info' => $this->info($message),
-                        'warn' => $this->warn($message),
-                        'error' => $this->error($message),
-                        default => $this->line($message),
-                    };
-                },
+                onProgress: null,
+                raw: ! $openFile && $outputPath === null,
             );
+
+            if (! $openFile) {
+                $this->output->write($result['content'] ?? '');
+
+                return self::SUCCESS;
+            }
 
             if (empty($result['files'])) {
                 return self::SUCCESS;
             }
 
-            $risk = $result['risk'];
-            $this->newLine();
-            $this->printRiskScore($risk);
-
             $firstFile = reset($result['files']);
-
-            if ($openFile) {
-                shell_exec('open '.escapeshellarg($firstFile));
-            } else {
-                $this->newLine();
-                $this->line('Open with: <info>open '.escapeshellarg($firstFile).'</info>');
-            }
+            shell_exec('open '.escapeshellarg($firstFile));
 
             return self::SUCCESS;
         } catch (RuntimeException $e) {
@@ -133,35 +122,5 @@ class CodeAnalyzeCommand extends Command
         }
 
         return new PatternBasedGroupResolver;
-    }
-
-    private function printRiskScore(RiskScore $risk): void
-    {
-        $score = $risk->score;
-        $label = match (true) {
-            $score >= 75 => '<fg=red>Very High</>',
-            $score >= 50 => '<fg=yellow>High</>',
-            $score >= 25 => '<fg=cyan>Medium</>',
-            default => '<fg=green>Low</>',
-        };
-
-        $this->line("Risk Score: <fg=white;options=bold>{$score}/100</> — {$label}");
-        $this->newLine();
-
-        $rows = [];
-        foreach ($risk->factors as $factor) {
-            $pct = $factor['maxScore'] > 0
-                ? (int) round(($factor['score'] / $factor['maxScore']) * 100)
-                : 0;
-
-            $bar = str_repeat('█', (int) round($pct / 10)).str_repeat('░', 10 - (int) round($pct / 10));
-            $rows[] = [
-                $factor['name'],
-                $bar,
-                "{$factor['score']}/{$factor['maxScore']}",
-            ];
-        }
-
-        $this->table(['Factor', 'Score', 'Points'], $rows);
     }
 }
