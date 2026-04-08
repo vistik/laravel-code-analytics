@@ -82,6 +82,7 @@ class AnalyzeCode
         ?string $outputPath = null,
         string $baseBranch = 'main',
         ?string $prUrl = null,
+        bool $all = false,
         ?string $title = null,
         ?string $view = null,
         OutputFormat $format = OutputFormat::HTML,
@@ -123,73 +124,98 @@ class AnalyzeCode
                 throw new RuntimeException("Not a git repository: {$this->repoPath}");
             }
 
-            // ── Resolve commits ───────────────────────────────────────────────
+            // ── Resolve HEAD & branch ─────────────────────────────────────────
             $this->headCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse HEAD 2>/dev/null") ?? '');
-            $this->baseCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse {$baseBranch} 2>/dev/null") ?? '');
             $this->branchName = trim(shell_exec("git -C {$this->repoPath} rev-parse --abbrev-ref HEAD 2>/dev/null") ?? 'HEAD');
 
             if (empty($this->headCommit)) {
                 throw new RuntimeException('Could not resolve HEAD commit.');
             }
-            if (empty($this->baseCommit)) {
-                throw new RuntimeException("Could not resolve base: {$baseBranch}");
-            }
 
             $repoName = basename($this->repoPath);
-
-            // ── Detect uncommitted changes ─────────────────────────────────────
-            $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
-            $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
-            $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
-            $prLinkUrl = '';
-
-            $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
-            $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
-            if ($hasUncommitted) {
-                $this->progress('line', '  Including staged and unstaged working tree changes.');
-            }
 
             // ── Detect Laravel ────────────────────────────────────────────────
             $this->isLaravel = file_exists("{$this->repoPath}/artisan");
 
-            // ── Get diff ──────────────────────────────────────────────────────
-            // Compare working tree directly against base so staged/unstaged changes
-            // are included in addition to committed ones.
-            $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
+            if ($all) {
+                // ── All-files mode: analyze entire working tree ───────────────
+                $prTitle = $title ?? "{$this->branchName} (all files)";
+                $prLinkUrl = '';
+                $this->diff = '';
 
-            if (! str_contains($this->diff, 'diff --git')) {
-                $this->progress('warn', "No changes found between working tree and {$baseBranch}.");
+                $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+                $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7));
 
-                return ['files' => [], 'risk' => new RiskScore(0)];
-            }
-
-            // ── Get file list with numstat ─────────────────────────────────────
-            $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat {$baseBranch} 2>/dev/null") ?? '');
-            $files = [];
-            $totalAdditions = 0;
-            $totalDeletions = 0;
-
-            foreach (explode("\n", $numstat) as $line) {
-                if (empty($line)) {
-                    continue;
+                $lsOutput = trim(shell_exec("git -C {$this->repoPath} ls-files 2>/dev/null") ?? '');
+                if (empty($lsOutput)) {
+                    throw new RuntimeException("No tracked files found in: {$this->repoPath}");
                 }
 
-                // Format: <additions>\t<deletions>\t<path>  (or -\t-\t<path> for binary)
-                $parts = explode("\t", $line, 3);
-                if (count($parts) < 3) {
-                    continue;
+                $files = [];
+                $totalAdditions = 0;
+                $totalDeletions = 0;
+                foreach (array_filter(explode("\n", $lsOutput)) as $path) {
+                    $files[] = ['path' => $path, 'additions' => 0, 'deletions' => 0];
+                }
+            } else {
+                // ── Diff mode (default) ───────────────────────────────────────
+                $this->baseCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse {$baseBranch} 2>/dev/null") ?? '');
+
+                if (empty($this->baseCommit)) {
+                    throw new RuntimeException("Could not resolve base: {$baseBranch}");
                 }
 
-                [$add, $del, $path] = $parts;
-                $add = is_numeric($add) ? (int) $add : 0;
-                $del = is_numeric($del) ? (int) $del : 0;
-                $files[] = ['path' => $path, 'additions' => $add, 'deletions' => $del];
-                $totalAdditions += $add;
-                $totalDeletions += $del;
-            }
+                // ── Detect uncommitted changes ─────────────────────────────────
+                $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
+                $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
+                $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
+                $prLinkUrl = '';
 
-            if (empty($files)) {
-                throw new RuntimeException('No files found in diff output.');
+                $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+                $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
+                if ($hasUncommitted) {
+                    $this->progress('line', '  Including staged and unstaged working tree changes.');
+                }
+
+                // ── Get diff ──────────────────────────────────────────────────
+                // Compare working tree directly against base so staged/unstaged changes
+                // are included in addition to committed ones.
+                $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
+
+                if (! str_contains($this->diff, 'diff --git')) {
+                    $this->progress('warn', "No changes found between working tree and {$baseBranch}.");
+
+                    return ['files' => [], 'risk' => new RiskScore(0)];
+                }
+
+                // ── Get file list with numstat ─────────────────────────────────
+                $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat {$baseBranch} 2>/dev/null") ?? '');
+                $files = [];
+                $totalAdditions = 0;
+                $totalDeletions = 0;
+
+                foreach (explode("\n", $numstat) as $line) {
+                    if (empty($line)) {
+                        continue;
+                    }
+
+                    // Format: <additions>\t<deletions>\t<path>  (or -\t-\t<path> for binary)
+                    $parts = explode("\t", $line, 3);
+                    if (count($parts) < 3) {
+                        continue;
+                    }
+
+                    [$add, $del, $path] = $parts;
+                    $add = is_numeric($add) ? (int) $add : 0;
+                    $del = is_numeric($del) ? (int) $del : 0;
+                    $files[] = ['path' => $path, 'additions' => $add, 'deletions' => $del];
+                    $totalAdditions += $add;
+                    $totalDeletions += $del;
+                }
+
+                if (empty($files)) {
+                    throw new RuntimeException('No files found in diff output.');
+                }
             }
         }
 
