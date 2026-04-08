@@ -1143,12 +1143,19 @@ function openPanel(n) {
     });
   }
 
-  // Wire up "Methods by Complexity" rows to scroll to method in diff (only if the line is visible)
+  // Wire up "Methods by Complexity" rows to scroll to method in diff
   document.querySelectorAll('tr[data-method-line]').forEach(function(row) {
     var ln = row.getAttribute('data-method-line');
-    var target = document.querySelector('.diff-table tr[data-new-ln="' + ln + '"]');
-    if (target) {
-      row.addEventListener('click', function() { scrollToDiffRow(target); });
+    var inDiff = !!document.querySelector('.diff-table tr[data-new-ln="' + ln + '"]');
+    if (inDiff || fileContents[n.path]) {
+      row.addEventListener('click', function() {
+        if (!document.querySelector('.diff-table tr[data-new-ln="' + ln + '"]')) {
+          // Line not visible in current view — switch to Full file first
+          var fullBtn = document.querySelector('.diff-view-btn[data-view="full"]');
+          if (fullBtn) fullBtn.click();
+        }
+        scrollToDiffRow(document.querySelector('.diff-table tr[data-new-ln="' + ln + '"]'));
+      });
     } else {
       row.style.cursor = 'default';
       row.style.opacity = '0.5';
