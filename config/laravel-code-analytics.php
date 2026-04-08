@@ -23,6 +23,23 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | PHP Method Metric Thresholds
+    |--------------------------------------------------------------------------
+    |
+    | Controls the colour-coding of per-method badges shown in the diff viewer.
+    | Each metric has a 'warn' level (amber) and a 'bad' level (red).
+    | Values at or below 'warn' are shown in green.
+    |
+    */
+
+    'method_metric_thresholds' => [
+        'cc'     => ['warn' => 5,  'bad' => 10],
+        'lloc'   => ['warn' => 20, 'bad' => 50],
+        'params' => ['warn' => 3,  'bad' => 5],
+    ],
+
     'watched_files' => [
         // ['pattern' => 'app/Http/Kernel.php', 'reason' => 'Boot critical'],
         // ['pattern' => 'app/Models/*'],

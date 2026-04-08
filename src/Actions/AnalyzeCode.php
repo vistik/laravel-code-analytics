@@ -23,6 +23,7 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
 use Vistik\LaravelCodeAnalytics\Support\JsMetricsRunner;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
+use Vistik\LaravelCodeAnalytics\Support\PhpMethodMetricsCalculator;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetricsRunner;
 
 class AnalyzeCode
@@ -515,6 +516,17 @@ class AnalyzeCode
             }
 
             $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
+
+            // Enrich per-file entries with per-method breakdowns
+            $methodMetrics = (new PhpMethodMetricsCalculator)->calculate($headContents);
+            foreach ($methodMetrics as $path => $methods) {
+                if (isset($metricsData[$path]) && ! empty($methods)) {
+                    $metricsData[$path]['method_metrics'] = array_map(
+                        fn ($m) => $m->toArray(),
+                        $methods,
+                    );
+                }
+            }
         }
 
         // ── Run JS complexity analysis for quality scoring ───────────────────

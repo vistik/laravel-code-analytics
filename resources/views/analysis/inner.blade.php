@@ -328,6 +328,7 @@ const edgesData = {!! $edgesJson !!};
 const fileDiffs = {!! $diffsJson !!};
 const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
+const methodThresholds = {!! $methodThresholdsJson !!};
 {!! $severityDataJs !!}
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
@@ -667,7 +668,61 @@ function openPanel(n) {
       metricCard('Coupling (Ce)', m.coupling, '', 10, 20, false, b.coupling) +
       (m.lloc != null ? metricCard('Lines of Code', m.lloc, '', 200, 500, false, b.lloc) : '') +
       (m.methods != null ? metricCard('Methods', m.methods, '', 10, 20, false, b.methods) : '') +
-      '</div></div>';
+      '</div>';
+    if (m.method_metrics && m.method_metrics.length > 0) {
+      // Build set of added new-line numbers so we can mark each method as new/modified
+      var addedNewLines = new Set();
+      var rawDiffForMethods = fileDiffs[n.path];
+      if (rawDiffForMethods) {
+        var tmpNl = 0;
+        rawDiffForMethods.split('\n').forEach(function(dl) {
+          if (dl.startsWith('@@@@')) {
+            var dhm = dl.match(/@@@@ -\d+(?:,\d+)? \+(\d+)/);
+            if (dhm) tmpNl = parseInt(dhm[1]);
+          } else if (dl.startsWith('+')) { addedNewLines.add(tmpNl++); }
+          else if (dl.startsWith('-')) { /* deleted – no new line */ }
+          else if (!dl.startsWith('\\')) { tmpNl++; }
+        });
+      }
+      function methodDiffStatus(mth) {
+        if (!mth.line) return null;
+        if (addedNewLines.has(mth.line)) return 'new';
+        for (var l = mth.line + 1; l <= mth.line + mth.lloc - 1; l++) {
+          if (addedNewLines.has(l)) return 'modified';
+        }
+        return null;
+      }
+
+      var methodsSorted = m.method_metrics.slice().sort(function(a, b) { return b.cc - a.cc; });
+      bodyHtml += '<div style="margin-top:10px">' +
+        '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Methods by Complexity</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+        '<thead><tr>' +
+        '<th style="text-align:left;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">Method</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">CC</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">Lines</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 0 4px 0">Params</th>' +
+        '</tr></thead><tbody>';
+      for (var mi2 = 0; mi2 < methodsSorted.length; mi2++) {
+        var mth = methodsSorted[mi2];
+        var ccColor = mth.cc > 10 ? '#f85149' : mth.cc > 5 ? '#d29922' : '#3fb950';
+        var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
+        var status = methodDiffStatus(mth);
+        var statusBadge = status === 'new'
+          ? '<span style="color:#3fb950;font-size:9px;font-weight:500;margin-left:5px">new</span>'
+          : status === 'modified'
+          ? '<span style="color:#d29922;font-size:9px;font-weight:500;margin-left:5px">mod</span>'
+          : '';
+        bodyHtml += '<tr' + hasLine + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
+          '<td style="padding:2px 8px 2px 0;color:#c9d1d9;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
+          '<td style="padding:2px 8px 2px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + '</td>' +
+          '<td style="padding:2px 8px 2px 0;text-align:right;color:#8b949e">' + mth.lloc + '</td>' +
+          '<td style="padding:2px 0;text-align:right;color:#8b949e">' + mth.params + '</td>' +
+          '</tr>';
+      }
+      bodyHtml += '</tbody></table></div>';
+    }
+    bodyHtml += '</div>';
   }
 
   // Code Analysis section
@@ -757,6 +812,47 @@ function openPanel(n) {
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
 
+  // Inject per-method metric badges into diff rows
+  if (m && m.method_metrics && m.method_metrics.length > 0) {
+    var methodByLine = {};
+    m.method_metrics.forEach(function(mth) { if (mth.line) methodByLine[mth.line] = mth; });
+    function mthColor(key, val) {
+      var t = methodThresholds[key];
+      if (!t) return '#8b949e';
+      return val > t.bad ? '#f85149' : val > t.warn ? '#d29922' : '#3fb950';
+    }
+    document.querySelectorAll('.diff-table tr[data-new-ln]').forEach(function(row) {
+      var ln = parseInt(row.getAttribute('data-new-ln'));
+      var mth = methodByLine[ln];
+      if (!mth) return;
+      var cell = row.querySelector('td:last-child');
+      if (!cell) return;
+      var sep = '<span style="color:#484f58"> &middot; </span>';
+      var badge = document.createElement('span');
+      badge.title = mth.name + '(): CC=' + mth.cc + ', ' + mth.lloc + ' lines, ' + mth.params + ' params';
+      badge.style.cssText = 'margin-left:12px;font-size:10px;font-family:monospace;opacity:0.85;white-space:nowrap;vertical-align:middle';
+      badge.innerHTML =
+        '<span style="color:' + mthColor('cc', mth.cc) + ';font-weight:700">CC:' + mth.cc + '</span>' +
+        sep +
+        '<span style="color:' + mthColor('lloc', mth.lloc) + '">' + mth.lloc + 'L</span>' +
+        sep +
+        '<span style="color:' + mthColor('params', mth.params) + '">' + mth.params + 'P</span>';
+      cell.appendChild(badge);
+    });
+  }
+
+  // Wire up "Methods by Complexity" rows to scroll to method in diff (only if the line is visible)
+  document.querySelectorAll('tr[data-method-line]').forEach(function(row) {
+    var ln = row.getAttribute('data-method-line');
+    var target = document.querySelector('.diff-table tr[data-new-ln="' + ln + '"]');
+    if (target) {
+      row.addEventListener('click', function() { scrollToDiffRow(target); });
+    } else {
+      row.style.cursor = 'default';
+      row.style.opacity = '0.5';
+    }
+  });
+
   // Wire up analysis toggle
   var toggleBtn = document.getElementById('analysisToggle');
   if (toggleBtn) {
@@ -834,6 +930,23 @@ function openPanel(n) {
     if (!diffRowAnnotations.has(target)) diffRowAnnotations.set(target, []);
     diffRowAnnotations.get(target).push({ severity: severity, description: description });
   });
+
+  // Inject method metric warnings into diffRowAnnotations
+  if (m && m.method_metrics && m.method_metrics.length > 0) {
+    var t = methodThresholds;
+    m.method_metrics.forEach(function(mth) {
+      if (!mth.line) return;
+      var row = document.querySelector('.diff-table tr[data-new-ln="' + mth.line + '"]');
+      if (!row) return;
+      var warnings = [];
+      if (mth.cc > t.cc.warn)     warnings.push({ severity: mth.cc > t.cc.bad         ? 'high' : 'medium', description: mth.name + '(): CC ' + mth.cc + ' \u2013 high cyclomatic complexity' });
+      if (mth.lloc > t.lloc.warn)  warnings.push({ severity: mth.lloc > t.lloc.bad     ? 'high' : 'medium', description: mth.name + '(): ' + mth.lloc + ' lines \u2013 long method' });
+      if (mth.params > t.params.warn) warnings.push({ severity: mth.params > t.params.bad ? 'high' : 'medium', description: mth.name + '(): ' + mth.params + ' params \u2013 too many parameters' });
+      if (!warnings.length) return;
+      if (!diffRowAnnotations.has(row)) diffRowAnnotations.set(row, []);
+      warnings.forEach(function(w) { diffRowAnnotations.get(row).push(w); });
+    });
+  }
 
   // Place annotation dots on diff rows
   var diffTip = document.getElementById('diffTip');
