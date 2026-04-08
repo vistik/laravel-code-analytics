@@ -19,7 +19,7 @@ function makeNode(string $path, ?string $severity, int $add = 1, int $del = 0): 
     ];
 }
 
-function makeReport(string $severity, string $description = 'desc'): array
+function makeSeverityReport(string $severity, string $description = 'desc'): array
 {
     return ['category' => 'test', 'severity' => $severity, 'description' => $description];
 }
@@ -65,9 +65,9 @@ it('removes low-severity reports from files that pass the file-level filter', fu
     $nodes = [makeNode('app/Foo.php', 'high')];
     $analysisData = [
         'app/Foo.php' => [
-            makeReport('high', 'risky change'),
-            makeReport('low', 'cosmetic'),
-            makeReport('info', 'note'),
+            makeSeverityReport('high', 'risky change'),
+            makeSeverityReport('low', 'cosmetic'),
+            makeSeverityReport('info', 'note'),
         ],
     ];
 
@@ -81,7 +81,7 @@ it('keeps reports at exactly the minimum severity', function () {
     $nodes = [makeNode('app/Foo.php', 'medium')];
     $analysisData = [
         'app/Foo.php' => [
-            makeReport('medium', 'borderline'),
+            makeSeverityReport('medium', 'borderline'),
         ],
     ];
 
@@ -96,9 +96,9 @@ it('recalculates analysisCount after filtering reports', function () {
     $nodes = [makeNode('app/Foo.php', 'high')];
     $analysisData = [
         'app/Foo.php' => [
-            makeReport('high'),
-            makeReport('medium'),
-            makeReport('low'),
+            makeSeverityReport('high'),
+            makeSeverityReport('medium'),
+            makeSeverityReport('low'),
         ],
     ];
 
@@ -111,11 +111,11 @@ it('recalculates per-severity counts correctly after filtering', function () {
     $nodes = [makeNode('app/Foo.php', 'very_high')];
     $analysisData = [
         'app/Foo.php' => [
-            makeReport('very_high'),
-            makeReport('high'),
-            makeReport('medium'),
-            makeReport('low'),
-            makeReport('info'),
+            makeSeverityReport('very_high'),
+            makeSeverityReport('high'),
+            makeSeverityReport('medium'),
+            makeSeverityReport('low'),
+            makeSeverityReport('info'),
         ],
     ];
 
@@ -138,8 +138,8 @@ it('drops analysisData for excluded files', function () {
         makeNode('app/Drop.php', 'low'),
     ];
     $analysisData = [
-        'app/Keep.php' => [makeReport('high')],
-        'app/Drop.php' => [makeReport('low')],
+        'app/Keep.php' => [makeSeverityReport('high')],
+        'app/Drop.php' => [makeSeverityReport('low')],
     ];
 
     $result = applyFilter($nodes, $analysisData, Severity::HIGH);

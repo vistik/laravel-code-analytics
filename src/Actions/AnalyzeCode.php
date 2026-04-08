@@ -104,119 +104,22 @@ class AnalyzeCode
         if ($prUrl !== null) {
             // ── GitHub PR mode ───────────────────────────────────────────────
             $init = $this->initFromPrUrl($prUrl);
-            $files = $init['files'];
-            $totalAdditions = $init['totalAdditions'];
-            $totalDeletions = $init['totalDeletions'];
-            $repoName = $init['repoName'];
-            $prTitle = $init['prTitle'];
-            $prLinkUrl = $prUrl;
-
-            if (empty($files)) {
-                return ['files' => [], 'risk' => new RiskScore(0)];
-            }
+            $init['prLinkUrl'] = $prUrl;
         } else {
             // ── Local mode ───────────────────────────────────────────────────
             $this->repoPath = rtrim(realpath($repoPath) ?: $repoPath, '/');
+            $init = $this->initLocalMode($baseBranch, $title, $all);
+        }
 
-            // ── Validate git repo ─────────────────────────────────────────────
-            $gitDir = trim(shell_exec("git -C {$this->repoPath} rev-parse --git-dir 2>/dev/null") ?? '');
-            if ($gitDir === '') {
-                throw new RuntimeException("Not a git repository: {$this->repoPath}");
-            }
+        $files = $init['files'];
+        $totalAdditions = $init['totalAdditions'];
+        $totalDeletions = $init['totalDeletions'];
+        $repoName = $init['repoName'];
+        $prTitle = $init['prTitle'];
+        $prLinkUrl = $init['prLinkUrl'];
 
-            // ── Resolve HEAD & branch ─────────────────────────────────────────
-            $this->headCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse HEAD 2>/dev/null") ?? '');
-            $this->branchName = trim(shell_exec("git -C {$this->repoPath} rev-parse --abbrev-ref HEAD 2>/dev/null") ?? 'HEAD');
-
-            if (empty($this->headCommit)) {
-                throw new RuntimeException('Could not resolve HEAD commit.');
-            }
-
-            $repoName = basename($this->repoPath);
-
-            // ── Detect Laravel ────────────────────────────────────────────────
-            $this->isLaravel = file_exists("{$this->repoPath}/artisan");
-
-            if ($all) {
-                // ── All-files mode: analyze entire working tree ───────────────
-                $prTitle = $title ?? "{$this->branchName} (all files)";
-                $prLinkUrl = '';
-                $this->diff = '';
-
-                $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
-                $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7));
-
-                $lsOutput = trim(shell_exec("git -C {$this->repoPath} ls-files 2>/dev/null") ?? '');
-                if (empty($lsOutput)) {
-                    throw new RuntimeException("No tracked files found in: {$this->repoPath}");
-                }
-
-                $files = [];
-                $totalAdditions = 0;
-                $totalDeletions = 0;
-                foreach (array_filter(explode("\n", $lsOutput)) as $path) {
-                    $files[] = ['path' => $path, 'additions' => 0, 'deletions' => 0];
-                }
-            } else {
-                // ── Diff mode (default) ───────────────────────────────────────
-                $this->baseCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse {$baseBranch} 2>/dev/null") ?? '');
-
-                if (empty($this->baseCommit)) {
-                    throw new RuntimeException("Could not resolve base: {$baseBranch}");
-                }
-
-                // ── Detect uncommitted changes ─────────────────────────────────
-                $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
-                $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
-                $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
-                $prLinkUrl = '';
-
-                $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
-                $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
-                if ($hasUncommitted) {
-                    $this->progress('line', '  Including staged and unstaged working tree changes.');
-                }
-
-                // ── Get diff ──────────────────────────────────────────────────
-                // Compare working tree directly against base so staged/unstaged changes
-                // are included in addition to committed ones.
-                $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
-
-                if (! str_contains($this->diff, 'diff --git')) {
-                    $this->progress('warn', "No changes found between working tree and {$baseBranch}.");
-
-                    return ['files' => [], 'risk' => new RiskScore(0)];
-                }
-
-                // ── Get file list with numstat ─────────────────────────────────
-                $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat {$baseBranch} 2>/dev/null") ?? '');
-                $files = [];
-                $totalAdditions = 0;
-                $totalDeletions = 0;
-
-                foreach (explode("\n", $numstat) as $line) {
-                    if (empty($line)) {
-                        continue;
-                    }
-
-                    // Format: <additions>\t<deletions>\t<path>  (or -\t-\t<path> for binary)
-                    $parts = explode("\t", $line, 3);
-                    if (count($parts) < 3) {
-                        continue;
-                    }
-
-                    [$add, $del, $path] = $parts;
-                    $add = is_numeric($add) ? (int) $add : 0;
-                    $del = is_numeric($del) ? (int) $del : 0;
-                    $files[] = ['path' => $path, 'additions' => $add, 'deletions' => $del];
-                    $totalAdditions += $add;
-                    $totalDeletions += $del;
-                }
-
-                if (empty($files)) {
-                    throw new RuntimeException('No files found in diff output.');
-                }
-            }
+        if (empty($files)) {
+            return ['files' => [], 'risk' => new RiskScore(0)];
         }
 
         // ── Apply file pattern filter ─────────────────────────────────────────
@@ -260,8 +163,6 @@ class AnalyzeCode
         $watchedFiles ??= config('analysis.watched_files') ?? config('laravel-code-analytics.watched_files', []);
 
         $nodes = [];
-        $labelCounts = [];
-
         foreach ($files as $file) {
             $node = $this->classifyFile($file, $fileDiffMap);
 
@@ -273,67 +174,18 @@ class AnalyzeCode
                 }
             }
 
-            $labelCounts[$node['id']] = ($labelCounts[$node['id']] ?? 0) + 1;
             $nodes[] = $node;
         }
 
-        // Resolve label collisions — use domain as prefix
-        foreach ($nodes as &$node) {
-            if ($labelCounts[$node['id']] > 1) {
-                $folder = $node['folder'] ?: '(root)';
-                $domain = explode('/', $folder)[0];
-                $node['id'] = "{$domain}/{$node['id']}";
-            }
-        }
-        unset($node);
+        $nodes = $this->resolveNodeLabels($nodes);
+        $nodes = $this->assignDomainColors($nodes);
 
-        $labelCounts2 = [];
-        foreach ($nodes as $node) {
-            $labelCounts2[$node['id']] = ($labelCounts2[$node['id']] ?? 0) + 1;
-        }
-        foreach ($nodes as &$node) {
-            if ($labelCounts2[$node['id']] > 1) {
-                $folder = $node['folder'] ?: '(root)';
-                $node['id'] = "{$folder}/".basename($node['path'], '.php');
-            }
-        }
-        unset($node);
-
-        // ── Collect extensions, domains, severity counts ─────────────────────
-        $domainPalette = [
-            '#3fb950', '#58a6ff', '#d29922', '#f78166', '#d2a8ff',
-            '#f778ba', '#79c0ff', '#7ee787', '#ff7b72', '#e3b341',
-            '#ffa657', '#8957e5', '#56d4dd', '#db61a2', '#c9d1d9',
-            '#a5d6ff', '#ffdf5d', '#ff9bce', '#b4f5a3', '#d4a4eb',
-        ];
-
-        $domainCounts = [];
-        foreach ($nodes as $node) {
-            $domainCounts[$node['domain']] = ($domainCounts[$node['domain']] ?? 0) + 1;
-        }
-        ksort($domainCounts);
-
-        $domainColorMap = [];
-        $i = 0;
-        foreach (array_keys($domainCounts) as $domain) {
-            $domainColorMap[$domain] = $domainPalette[$i % count($domainPalette)];
-            $i++;
-        }
-
-        foreach ($nodes as &$node) {
-            $node['domainColor'] = $domainColorMap[$node['domain']] ?? '#8b949e';
-        }
-        unset($node);
-
-        // ── Fetch file contents from HEAD via git cat-file --batch ───────────
+        // ── Fetch file contents from HEAD ─────────────────────────────────────
         $this->progress('info', 'Reading file contents...');
 
         $frontendExts = ['jsx', 'tsx', 'vue', 'js', 'ts'];
         $phpFiles = array_filter($nodes, fn ($n) => str_ends_with($n['path'], '.php'));
         $frontendFiles = array_filter($nodes, fn ($n) => in_array($n['ext'], $frontendExts));
-
-        /** @var array<string, string|null> */
-        $headContents = [];
 
         $allFilePaths = array_merge(
             array_column(array_values($phpFiles), 'path'),
@@ -346,6 +198,7 @@ class AnalyzeCode
         } else {
             // Local mode: read directly from the working tree — this naturally
             // includes any staged or unstaged modifications git diff picked up.
+            $headContents = [];
             foreach ($allFilePaths as $path) {
                 $fullPath = "{$this->repoPath}/{$path}";
                 if (is_file($fullPath)) {
@@ -400,7 +253,6 @@ class AnalyzeCode
             if ($content === null || $content === '') {
                 continue;
             }
-
             $references = $this->extractReferences($content);
             $this->matchReferences($references, $node['id']);
             $this->matchViewReferences($content, $node['id']);
@@ -411,7 +263,6 @@ class AnalyzeCode
             if ($content === null || $content === '') {
                 continue;
             }
-
             $this->matchComponentReferences($content, $node['id'], $componentNameToNode);
         }
 
@@ -422,37 +273,8 @@ class AnalyzeCode
 
         $astComparer = new AstComparer;
         $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel, $this->repoPath ?: null);
+        $oldSources = $this->fetchOldSources($phpFiles, $fileDiffMap);
 
-        // Fetch old sources (base commit) in parallel
-        $needsOldSource = [];
-        foreach ($phpFiles as $node) {
-            $filePath = $node['path'];
-            $fileDiff = $fileDiffMap[$filePath] ?? null;
-            if ($fileDiff && $fileDiff->status !== FileStatus::ADDED) {
-                $needsOldSource[] = $filePath;
-            }
-        }
-
-        $oldSources = [];
-        if (! empty($needsOldSource)) {
-            $gitDir = $this->repoDir ?? $this->repoPath;
-            $baseCommit = $this->baseCommit;
-
-            $results = Process::pool(function ($pool) use ($needsOldSource, $gitDir, $baseCommit): void {
-                foreach ($needsOldSource as $path) {
-                    $pool->as($path)->command("git -C {$gitDir} show {$baseCommit}:{$path}");
-                }
-            })->start()->wait();
-
-            foreach ($needsOldSource as $path) {
-                $output = $results[$path]->output();
-                if ($output !== '') {
-                    $oldSources[$path] = $output;
-                }
-            }
-        }
-
-        // Compare ASTs
         $fileReports = [];
         foreach ($phpFiles as $node) {
             $filePath = $node['path'];
@@ -460,10 +282,8 @@ class AnalyzeCode
             if ($fileDiff === null) {
                 continue;
             }
-
             $oldSource = $oldSources[$filePath] ?? null;
             $newSource = $fileDiff->status !== FileStatus::DELETED ? ($headContents[$filePath] ?? null) : null;
-
             $comparison = $astComparer->compare($oldSource, $newSource);
             $fileReport = $changeClassifier->classify($fileDiff, $comparison, $newSource);
             $fileReports[$filePath] = $fileReport;
@@ -471,7 +291,6 @@ class AnalyzeCode
 
         $this->progress('line', '  Analyzed '.count($fileReports).' PHP files.');
 
-        // Cross-file: link migrations to their models
         if ($this->isLaravel) {
             // In PR URL mode the bare clone can't be used to scan non-PR models, so pass null.
             $fileReports = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, $this->repoDir !== null ? null : $this->repoPath);
@@ -503,181 +322,13 @@ class AnalyzeCode
             ], fn ($v) => $v !== null), $report->changes);
         }
 
-        // ── Run PhpMetrics for quality scoring ────────────────────────────────
-        $phpHotSpots = 0;
-        $metricsData = [];
-        if (! empty($headContents)) {
-            $this->progress('info', 'Running PhpMetrics...');
-
-            $runner = new PhpMetricsRunner;
-
-            // Run on base state to get "before" metrics for diff display
-            $metricsBefore = [];
-            if (! empty($oldSources)) {
-                // Build FQCN → path map from old sources for correct path resolution
-                $oldFqcnToPath = [];
-                foreach ($oldSources as $path => $content) {
-                    $fqcn = $this->extractFqcnFromContent($content);
-                    if ($fqcn !== null) {
-                        $oldFqcnToPath[$fqcn] = $path;
-                    }
-                }
-                foreach ((new PhpMetricsRunner)->run($oldSources) as $fqcn => $m) {
-                    $path = $oldFqcnToPath[$fqcn] ?? $this->fqcnToPath($fqcn);
-                    if ($path !== null) {
-                        $metricsBefore[$path] = $m;
-                    }
-                }
-            }
-
-            $metricsByFqcn = $runner->run($headContents);
-            $phpHotSpots = $this->countHotSpots($metricsByFqcn);
-
-            foreach ($metricsByFqcn as $fqcn => $m) {
-                $path = $fqcnToFilePath[$fqcn] ?? $this->fqcnToPath($fqcn);
-                if ($path === null) {
-                    continue;
-                }
-
-                $entry = array_filter([
-                    'cc' => $m->cyclomaticComplexity,
-                    'mi' => $m->maintainabilityIndex !== null ? round($m->maintainabilityIndex, 1) : null,
-                    'bugs' => $m->bugs !== null ? round($m->bugs, 3) : null,
-                    'coupling' => $m->efferentCoupling,
-                    'lloc' => $m->logicalLinesOfCode,
-                    'methods' => $m->methodsCount,
-                ], fn ($v) => $v !== null);
-
-                $beforeMetrics = $metricsBefore[$path] ?? null;
-                if ($beforeMetrics !== null) {
-                    $beforeEntry = array_filter([
-                        'cc' => $beforeMetrics->cyclomaticComplexity,
-                        'mi' => $beforeMetrics->maintainabilityIndex !== null ? round($beforeMetrics->maintainabilityIndex, 1) : null,
-                        'bugs' => $beforeMetrics->bugs !== null ? round($beforeMetrics->bugs, 3) : null,
-                        'coupling' => $beforeMetrics->efferentCoupling,
-                        'lloc' => $beforeMetrics->logicalLinesOfCode,
-                        'methods' => $beforeMetrics->methodsCount,
-                    ], fn ($v) => $v !== null);
-
-                    if (! empty($beforeEntry)) {
-                        $entry['before'] = $beforeEntry;
-                    }
-                }
-
-                if (! empty($entry)) {
-                    $metricsData[$path] = $entry;
-                }
-            }
-
-            $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
-
-            // Enrich per-file entries with per-method breakdowns
-            $methodMetrics = (new PhpMethodMetricsCalculator)->calculate($headContents);
-            foreach ($methodMetrics as $path => $methods) {
-                if (isset($metricsData[$path]) && ! empty($methods)) {
-                    $metricsData[$path]['method_metrics'] = array_map(
-                        fn ($m) => $m->toArray(),
-                        $methods,
-                    );
-                }
-            }
-
-            if (! empty($oldSources)) {
-                $beforeMethodMetrics = (new PhpMethodMetricsCalculator)->calculate($oldSources);
-                foreach ($beforeMethodMetrics as $path => $methods) {
-                    if (isset($metricsData[$path]) && ! empty($methods)) {
-                        $metricsData[$path]['before_method_metrics'] = array_map(
-                            fn ($m) => $m->toArray(),
-                            $methods,
-                        );
-                    }
-                }
-            }
-        }
-
-        // ── Run JS complexity analysis for quality scoring ───────────────────
-        $jsHotSpots = 0;
-        if (! empty($frontendFiles)) {
-            $jsContents = [];
-            foreach ($frontendFiles as $node) {
-                $content = $headContents[$node['path']] ?? null;
-                if ($content !== null && $content !== '') {
-                    $jsContents[$node['path']] = $content;
-                }
-            }
-
-            if (! empty($jsContents)) {
-                $this->progress('info', 'Running JS complexity analysis...');
-
-                $jsRunner = new JsMetricsRunner;
-                $jsMetricsByPath = $jsRunner->run($jsContents);
-
-                // Also run on old sources for "before" comparison
-                $jsMetricsBefore = [];
-                if (! empty($oldSources)) {
-                    $oldJsContents = [];
-                    foreach ($frontendFiles as $node) {
-                        $path = $node['path'];
-                        if (isset($oldSources[$path])) {
-                            $oldJsContents[$path] = $oldSources[$path];
-                        }
-                    }
-                    if (! empty($oldJsContents)) {
-                        $jsMetricsBefore = (new JsMetricsRunner)->run($oldJsContents);
-                    }
-                }
-
-                $jsHotSpots = $this->countJsHotSpots($jsMetricsByPath);
-
-                foreach ($jsMetricsByPath as $path => $m) {
-                    $entry = array_filter([
-                        'cc' => $m->cyclomaticComplexity,
-                        'mi' => $m->maintainabilityIndex !== null ? round($m->maintainabilityIndex, 1) : null,
-                        'bugs' => $m->bugs !== null ? round($m->bugs, 3) : null,
-                        'lloc' => $m->logicalLinesOfCode,
-                        'methods' => $m->functionCount,
-                    ], fn ($v) => $v !== null);
-
-                    $beforeJsMetrics = $jsMetricsBefore[$path] ?? null;
-                    if ($beforeJsMetrics !== null) {
-                        $beforeEntry = array_filter([
-                            'cc' => $beforeJsMetrics->cyclomaticComplexity,
-                            'mi' => $beforeJsMetrics->maintainabilityIndex !== null ? round($beforeJsMetrics->maintainabilityIndex, 1) : null,
-                            'bugs' => $beforeJsMetrics->bugs !== null ? round($beforeJsMetrics->bugs, 3) : null,
-                            'lloc' => $beforeJsMetrics->logicalLinesOfCode,
-                            'methods' => $beforeJsMetrics->functionCount,
-                        ], fn ($v) => $v !== null);
-
-                        if (! empty($beforeEntry)) {
-                            $entry['before'] = $beforeEntry;
-                        }
-                    }
-
-                    if (! empty($entry)) {
-                        $metricsData[$path] = $entry;
-                    }
-                }
-
-                $this->progress('line', '  JS metrics computed for '.count($jsMetricsByPath).' files.');
-            }
-        }
+        // ── Compute metrics ───────────────────────────────────────────────────
+        ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics($headContents, $oldSources, $fqcnToFilePath);
+        ['hotSpots' => $jsHotSpots, 'metricsData' => $jsMetricsData] = $this->computeJsMetrics($frontendFiles, $headContents, $oldSources);
+        $metricsData = array_merge($metricsData, $jsMetricsData);
 
         // ── Extract per-file diffs ────────────────────────────────────────────
-        $fileDiffs = [];
-        $diffBlocks = preg_split('/^diff --git /m', $this->diff);
-        foreach ($diffBlocks as $block) {
-            if (empty(trim($block))) {
-                continue;
-            }
-            if (! preg_match('#^a/\S+ b/(\S+)#', $block, $m)) {
-                continue;
-            }
-            $hunkStart = strpos($block, '@@');
-            if ($hunkStart === false) {
-                continue;
-            }
-            $fileDiffs[$m[1]] = substr($block, $hunkStart);
-        }
+        $fileDiffs = $this->extractFileDiffs();
 
         // ── Collect full file contents for "Full file" diff view ─────────────
         $fileContents = [];
@@ -730,10 +381,9 @@ class AnalyzeCode
         $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots);
 
         // ── Generate report ───────────────────────────────────────────────────
-        $reportGenerator = $format->generator();
-
         $this->progress('info', "Generating {$format->value} report...");
 
+        $reportGenerator = $format->generator();
         $content = $reportGenerator->generate(
             nodes: $nodes,
             edges: $this->edges,
@@ -950,6 +600,397 @@ class AnalyzeCode
 
         $shaArgs = implode(' ', $blobShas);
         shell_exec("git -C {$repoDir} fetch origin {$shaArgs} 2>/dev/null");
+    }
+
+    /**
+     * Initialize state from a local git repository.
+     *
+     * @return array{files: list<array{path: string, additions: int, deletions: int}>, totalAdditions: int, totalDeletions: int, repoName: string, prTitle: string, prLinkUrl: string}
+     */
+    private function initLocalMode(string $baseBranch, ?string $title, bool $all = false): array
+    {
+        $gitDir = trim(shell_exec("git -C {$this->repoPath} rev-parse --git-dir 2>/dev/null") ?? '');
+        if ($gitDir === '') {
+            throw new RuntimeException("Not a git repository: {$this->repoPath}");
+        }
+
+        $this->headCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse HEAD 2>/dev/null") ?? '');
+        $this->branchName = trim(shell_exec("git -C {$this->repoPath} rev-parse --abbrev-ref HEAD 2>/dev/null") ?? 'HEAD');
+
+        if (empty($this->headCommit)) {
+            throw new RuntimeException('Could not resolve HEAD commit.');
+        }
+
+        $repoName = basename($this->repoPath);
+        $this->isLaravel = file_exists("{$this->repoPath}/artisan");
+
+        if ($all) {
+            // ── All-files mode: analyze entire working tree ───────────────────
+            $prTitle = $title ?? "{$this->branchName} (all files)";
+            $this->diff = '';
+
+            $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+            $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7));
+
+            $lsOutput = trim(shell_exec("git -C {$this->repoPath} ls-files 2>/dev/null") ?? '');
+            if (empty($lsOutput)) {
+                throw new RuntimeException("No tracked files found in: {$this->repoPath}");
+            }
+
+            $files = [];
+            foreach (array_filter(explode("\n", $lsOutput)) as $path) {
+                $files[] = ['path' => $path, 'additions' => 0, 'deletions' => 0];
+            }
+
+            return compact('files', 'repoName', 'prTitle') + ['totalAdditions' => 0, 'totalDeletions' => 0, 'prLinkUrl' => ''];
+        }
+
+        // ── Diff mode (default) ───────────────────────────────────────────────
+        $this->baseCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse {$baseBranch} 2>/dev/null") ?? '');
+
+        if (empty($this->baseCommit)) {
+            throw new RuntimeException("Could not resolve base: {$baseBranch}");
+        }
+
+        $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
+        $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
+        $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
+
+        $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+        $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
+        if ($hasUncommitted) {
+            $this->progress('line', '  Including staged and unstaged working tree changes.');
+        }
+
+        $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
+
+        if (! str_contains($this->diff, 'diff --git')) {
+            $this->progress('warn', "No changes found between working tree and {$baseBranch}.");
+
+            return ['files' => [], 'totalAdditions' => 0, 'totalDeletions' => 0, 'repoName' => $repoName, 'prTitle' => $prTitle, 'prLinkUrl' => ''];
+        }
+
+        $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat {$baseBranch} 2>/dev/null") ?? '');
+        $files = [];
+        $totalAdditions = 0;
+        $totalDeletions = 0;
+
+        foreach (explode("\n", $numstat) as $line) {
+            if (empty($line)) {
+                continue;
+            }
+
+            // Format: <additions>\t<deletions>\t<path>  (or -\t-\t<path> for binary)
+            $parts = explode("\t", $line, 3);
+            if (count($parts) < 3) {
+                continue;
+            }
+
+            [$add, $del, $path] = $parts;
+            $add = is_numeric($add) ? (int) $add : 0;
+            $del = is_numeric($del) ? (int) $del : 0;
+            $files[] = ['path' => $path, 'additions' => $add, 'deletions' => $del];
+            $totalAdditions += $add;
+            $totalDeletions += $del;
+        }
+
+        if (empty($files)) {
+            throw new RuntimeException('No files found in diff output.');
+        }
+
+        return compact('files', 'totalAdditions', 'totalDeletions', 'repoName', 'prTitle') + ['prLinkUrl' => ''];
+    }
+
+    /**
+     * Resolve label collisions across all nodes using a two-pass domain-prefix strategy.
+     */
+    private function resolveNodeLabels(array $nodes): array
+    {
+        // First pass: prefix colliding labels with their domain
+        $labelCounts = array_count_values(array_column($nodes, 'id'));
+        foreach ($nodes as &$node) {
+            if ($labelCounts[$node['id']] > 1) {
+                $domain = explode('/', $node['folder'] ?: '(root)')[0];
+                $node['id'] = "{$domain}/{$node['id']}";
+            }
+        }
+        unset($node);
+
+        // Second pass: fall back to full folder path for remaining collisions
+        $labelCounts = array_count_values(array_column($nodes, 'id'));
+        foreach ($nodes as &$node) {
+            if ($labelCounts[$node['id']] > 1) {
+                $folder = $node['folder'] ?: '(root)';
+                $node['id'] = "{$folder}/".basename($node['path'], '.php');
+            }
+        }
+        unset($node);
+
+        return $nodes;
+    }
+
+    /**
+     * Assign a deterministic palette color to each node based on its domain.
+     */
+    private function assignDomainColors(array $nodes): array
+    {
+        $palette = [
+            '#3fb950', '#58a6ff', '#d29922', '#f78166', '#d2a8ff',
+            '#f778ba', '#79c0ff', '#7ee787', '#ff7b72', '#e3b341',
+            '#ffa657', '#8957e5', '#56d4dd', '#db61a2', '#c9d1d9',
+            '#a5d6ff', '#ffdf5d', '#ff9bce', '#b4f5a3', '#d4a4eb',
+        ];
+
+        $domains = array_keys(array_count_values(array_column($nodes, 'domain')));
+        sort($domains);
+
+        $colorMap = [];
+        foreach ($domains as $i => $domain) {
+            $colorMap[$domain] = $palette[$i % count($palette)];
+        }
+
+        foreach ($nodes as &$node) {
+            $node['domainColor'] = $colorMap[$node['domain']] ?? '#8b949e';
+        }
+        unset($node);
+
+        return $nodes;
+    }
+
+    /**
+     * Fetch base-commit file contents for PHP files that need AST comparison.
+     *
+     * @param  array<int, array>  $phpFiles
+     * @return array<string, string>
+     */
+    private function fetchOldSources(array $phpFiles, array $fileDiffMap): array
+    {
+        $needsOldSource = [];
+        foreach ($phpFiles as $node) {
+            $fileDiff = $fileDiffMap[$node['path']] ?? null;
+            if ($fileDiff && $fileDiff->status !== FileStatus::ADDED) {
+                $needsOldSource[] = $node['path'];
+            }
+        }
+
+        if (empty($needsOldSource)) {
+            return [];
+        }
+
+        $gitDir = $this->repoDir ?? $this->repoPath;
+        $baseCommit = $this->baseCommit;
+
+        $results = Process::pool(function ($pool) use ($needsOldSource, $gitDir, $baseCommit): void {
+            foreach ($needsOldSource as $path) {
+                $pool->as($path)->command("git -C {$gitDir} show {$baseCommit}:{$path}");
+            }
+        })->start()->wait();
+
+        $oldSources = [];
+        foreach ($needsOldSource as $path) {
+            $output = $results[$path]->output();
+            if ($output !== '') {
+                $oldSources[$path] = $output;
+            }
+        }
+
+        return $oldSources;
+    }
+
+    /**
+     * Run PhpMetrics on head and base sources and build per-file metrics entries.
+     *
+     * @param  array<string, string|null>  $headContents
+     * @param  array<string, string>  $oldSources
+     * @param  array<string, string>  $fqcnToFilePath
+     * @return array{hotSpots: int, metricsData: array<string, array>}
+     */
+    private function computePhpMetrics(array $headContents, array $oldSources, array $fqcnToFilePath): array
+    {
+        if (empty($headContents)) {
+            return ['hotSpots' => 0, 'metricsData' => []];
+        }
+
+        $this->progress('info', 'Running PhpMetrics...');
+
+        // Run on base state to get "before" metrics for diff display
+        $metricsBefore = [];
+        if (! empty($oldSources)) {
+            $oldFqcnToPath = [];
+            foreach ($oldSources as $path => $content) {
+                $fqcn = $this->extractFqcnFromContent($content);
+                if ($fqcn !== null) {
+                    $oldFqcnToPath[$fqcn] = $path;
+                }
+            }
+            foreach ((new PhpMetricsRunner)->run($oldSources) as $fqcn => $m) {
+                $path = $oldFqcnToPath[$fqcn] ?? $this->fqcnToPath($fqcn);
+                if ($path !== null) {
+                    $metricsBefore[$path] = $m;
+                }
+            }
+        }
+
+        $metricsByFqcn = (new PhpMetricsRunner)->run($headContents);
+        $hotSpots = $this->countHotSpots($metricsByFqcn);
+        $metricsData = [];
+
+        foreach ($metricsByFqcn as $fqcn => $m) {
+            $path = $fqcnToFilePath[$fqcn] ?? $this->fqcnToPath($fqcn);
+            if ($path === null) {
+                continue;
+            }
+
+            $entry = array_filter([
+                'cc' => $m->cyclomaticComplexity,
+                'mi' => $m->maintainabilityIndex !== null ? round($m->maintainabilityIndex, 1) : null,
+                'bugs' => $m->bugs !== null ? round($m->bugs, 3) : null,
+                'coupling' => $m->efferentCoupling,
+                'lloc' => $m->logicalLinesOfCode,
+                'methods' => $m->methodsCount,
+            ], fn ($v) => $v !== null);
+
+            $before = $metricsBefore[$path] ?? null;
+            if ($before !== null) {
+                $beforeEntry = array_filter([
+                    'cc' => $before->cyclomaticComplexity,
+                    'mi' => $before->maintainabilityIndex !== null ? round($before->maintainabilityIndex, 1) : null,
+                    'bugs' => $before->bugs !== null ? round($before->bugs, 3) : null,
+                    'coupling' => $before->efferentCoupling,
+                    'lloc' => $before->logicalLinesOfCode,
+                    'methods' => $before->methodsCount,
+                ], fn ($v) => $v !== null);
+                if (! empty($beforeEntry)) {
+                    $entry['before'] = $beforeEntry;
+                }
+            }
+
+            if (! empty($entry)) {
+                $metricsData[$path] = $entry;
+            }
+        }
+
+        $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
+
+        // Enrich per-file entries with per-method breakdowns
+        $methodMetrics = (new PhpMethodMetricsCalculator)->calculate($headContents);
+        foreach ($methodMetrics as $path => $methods) {
+            if (isset($metricsData[$path]) && ! empty($methods)) {
+                $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
+            }
+        }
+
+        if (! empty($oldSources)) {
+            $beforeMethodMetrics = (new PhpMethodMetricsCalculator)->calculate($oldSources);
+            foreach ($beforeMethodMetrics as $path => $methods) {
+                if (isset($metricsData[$path]) && ! empty($methods)) {
+                    $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
+                }
+            }
+        }
+
+        return compact('hotSpots', 'metricsData');
+    }
+
+    /**
+     * Run JS complexity analysis on head and base sources and build per-file metrics entries.
+     *
+     * @param  array<int, array>  $frontendFiles
+     * @param  array<string, string|null>  $headContents
+     * @param  array<string, string>  $oldSources
+     * @return array{hotSpots: int, metricsData: array<string, array>}
+     */
+    private function computeJsMetrics(array $frontendFiles, array $headContents, array $oldSources): array
+    {
+        if (empty($frontendFiles)) {
+            return ['hotSpots' => 0, 'metricsData' => []];
+        }
+
+        $jsContents = [];
+        foreach ($frontendFiles as $node) {
+            $content = $headContents[$node['path']] ?? null;
+            if ($content !== null && $content !== '') {
+                $jsContents[$node['path']] = $content;
+            }
+        }
+
+        if (empty($jsContents)) {
+            return ['hotSpots' => 0, 'metricsData' => []];
+        }
+
+        $this->progress('info', 'Running JS complexity analysis...');
+
+        $jsMetricsByPath = (new JsMetricsRunner)->run($jsContents);
+
+        $jsMetricsBefore = [];
+        if (! empty($oldSources)) {
+            $oldJsContents = array_intersect_key($oldSources, $jsContents);
+            if (! empty($oldJsContents)) {
+                $jsMetricsBefore = (new JsMetricsRunner)->run($oldJsContents);
+            }
+        }
+
+        $hotSpots = $this->countJsHotSpots($jsMetricsByPath);
+        $metricsData = [];
+
+        foreach ($jsMetricsByPath as $path => $m) {
+            $entry = array_filter([
+                'cc' => $m->cyclomaticComplexity,
+                'mi' => $m->maintainabilityIndex !== null ? round($m->maintainabilityIndex, 1) : null,
+                'bugs' => $m->bugs !== null ? round($m->bugs, 3) : null,
+                'lloc' => $m->logicalLinesOfCode,
+                'methods' => $m->functionCount,
+            ], fn ($v) => $v !== null);
+
+            $before = $jsMetricsBefore[$path] ?? null;
+            if ($before !== null) {
+                $beforeEntry = array_filter([
+                    'cc' => $before->cyclomaticComplexity,
+                    'mi' => $before->maintainabilityIndex !== null ? round($before->maintainabilityIndex, 1) : null,
+                    'bugs' => $before->bugs !== null ? round($before->bugs, 3) : null,
+                    'lloc' => $before->logicalLinesOfCode,
+                    'methods' => $before->functionCount,
+                ], fn ($v) => $v !== null);
+                if (! empty($beforeEntry)) {
+                    $entry['before'] = $beforeEntry;
+                }
+            }
+
+            if (! empty($entry)) {
+                $metricsData[$path] = $entry;
+            }
+        }
+
+        $this->progress('line', '  JS metrics computed for '.count($jsMetricsByPath).' files.');
+
+        return compact('hotSpots', 'metricsData');
+    }
+
+    /**
+     * Split the raw diff string into per-file hunk blocks.
+     *
+     * @return array<string, string>
+     */
+    private function extractFileDiffs(): array
+    {
+        $fileDiffs = [];
+        $diffBlocks = preg_split('/^diff --git /m', $this->diff);
+
+        foreach ($diffBlocks as $block) {
+            if (empty(trim($block))) {
+                continue;
+            }
+            if (! preg_match('#^a/\S+ b/(\S+)#', $block, $m)) {
+                continue;
+            }
+            $hunkStart = strpos($block, '@@');
+            if ($hunkStart === false) {
+                continue;
+            }
+            $fileDiffs[$m[1]] = substr($block, $hunkStart);
+        }
+
+        return $fileDiffs;
     }
 
     /**
