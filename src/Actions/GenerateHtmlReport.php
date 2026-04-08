@@ -199,8 +199,8 @@ class GenerateHtmlReport implements ReportGenerator
         $metricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
         $methodThresholds = config('laravel-code-analytics.method_metric_thresholds', [
-            'cc'     => ['warn' => 5,  'bad' => 10],
-            'lloc'   => ['warn' => 20, 'bad' => 50],
+            'cc' => ['warn' => 5,  'bad' => 10],
+            'lloc' => ['warn' => 20, 'bad' => 50],
             'params' => ['warn' => 3,  'bad' => 5],
         ]);
         $methodThresholdsJson = json_encode($methodThresholds, JSON_HEX_TAG);
