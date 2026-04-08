@@ -17,6 +17,7 @@ enum ChangeCategory: string
     case METHOD_ADDED = 'method_added';
     case METHOD_CHANGED = 'method_changed';
     case METHOD_REMOVED = 'method_removed';
+    case METHOD_RENAMED = 'method_renamed';
     case CLASS_STRUCTURE = 'class_structure';
     case SIDE_EFFECTS = 'side_effects';
     case LARAVEL = 'laravel';
@@ -50,6 +51,7 @@ enum ChangeCategory: string
             self::METHOD_ADDED => 'Method additions',
             self::METHOD_CHANGED => 'Method body changes',
             self::METHOD_REMOVED => 'Method removals',
+            self::METHOD_RENAMED => 'Method renames',
             self::CLASS_STRUCTURE => 'Class, interface & enum structure',
             self::SIDE_EFFECTS => 'Side effects & external calls',
             self::LARAVEL => 'Laravel framework changes',

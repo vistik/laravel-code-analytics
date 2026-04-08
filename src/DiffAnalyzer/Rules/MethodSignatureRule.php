@@ -3,9 +3,11 @@
 namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules;
 
 use PhpParser\Modifiers;
+use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\ClassMethod;
+use PhpParser\PrettyPrinter\Standard;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
@@ -13,6 +15,13 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 
 class MethodSignatureRule implements Rule
 {
+    private Standard $printer;
+
+    public function __construct()
+    {
+        $this->printer = new Standard;
+    }
+
     public function shortDescription(): string
     {
         return 'Detects method signature, visibility, and parameter changes';
@@ -45,6 +54,7 @@ class MethodSignatureRule implements Rule
     {
         $this->compareVisibility($key, $old, $new, $changes);
         $this->compareModifiers($key, $old, $new, $changes);
+        $this->compareReturnType($key, $old, $new, $changes);
         $this->compareParameters($key, $old, $new, $changes);
     }
 
@@ -114,6 +124,34 @@ class MethodSignatureRule implements Rule
                 line: $new->getStartLine(),
             );
         }
+    }
+
+    /**
+     * @param  list<ClassifiedChange>  $changes
+     */
+    private function compareReturnType(string $key, ClassMethod $old, ClassMethod $new, array &$changes): void
+    {
+        $oldType = $this->printType($old->returnType);
+        $newType = $this->printType($new->returnType);
+
+        if ($oldType !== $newType) {
+            $changes[] = new ClassifiedChange(
+                category: ChangeCategory::METHOD_SIGNATURE,
+                severity: Severity::VERY_HIGH,
+                description: "Return type changed on {$key}: {$oldType} -> {$newType}",
+                location: $key,
+                line: $new->getStartLine(),
+            );
+        }
+    }
+
+    private function printType(?Node $type): string
+    {
+        if ($type === null) {
+            return 'none';
+        }
+
+        return trim($this->printer->prettyPrint([$type]));
     }
 
     /**

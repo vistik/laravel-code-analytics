@@ -33,7 +33,7 @@ class MethodChangedRule implements Rule
         $changes = [];
 
         foreach ($comparison['methods'] as $key => $pair) {
-            if ($pair['old'] === null || $pair['new'] === null) {
+            if ($pair['old'] === null || $pair['new'] === null || isset($pair['renamed_from'])) {
                 continue;
             }
 

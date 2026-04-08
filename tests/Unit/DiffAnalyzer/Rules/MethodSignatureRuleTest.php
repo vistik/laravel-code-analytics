@@ -112,6 +112,64 @@ it('detects parameter removed', function () {
         ->and($paramChanges[0]->description)->toContain('$b');
 });
 
+it('detects return type change', function () {
+    $old = '<?php class Foo { public function bar(): int {} }';
+    $new = '<?php class Foo { public function bar(): string {} }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Foo.php', 'app/Foo.php', FileStatus::MODIFIED);
+
+    $changes = (new MethodSignatureRule)->analyze($file, $comparison);
+
+    $returnChanges = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'Return type changed'),
+    ));
+
+    expect($returnChanges)->toHaveCount(1)
+        ->and($returnChanges[0]->category)->toBe(ChangeCategory::METHOD_SIGNATURE)
+        ->and($returnChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($returnChanges[0]->description)->toContain('int -> string');
+});
+
+it('detects return type added', function () {
+    $old = '<?php class Foo { public function bar() {} }';
+    $new = '<?php class Foo { public function bar(): void {} }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Foo.php', 'app/Foo.php', FileStatus::MODIFIED);
+
+    $changes = (new MethodSignatureRule)->analyze($file, $comparison);
+
+    $returnChanges = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'Return type changed'),
+    ));
+
+    expect($returnChanges)->toHaveCount(1)
+        ->and($returnChanges[0]->description)->toContain('none -> void');
+});
+
+it('does not report return type change for identical return types', function () {
+    $old = '<?php class Foo { public function bar(): int { return 1; } }';
+    $new = '<?php class Foo { public function bar(): int { return 2; } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Foo.php', 'app/Foo.php', FileStatus::MODIFIED);
+
+    $changes = (new MethodSignatureRule)->analyze($file, $comparison);
+
+    $returnChanges = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'Return type changed'),
+    ));
+
+    expect($returnChanges)->toBeEmpty();
+});
+
 it('returns no changes for identical methods', function () {
     $code = '<?php class Foo { public function bar(string $a, int $b) { return $a; } }';
 

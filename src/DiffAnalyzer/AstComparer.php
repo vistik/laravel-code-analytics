@@ -381,11 +381,12 @@ class AstComparer
     /**
      * Match methods across all classes, keyed as "ClassName::methodName".
      * Accounts for class renames so that methods are matched correctly.
+     * Detects method renames within the same class by comparing parameter list hashes.
      *
      * @param  ?array<int, Node>  $oldNodes
      * @param  ?array<int, Node>  $newNodes
      * @param  array<string, string>  $classRenames  old class name -> new class name
-     * @return array<string, array{old: ?Stmt\ClassMethod, new: ?Stmt\ClassMethod, class: string}>
+     * @return array<string, array{old: ?Stmt\ClassMethod, new: ?Stmt\ClassMethod, class: string, renamed_from?: string}>
      */
     private function matchMethods(?array $oldNodes, ?array $newNodes, array $classRenames = []): array
     {
@@ -401,7 +402,72 @@ class AstComparer
             ];
         }
 
+        // Second pass: detect method renames within the same class.
+        // A rename is inferred when two unmatched methods share the same parameter list
+        // (for non-empty param lists), or the same body (for zero-param methods).
+        $unmatchedOldKeys = array_keys(array_filter($matched, fn ($p) => $p['old'] !== null && $p['new'] === null));
+        $unmatchedNewKeys = array_keys(array_filter($matched, fn ($p) => $p['old'] === null && $p['new'] !== null));
+
+        $usedNewKeys = [];
+
+        foreach ($unmatchedOldKeys as $oldKey) {
+            /** @var Stmt\ClassMethod $oldMethod */
+            $oldMethod = $matched[$oldKey]['old'];
+            $className = $matched[$oldKey]['class'];
+
+            $bestNewKey = null;
+            $bestScore = 0.0;
+
+            foreach ($unmatchedNewKeys as $newKey) {
+                if (isset($usedNewKeys[$newKey]) || $matched[$newKey]['class'] !== $className) {
+                    continue;
+                }
+
+                /** @var Stmt\ClassMethod $newMethod */
+                $newMethod = $matched[$newKey]['new'];
+                $score = $this->methodRenameSimilarity($oldMethod, $newMethod);
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestNewKey = $newKey;
+                }
+            }
+
+            if ($bestNewKey !== null && $bestScore >= 1.0) {
+                $oldMethodName = explode('::', $oldKey)[1];
+                $matched[$bestNewKey] = [
+                    'old' => $oldMethod,
+                    'new' => $matched[$bestNewKey]['new'],
+                    'class' => $className,
+                    'renamed_from' => $oldMethodName,
+                ];
+                unset($matched[$oldKey]);
+                $usedNewKeys[$bestNewKey] = true;
+            }
+        }
+
         return $matched;
+    }
+
+    /**
+     * Score how likely two methods (in the same class) represent a rename.
+     * Returns 1.0 if the signature match is strong enough, 0.0 otherwise.
+     */
+    private function methodRenameSimilarity(Stmt\ClassMethod $old, Stmt\ClassMethod $new): float
+    {
+        $oldParamsHash = $this->hashNodes($old->params);
+        $newParamsHash = $this->hashNodes($new->params);
+
+        if ($oldParamsHash !== $newParamsHash) {
+            return 0.0;
+        }
+
+        // Empty param lists match trivially; also require an identical body to avoid false positives.
+        if (count($old->params) === 0) {
+            return $this->hashNodes($old->stmts ?? []) === $this->hashNodes($new->stmts ?? []) ? 1.0 : 0.0;
+        }
+
+        return 1.0;
     }
 
     /**
