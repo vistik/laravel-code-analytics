@@ -554,6 +554,18 @@ class AnalyzeCode
                     );
                 }
             }
+
+            if (! empty($oldSources)) {
+                $beforeMethodMetrics = (new PhpMethodMetricsCalculator)->calculate($oldSources);
+                foreach ($beforeMethodMetrics as $path => $methods) {
+                    if (isset($metricsData[$path]) && ! empty($methods)) {
+                        $metricsData[$path]['before_method_metrics'] = array_map(
+                            fn ($m) => $m->toArray(),
+                            $methods,
+                        );
+                    }
+                }
+            }
         }
 
         // ── Run JS complexity analysis for quality scoring ───────────────────

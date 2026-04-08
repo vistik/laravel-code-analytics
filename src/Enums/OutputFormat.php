@@ -5,6 +5,7 @@ namespace Vistik\LaravelCodeAnalytics\Enums;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMdReport;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsDetailsReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 
@@ -14,6 +15,7 @@ enum OutputFormat: string
     case MARKDOWN = 'md';
     case JSON = 'json';
     case METRICS = 'metrics';
+    case METRICS_DETAILS = 'metrics-details';
 
     public function generator(): ReportGenerator
     {
@@ -22,6 +24,7 @@ enum OutputFormat: string
             self::MARKDOWN => new GenerateMdReport,
             self::JSON => new GenerateJsonReport,
             self::METRICS => new GenerateMetricsReport,
+            self::METRICS_DETAILS => new GenerateMetricsDetailsReport,
         };
     }
 
@@ -32,6 +35,7 @@ enum OutputFormat: string
             self::MARKDOWN => 'md',
             self::JSON => 'json',
             self::METRICS => 'txt',
+            self::METRICS_DETAILS => 'txt',
         };
     }
 }
