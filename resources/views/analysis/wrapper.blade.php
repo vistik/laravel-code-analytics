@@ -273,6 +273,7 @@
   var currentSort = 'signal';
   var currentDir = -1; // descending
   var activeTypeFilters = {}; // e.g. { js: true, php: true }
+  var hiddenChangeTypes = {}; // mirrors inner.blade.php hiddenChangeTypes
 
   function toggleTypeFilter(type) {
     if (activeTypeFilters[type]) {
@@ -346,6 +347,7 @@
     var hasTypeFilter = Object.keys(activeTypeFilters).length > 0;
     var list = changedFiles.filter(function(n) {
       if (!showReviewed && reviewedFiles.has(n.id)) return false;
+      if (hiddenChangeTypes[n.status]) return false;
       if (hasTypeFilter) {
         var ext = (n.ext || '').toLowerCase();
         var match = (activeTypeFilters['js'] && (ext === 'js' || ext === 'jsx'))
@@ -578,6 +580,10 @@
     if (e.data.type === 'fileUnreviewed') {
       reviewedFiles.delete(e.data.nodeId);
       updateReviewedBadge();
+      if (filesPanelEl.classList.contains('open')) renderFileList();
+    }
+    if (e.data.type === 'changeTypeFilterChanged') {
+      hiddenChangeTypes = e.data.hiddenChangeTypes;
       if (filesPanelEl.classList.contains('open')) renderFileList();
     }
   });
