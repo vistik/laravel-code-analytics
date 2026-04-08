@@ -669,7 +669,7 @@ class AnalyzeCode
             if (empty(trim($block))) {
                 continue;
             }
-            if (! preg_match('#^a/(.+?) b/#', $block, $m)) {
+            if (! preg_match('#^a/\S+ b/(\S+)#', $block, $m)) {
                 continue;
             }
             $hunkStart = strpos($block, '@@');
