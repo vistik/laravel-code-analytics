@@ -26,7 +26,7 @@ class PhpMethodMetricsCalculator
      * Calculate per-method metrics for the given PHP files.
      *
      * @param  array<string, string|null>  $pathToContent  Relative file path → PHP source
-     * @return array<string, list<PhpMethodMetrics>>  File path → list of method metrics
+     * @return array<string, list<PhpMethodMetrics>> File path → list of method metrics
      */
     public function calculate(array $pathToContent): array
     {

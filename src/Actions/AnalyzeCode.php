@@ -22,8 +22,8 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
 use Vistik\LaravelCodeAnalytics\Support\JsMetricsRunner;
-use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
 use Vistik\LaravelCodeAnalytics\Support\PhpMethodMetricsCalculator;
+use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetricsRunner;
 
 class AnalyzeCode

@@ -35,8 +35,8 @@ return [
     */
 
     'method_metric_thresholds' => [
-        'cc'     => ['warn' => 5,  'bad' => 10],
-        'lloc'   => ['warn' => 20, 'bad' => 50],
+        'cc' => ['warn' => 5,  'bad' => 10],
+        'lloc' => ['warn' => 20, 'bad' => 50],
         'params' => ['warn' => 3,  'bad' => 5],
     ],
 
