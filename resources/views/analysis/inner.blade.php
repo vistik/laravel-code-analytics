@@ -890,6 +890,22 @@ function openPanel(n) {
       }
 
       var methodsSorted = m.method_metrics.slice().sort(function(a, b) { return b.cc - a.cc; });
+      var beforeMethodMap = {};
+      if (m.before_method_metrics) {
+        for (var bmi = 0; bmi < m.before_method_metrics.length; bmi++) {
+          beforeMethodMap[m.before_method_metrics[bmi].name] = m.before_method_metrics[bmi];
+        }
+      }
+      var hasBefore = Object.keys(beforeMethodMap).length > 0;
+      function methodDelta(val, beforeVal, higherIsBad) {
+        if (beforeVal == null) return '';
+        var diff = val - beforeVal;
+        if (diff === 0) return '';
+        var sign = diff > 0 ? '+' : '';
+        var bad = higherIsBad ? diff > 0 : diff < 0;
+        var color = bad ? '#f85149' : '#3fb950';
+        return '<span style="color:' + color + ';font-size:9px;margin-left:3px">' + sign + diff + '</span>';
+      }
       bodyHtml += '<div style="margin-top:10px">' +
         '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Methods by Complexity</div>' +
         '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
@@ -901,6 +917,7 @@ function openPanel(n) {
         '</tr></thead><tbody>';
       for (var mi2 = 0; mi2 < methodsSorted.length; mi2++) {
         var mth = methodsSorted[mi2];
+        var bm = beforeMethodMap[mth.name] || null;
         var ccColor = mth.cc > 10 ? '#f85149' : mth.cc > 5 ? '#d29922' : '#3fb950';
         var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
         var status = methodDiffStatus(mth);
@@ -909,11 +926,14 @@ function openPanel(n) {
           : status === 'modified'
           ? '<span style="color:#d29922;font-size:9px;font-weight:500;margin-left:5px">mod</span>'
           : '';
+        var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
+        var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
+        var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
         bodyHtml += '<tr' + hasLine + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
           '<td style="padding:2px 8px 2px 0;color:#c9d1d9;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
-          '<td style="padding:2px 8px 2px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + '</td>' +
-          '<td style="padding:2px 8px 2px 0;text-align:right;color:#8b949e">' + mth.lloc + '</td>' +
-          '<td style="padding:2px 0;text-align:right;color:#8b949e">' + mth.params + '</td>' +
+          '<td style="padding:2px 8px 2px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
+          '<td style="padding:2px 8px 2px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
+          '<td style="padding:2px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
           '</tr>';
       }
       bodyHtml += '</tbody></table></div>';
