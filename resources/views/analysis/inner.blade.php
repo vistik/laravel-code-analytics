@@ -169,6 +169,17 @@
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 
+  #complexity-scroll-btn {
+    position: absolute; bottom: 20px; right: 20px; z-index: 30;
+    background: #21262d; color: #8b949e; border: 1px solid #30363d;
+    border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+    display: none; align-items: center; gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4); transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  #complexity-scroll-btn:hover { background: #30363d; color: #c9d1d9; border-color: #484f58; }
+  #complexity-scroll-btn.visible { display: inline-flex; }
+
   /* ── Diff viewer ── */
   .diff-section { border-top: 1px solid #30363d; }
   .diff-section h4 {
@@ -315,6 +326,7 @@
   <div class="panel-actions" id="panel-actions"></div>
   <div class="change-bar-wrap" id="panel-bar"></div>
   <div class="panel-body" id="panel-body"></div>
+  <button id="complexity-scroll-btn" onclick="scrollToComplexity()">&#8593; Back</button>
 </div>
 
 <script>
@@ -738,6 +750,11 @@ function renderFullFile(fileContent, parsedDiff, isPHP) {
   return html;
 }
 
+function scrollToComplexity() {
+  var el = document.getElementById('methods-by-complexity');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function scrollToDiffRow(target) {
   if (!target) return;
   document.querySelectorAll('.diff-table tr.diff-highlight').forEach(function(r) { r.classList.remove('diff-highlight'); });
@@ -962,7 +979,7 @@ function openPanel(n) {
         var color = bad ? '#f85149' : '#3fb950';
         return '<span style="color:' + color + ';font-size:9px;margin-left:3px">' + sign + diff + '</span>';
       }
-      bodyHtml += '<div style="margin-top:10px">' +
+      bodyHtml += '<div id="methods-by-complexity" style="margin-top:10px">' +
         '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Methods by Complexity</div>' +
         '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
         '<thead><tr>' +
@@ -1080,6 +1097,22 @@ function openPanel(n) {
   }
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
+
+  // Floating "Methods by Complexity" scroll button
+  var complexityScrollBtn = document.getElementById('complexity-scroll-btn');
+  var panelBodyEl = document.getElementById('panel-body');
+  var complexitySection = document.getElementById('methods-by-complexity');
+  if (complexitySection && complexityScrollBtn) {
+    complexityScrollBtn.classList.remove('visible');
+    panelBodyEl.onscroll = function() {
+      var sectionBottom = complexitySection.getBoundingClientRect().bottom;
+      var panelTop = panelBodyEl.getBoundingClientRect().top;
+      complexityScrollBtn.classList.toggle('visible', sectionBottom < panelTop);
+    };
+  } else if (complexityScrollBtn) {
+    complexityScrollBtn.classList.remove('visible');
+    panelBodyEl.onscroll = null;
+  }
 
   // Inject per-method metric badges into diff rows
   if (m && m.method_metrics && m.method_metrics.length > 0) {
