@@ -456,6 +456,7 @@ document.querySelectorAll('.change-type-toggle').forEach(function(cb) {
     if (this.checked) { delete hiddenChangeTypes[changeType]; }
     else { hiddenChangeTypes[changeType] = true; }
     clearHidden();
+    if (window.parent !== window) window.parent.postMessage({ type: 'changeTypeFilterChanged', hiddenChangeTypes: hiddenChangeTypes }, '*');
   });
 });
 
