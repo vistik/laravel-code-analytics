@@ -131,6 +131,8 @@
   .file-col-metric { width: 36px; flex-shrink: 0; text-align: center; }
   .file-col-val { font-size: 12px; font-variant-numeric: tabular-nums; color: #c9d1d9; }
   .file-col-review { width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .file-metrics-chips { display: flex; gap: 6px; margin-top: 2px; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .file-metric-chip { color: #484f58; white-space: nowrap; }
   .file-review-btn {
     width: 22px; height: 22px; border-radius: 4px; border: 1px solid transparent;
     background: transparent; cursor: pointer; color: #484f58;
@@ -147,7 +149,7 @@
 
   /* ── Narrow panel (< 520px) ── */
   .files-panel.narrow .file-col-status,
-  .files-panel.narrow .file-col-metric { display: none; }
+  .files-panel.narrow .file-metrics-chips { display: none; }
   .files-panel.narrow .file-col-review { width: 24px; }
   .files-panel.narrow .file-col-signal { width: 34px; }
   .files-panel.narrow .file-col-signal .file-col-val { font-size: 13px; }
@@ -157,7 +159,6 @@
 
   /* ── Very narrow panel (< 400px) ── */
   .files-panel.very-narrow .file-col-status,
-  .files-panel.very-narrow .file-col-metric,
   .files-panel.very-narrow .file-col-findings,
   .files-panel.very-narrow .file-col-changes { display: none; }
   .files-panel.very-narrow .file-col-signal { width: 30px; }
@@ -180,7 +181,6 @@
     <span class="pr-meta">{{ $fileCount }} files &middot; +{{ $prAdditions }} &minus;{{ $prDeletions }}</span>
   </div>
   <div class="topbar-badges">
-    {!! $metricsBadgeHtml !!}
     {!! $riskBadgeHtml !!}
   </div>
   <div class="tabs">
@@ -221,8 +221,6 @@
       <div class="file-col file-col-status">Status</div>
       <div class="file-col file-col-changes">Changes</div>
       <div class="file-col file-col-findings">Findings</div>
-      <div class="file-col file-col-metric">CC</div>
-      <div class="file-col file-col-metric">MI</div>
     </div>
     <div class="files-scroll" id="filesScroll">
       <div id="filesRows"></div>
@@ -394,26 +392,46 @@
       if (n.lowCount > 0) sevHtml += '<span class="file-sev-dot"><span style="background:' + sevColors.low + '"></span>' + n.lowCount + '</span>';
       if (!sevHtml) sevHtml = '<span style="color:#484f58">&mdash;</span>';
 
-      var ccColor = m.cc != null ? (m.cc >= 20 ? '#f85149' : m.cc >= 10 ? '#d29922' : '#c9d1d9') : '#484f58';
-      var miColor = m.mi != null ? (m.mi < 65 ? '#f85149' : m.mi < 85 ? '#d29922' : '#c9d1d9') : '#484f58';
-
       var isReviewed = reviewedFiles.has(n.id);
       var b = m.before || null;
       var ccArrow = '', miArrow = '';
       if (b != null) {
         if (b.cc != null && m.cc != null) {
           var ccDelta = m.cc - b.cc;
-          ccArrow = ccDelta > 0 ? '<span style="color:#f85149;font-size:10px;margin-left:3px">\u2191</span>'
-                  : ccDelta < 0 ? '<span style="color:#3fb950;font-size:10px;margin-left:3px">\u2193</span>'
-                  : '<span style="color:#484f58;font-size:10px;margin-left:3px">\u2192</span>';
+          ccArrow = ccDelta > 0 ? '<span style="color:#f85149;font-size:9px;margin-left:2px">\u2191</span>'
+                  : ccDelta < 0 ? '<span style="color:#3fb950;font-size:9px;margin-left:2px">\u2193</span>'
+                  : '';
         }
         if (b.mi != null && m.mi != null) {
           var miDelta = m.mi - b.mi;
-          miArrow = miDelta > 0 ? '<span style="color:#3fb950;font-size:10px;margin-left:3px">\u2191</span>'
-                  : miDelta < 0 ? '<span style="color:#f85149;font-size:10px;margin-left:3px">\u2193</span>'
-                  : '<span style="color:#484f58;font-size:10px;margin-left:3px">\u2192</span>';
+          miArrow = miDelta > 0 ? '<span style="color:#3fb950;font-size:9px;margin-left:2px">\u2191</span>'
+                  : miDelta < 0 ? '<span style="color:#f85149;font-size:9px;margin-left:2px">\u2193</span>'
+                  : '';
         }
       }
+
+      var chipsHtml = '';
+      var chips = [];
+      if (m.cc != null) {
+        var ccChipColor = m.cc >= 20 ? '#f85149' : m.cc >= 10 ? '#d29922' : '#484f58';
+        chips.push('<span class="file-metric-chip" style="color:' + ccChipColor + '">cc ' + m.cc + ccArrow + '</span>');
+      }
+      if (m.mi != null) {
+        var miChipColor = m.mi < 65 ? '#f85149' : m.mi < 85 ? '#d29922' : '#484f58';
+        chips.push('<span class="file-metric-chip" style="color:' + miChipColor + '">mi ' + Math.round(m.mi) + '%' + miArrow + '</span>');
+      }
+      if (m.bugs != null) {
+        var bugColor = m.bugs > 0.1 ? '#f85149' : m.bugs > 0.05 ? '#d29922' : '#484f58';
+        chips.push('<span class="file-metric-chip" style="color:' + bugColor + '">bugs ' + m.bugs.toFixed(2) + '</span>');
+      }
+      if (m.coupling != null) {
+        var cplColor = m.coupling > 15 ? '#f85149' : m.coupling > 8 ? '#d29922' : '#484f58';
+        chips.push('<span class="file-metric-chip" style="color:' + cplColor + '">cpl ' + m.coupling + '</span>');
+      }
+      if (m.lloc != null) {
+        chips.push('<span class="file-metric-chip">loc ' + m.lloc + '</span>');
+      }
+      if (chips.length) chipsHtml = '<div class="file-metrics-chips">' + chips.join('<span style="color:#30363d">|</span>') + '</div>';
       var tipRows = buildSignalTipRows(n, filesMetrics[n.path] || null);
       if (tipRows) signalTips[n.id] = tipRows;
       var isDeleted = n.status === 'deleted';
@@ -424,12 +442,11 @@
         '<div class="file-col file-col-name">' +
           '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + deletedIcon + '<span class="file-name-text">' + n.id.replace(/</g, '&lt;') + '</span>' + (n.ext ? '<span class="file-ext-badge">.' + n.ext + '</span>' : '') + (n.watched ? ' <span style="color:#d29922;font-size:10px" title="Watched' + (n.watchReason ? ': ' + n.watchReason : '') + '">&#9670;</span>' : '') + '</div>' +
           '<div class="file-name-path">' + n.path.replace(/</g, '&lt;') + '</div>' +
+          chipsHtml +
         '</div>' +
         '<div class="file-col file-col-status"><span class="file-col-label">Status</span><span class="file-col-val" style="color:' + st[1] + '">' + st[3] + '</span></div>' +
         '<div class="file-col file-col-changes"><span class="file-col-label">Changes</span><span class="file-changes"><span class="add">+' + n.add + '</span> <span class="del">&minus;' + n.del + '</span></span></div>' +
         '<div class="file-col file-col-findings"><span class="file-col-label">Findings</span><span class="file-sev">' + sevHtml + '</span></div>' +
-        '<div class="file-col file-col-metric"><span class="file-col-label">CC</span><span class="file-col-val" style="color:' + ccColor + '">' + (m.cc != null ? m.cc : '&mdash;') + ccArrow + '</span></div>' +
-        '<div class="file-col file-col-metric"><span class="file-col-label">MI</span><span class="file-col-val" style="color:' + miColor + '">' + (m.mi != null ? Math.round(m.mi) + '%' : '&mdash;') + miArrow + '</span></div>' +
         '</div>';
     }
     document.getElementById('filesRows').innerHTML = html;

@@ -376,6 +376,49 @@ class GenerateHtmlReport implements ReportGenerator
             .'</div>';
     }
 
+    public function buildQualitySummaryHtml(array $metricsData): string
+    {
+        if (empty($metricsData)) {
+            return '';
+        }
+
+        $hotspotCount = 0;
+        $total = 0;
+        $totalDegradation = 0.0;
+        $hasBeforeData = false;
+
+        foreach ($metricsData as $m) {
+            $current = FileMetrics::fromArray($m);
+            $before = isset($m['before']) ? FileMetrics::fromArray($m['before']) : null;
+
+            if ($this->metricsScorer->isHotspot($current)) {
+                $hotspotCount++;
+            }
+            if ($before !== null) {
+                $hasBeforeData = true;
+                $totalDegradation += $this->metricsScorer->degradationScore($current, $before);
+            }
+            $total++;
+        }
+
+        $badge = $this->metricsBadgeDecider->decide($hotspotCount, $total);
+        $color = $badge->color();
+        $bgColor = $badge->bgColor();
+        $borderColor = $badge->borderColor();
+        $label = $badge->label($hotspotCount);
+
+        $trendHtml = '';
+        if ($hasBeforeData) {
+            $trend = MetricTrend::fromDegradation($totalDegradation);
+            $trendHtml = "<span style=\"font-size:13px;font-weight:700;margin-left:5px;color:{$trend->color()}\">{$trend->icon()}</span>";
+        }
+
+        return '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+            .'<span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Quality</span>'
+            ."<span style=\"display:inline-flex;align-items:center;font-size:11px;color:{$color};background:{$bgColor};padding:2px 8px;border-radius:10px;border:1px solid {$borderColor};font-weight:500\">{$label}{$trendHtml}</span>"
+            .'</div>';
+    }
+
     private function buildRiskBadge(?RiskScore $riskScore): string
     {
         if ($riskScore === null) {
@@ -762,7 +805,6 @@ class GenerateHtmlReport implements ReportGenerator
             : "<span class=\"pr-link\">{$escapedTitle}</span>";
         $jsLayoutData = implode(",\n    ", $jsEntries);
         $riskBadgeHtml = $this->buildRiskBadge($riskScore);
-        $metricsBadgeHtml = $this->buildMetricsBadge($metricsData);
 
         $wrapperNodesJson = json_encode($nodes, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $wrapperAnalysisJson = json_encode($analysisData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
@@ -776,7 +818,6 @@ class GenerateHtmlReport implements ReportGenerator
             'fileCount' => $fileCount,
             'prAdditions' => $prAdditions,
             'prDeletions' => $prDeletions,
-            'metricsBadgeHtml' => $metricsBadgeHtml,
             'riskBadgeHtml' => $riskBadgeHtml,
             'tabButtons' => $tabButtons,
             'wrapperSeverityJs' => $wrapperSeverityJs,
