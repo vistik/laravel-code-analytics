@@ -20,6 +20,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ImportRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelApiResourceRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelAuthRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelCacheRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDbFacadeRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentAddedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentDefaultChangedRule;
@@ -109,6 +110,7 @@ class ChangeClassifier
                 new LaravelConsoleArgumentDefaultChangedRule,
                 new LaravelEnvironmentRule,
                 new LaravelCacheRule,
+                new LaravelDbFacadeRule,
             ];
         }
     }
