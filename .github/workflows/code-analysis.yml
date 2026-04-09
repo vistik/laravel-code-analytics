@@ -6,13 +6,21 @@ on:
       - '**.php'
       - '.github/workflows/code-analysis.yml'
 
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
 
     steps:
       - name: Checkout code
@@ -49,26 +57,54 @@ jobs:
             --format=metrics \
             --no-ansi \
             . 2>&1 || true)
-          # Store as multiline output
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Upload HTML report
-        id: upload
-        uses: actions/upload-artifact@v4
+      - name: Collect existing reports
+        run: |
+          mkdir -p _site
+          git fetch origin reports-cache --depth=1 2>/dev/null \
+            && git archive origin/reports-cache | tar -x -C _site/ 2>/dev/null \
+            || true
+
+      - name: Add this PR's report
+        run: cp report.html _site/pr-${{ github.event.pull_request.number }}.html
+
+      - name: Save reports to cache branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd _site
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b reports-cache
+          git add .
+          git commit -m "Add report for PR #${{ github.event.pull_request.number }}"
+          git remote add origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
+          git push origin reports-cache --force
+          cd ..
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: code-analysis-report
-          path: report.html
-          retention-days: 30
+          path: _site/
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
 
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
           script: |
             const marker = '<!-- code-analysis-report -->';
-            const artifactUrl = '${{ steps.upload.outputs.artifact-url }}';
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = context.issue.number;
+            const reportUrl = `${{ steps.deploy.outputs.page_url }}pr-${prNumber}.html`;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
             const metrics = `${{ steps.metrics.outputs.summary }}`;
 
             const body = [
@@ -77,32 +113,22 @@ jobs:
               '',
               metrics ? `\`\`\`\n${metrics}\n\`\`\`` : '',
               '',
-              `[Download HTML Report](${artifactUrl}) · [View Run](${runUrl})`,
+              `[View HTML Report](${reportUrl}) · [View Run](${runUrl})`,
               '',
               '_Automatically updated on each push._',
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner, repo, issue_number: prNumber,
             });
-
             const existing = comments.find(c => c.body && c.body.includes(marker));
-
             if (existing) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
+                owner, repo, comment_id: existing.id, body,
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
+                owner, repo, issue_number: prNumber, body,
               });
             }
 
@@ -110,19 +136,18 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const artifactUrl = '${{ steps.upload.outputs.artifact-url }}';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = context.issue.number;
+            const reportUrl = `${{ steps.deploy.outputs.page_url }}pr-${prNumber}.html`;
             const start = '<!-- code-analysis-start -->';
             const end = '<!-- code-analysis-end -->';
-            const badge = `${start}\n📊 [Code Analysis Report](${artifactUrl})\n${end}`;
+            const badge = `${start}\n📊 [Code Analysis Report](${reportUrl})\n${end}`;
 
             const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
+              owner, repo, pull_number: prNumber,
             });
-
             let description = pr.body || '';
-
             if (description.includes(start)) {
               description = description.replace(
                 new RegExp(`${start}[\\s\\S]*?${end}`),
@@ -131,10 +156,6 @@ jobs:
             } else {
               description = badge + (description ? '\n\n' + description : '');
             }
-
             await github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              body: description,
+              owner, repo, pull_number: prNumber, body: description,
             });
