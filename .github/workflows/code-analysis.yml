@@ -39,7 +39,7 @@ jobs:
             --format=html \
             --title="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
             --no-ansi \
-            report.html
+            . report.html
 
       - name: Capture metrics summary
         id: metrics
@@ -47,7 +47,8 @@ jobs:
           SUMMARY=$(./testbench code:analyze \
             --base=origin/${{ github.base_ref }} \
             --format=metrics \
-            --no-ansi 2>&1 || true)
+            --no-ansi \
+            . 2>&1 || true)
           # Store as multiline output
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
