@@ -26,7 +26,11 @@ use PhpParser\PrettyPrinter\Standard;
  *   new_instance          — directly instantiated with `new ClassName()`
  *   container_resolved    — resolved via app(), resolve(), App::make()
  *   static_call           — used via ClassName::method()
- *   type_reference        — property types, return types, extends/implements, use imports
+ *   extends               — class/interface extends a parent class or interface
+ *   implements            — class implements an interface
+ *   property_type         — declared as a property type hint (including promoted constructor params)
+ *   return_type           — used only as a method return type
+ *   use        — use imports (or unclassified)
  */
 class PhpDependencyExtractor
 {
@@ -40,7 +44,15 @@ class PhpDependencyExtractor
 
     public const STATIC_CALL = 'static_call';
 
-    public const TYPE_REFERENCE = 'type_reference';
+    public const EXTENDS_REFERENCE = 'extends';
+
+    public const IMPLEMENTS_REFERENCE = 'implements';
+
+    public const PROPERTY_TYPE = 'property_type';
+
+    public const RETURN_TYPE = 'return_type';
+
+    public const USE = 'use';
 
     private Parser $parser;
 
@@ -58,7 +70,7 @@ class PhpDependencyExtractor
     /**
      * Returns a map of FQCN (or short class name) → dependency type string.
      * When a class is referenced in multiple ways the strongest type wins:
-     * constructor_injection > method_injection > container_resolved > new_instance > static_call > type_reference
+     * constructor_injection > method_injection > container_resolved > new_instance > static_call > extends > implements > property_type > return_type > use
      *
      * @return array<string, string>
      */
@@ -243,7 +255,7 @@ class PhpDependencyExtractor
             if (in_array($name, ['self', 'static', 'parent'], true)) {
                 continue;
             }
-            // Only add if constant is not "class" (bare Foo::class used as string is type_reference)
+            // Only add if constant is not "class" (bare Foo::class used as string is use)
             if ($fetch->name instanceof Identifier && $fetch->name->name !== 'class') {
                 $refs[$name][] = self::STATIC_CALL;
             }
@@ -251,7 +263,7 @@ class PhpDependencyExtractor
     }
 
     /**
-     * Covers property types, return types, extends/implements, use imports.
+     * Covers extends/implements, property types, return types, use imports.
      *
      * @param  array<int, Node>  $nodes
      * @param  array<string, list<string>>  $refs
@@ -261,17 +273,17 @@ class PhpDependencyExtractor
         // use imports
         foreach ($this->finder->findInstanceOf($nodes, Stmt\UseUse::class) as $use) {
             /** @var Stmt\UseUse $use */
-            $refs[$use->name->toString()][] = self::TYPE_REFERENCE;
+            $refs[$use->name->toString()][] = self::USE;
         }
 
         // class extends
         foreach ($this->finder->findInstanceOf($nodes, Stmt\Class_::class) as $class) {
             /** @var Stmt\Class_ $class */
             if ($class->extends !== null) {
-                $refs[$class->extends->toString()][] = self::TYPE_REFERENCE;
+                $refs[$class->extends->toString()][] = self::EXTENDS_REFERENCE;
             }
             foreach ($class->implements as $iface) {
-                $refs[$iface->toString()][] = self::TYPE_REFERENCE;
+                $refs[$iface->toString()][] = self::IMPLEMENTS_REFERENCE;
             }
         }
 
@@ -279,7 +291,7 @@ class PhpDependencyExtractor
         foreach ($this->finder->findInstanceOf($nodes, Stmt\Interface_::class) as $iface) {
             /** @var Stmt\Interface_ $iface */
             foreach ($iface->extends as $parent) {
-                $refs[$parent->toString()][] = self::TYPE_REFERENCE;
+                $refs[$parent->toString()][] = self::EXTENDS_REFERENCE;
             }
         }
 
@@ -288,7 +300,7 @@ class PhpDependencyExtractor
             /** @var Stmt\Property $prop */
             if ($prop->type !== null) {
                 foreach ($this->resolveTypeNames($prop->type) as $name) {
-                    $refs[$name][] = self::TYPE_REFERENCE;
+                    $refs[$name][] = self::PROPERTY_TYPE;
                 }
             }
         }
@@ -298,14 +310,14 @@ class PhpDependencyExtractor
             /** @var Stmt\ClassMethod $method */
             if ($method->returnType !== null) {
                 foreach ($this->resolveTypeNames($method->returnType) as $name) {
-                    $refs[$name][] = self::TYPE_REFERENCE;
+                    $refs[$name][] = self::RETURN_TYPE;
                 }
             }
             // Constructor promoted properties (public/protected/private params)
             foreach ($method->params as $param) {
                 if ($param->flags !== 0 && $param->type !== null) {
                     foreach ($this->resolveTypeNames($param->type) as $name) {
-                        $refs[$name][] = self::TYPE_REFERENCE;
+                        $refs[$name][] = self::PROPERTY_TYPE;
                     }
                 }
             }
@@ -370,7 +382,7 @@ class PhpDependencyExtractor
     }
 
     /**
-     * Priority order: constructor > method > container > new > static > type_reference
+     * Priority order: constructor > method > container > new > static > extends > implements > property_type > return_type > use
      *
      * @param  list<string>  $types
      */
@@ -382,16 +394,20 @@ class PhpDependencyExtractor
             self::CONTAINER_RESOLVED => 2,
             self::NEW_INSTANCE => 3,
             self::STATIC_CALL => 4,
-            self::TYPE_REFERENCE => 5,
+            self::EXTENDS_REFERENCE => 5,
+            self::IMPLEMENTS_REFERENCE => 6,
+            self::PROPERTY_TYPE => 7,
+            self::RETURN_TYPE => 8,
+            self::USE => 9,
         ];
 
         usort($types, fn ($a, $b) => ($priority[$a] ?? 99) <=> ($priority[$b] ?? 99));
 
-        return $types[0] ?? self::TYPE_REFERENCE;
+        return $types[0] ?? self::USE;
     }
 
     /**
-     * Regex-based fallback when parsing fails — all refs classified as type_reference.
+     * Regex-based fallback when parsing fails — all refs classified as use.
      *
      * @return array<string, string>
      */
@@ -401,12 +417,19 @@ class PhpDependencyExtractor
 
         preg_match_all('/^\s*use\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $m);
         foreach ($m[1] as $name) {
-            $refs[$name] = self::TYPE_REFERENCE;
+            $refs[$name] = self::USE;
         }
 
-        preg_match_all('/(?:extends|implements)\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $m);
+        preg_match_all('/\bextends\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $m);
         foreach ($m[1] as $name) {
-            $refs[$name] = self::TYPE_REFERENCE;
+            $refs[$name] = self::EXTENDS_REFERENCE;
+        }
+
+        preg_match_all('/\bimplements\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $m);
+        foreach ($m[1] as $name) {
+            if (! isset($refs[$name])) {
+                $refs[$name] = self::IMPLEMENTS_REFERENCE;
+            }
         }
 
         preg_match_all('/\bnew\s+([A-Z][A-Za-z0-9_\\\\]+)/m', $content, $m);

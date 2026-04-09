@@ -1137,7 +1137,7 @@ class AnalyzeCode
         return (new PhpDependencyExtractor)->extract($content);
     }
 
-    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::TYPE_REFERENCE): void
+    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::USE): void
     {
         if ($sourceId === $targetId) {
             return;
