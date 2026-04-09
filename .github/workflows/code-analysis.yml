@@ -1,0 +1,139 @@
+name: Code Analysis
+
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - '.github/workflows/code-analysis.yml'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install composer dependencies
+        uses: ramsey/composer-install@v4
+
+      - name: Generate HTML report
+        run: |
+          ./testbench code:analyze \
+            --base=origin/${{ github.base_ref }} \
+            --format=html \
+            --title="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
+            --no-ansi \
+            report.html
+
+      - name: Capture metrics summary
+        id: metrics
+        run: |
+          SUMMARY=$(./testbench code:analyze \
+            --base=origin/${{ github.base_ref }} \
+            --format=metrics \
+            --no-ansi 2>&1 || true)
+          # Store as multiline output
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload HTML report
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-analysis-report
+          path: report.html
+          retention-days: 30
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- code-analysis-report -->';
+            const artifactUrl = '${{ steps.upload.outputs.artifact-url }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const metrics = `${{ steps.metrics.outputs.summary }}`;
+
+            const body = [
+              marker,
+              '## Code Analysis Report',
+              '',
+              metrics ? `\`\`\`\n${metrics}\n\`\`\`` : '',
+              '',
+              `[Download HTML Report](${artifactUrl}) · [View Run](${runUrl})`,
+              '',
+              '_Automatically updated on each push._',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Update PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifactUrl = '${{ steps.upload.outputs.artifact-url }}';
+            const start = '<!-- code-analysis-start -->';
+            const end = '<!-- code-analysis-end -->';
+            const badge = `${start}\n📊 [Code Analysis Report](${artifactUrl})\n${end}`;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            let description = pr.body || '';
+
+            if (description.includes(start)) {
+              description = description.replace(
+                new RegExp(`${start}[\\s\\S]*?${end}`),
+                badge
+              );
+            } else {
+              description = badge + (description ? '\n\n' + description : '');
+            }
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: description,
+            });
