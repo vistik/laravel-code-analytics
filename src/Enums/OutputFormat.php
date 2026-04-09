@@ -2,6 +2,7 @@
 
 namespace Vistik\LaravelCodeAnalytics\Enums;
 
+use Vistik\LaravelCodeAnalytics\Actions\GenerateGithubAnnotationsReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMdReport;
@@ -16,6 +17,7 @@ enum OutputFormat: string
     case JSON = 'json';
     case METRICS = 'metrics';
     case METRICS_DETAILS = 'metrics-details';
+    case GITHUB = 'github';
 
     public function generator(): ReportGenerator
     {
@@ -25,6 +27,7 @@ enum OutputFormat: string
             self::JSON => new GenerateJsonReport,
             self::METRICS => new GenerateMetricsReport,
             self::METRICS_DETAILS => new GenerateMetricsDetailsReport,
+            self::GITHUB => new GenerateGithubAnnotationsReport,
         };
     }
 
@@ -36,6 +39,7 @@ enum OutputFormat: string
             self::JSON => 'json',
             self::METRICS => 'txt',
             self::METRICS_DETAILS => 'txt',
+            self::GITHUB => 'txt',
         };
     }
 }

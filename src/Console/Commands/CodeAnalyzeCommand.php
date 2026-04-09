@@ -22,7 +22,7 @@ class CodeAnalyzeCommand extends Command
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
         {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file, all)}
-        {--format=html : Output format: html, md, json, metrics, or metrics-details}
+        {--format=html : Output format: html, md, json, metrics, metrics-details, or github}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--open : Open the generated file in the browser when done}
@@ -42,7 +42,7 @@ class CodeAnalyzeCommand extends Command
             $view = $this->option('view') ?? $config['view'] ?? null;
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
-                ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details");
+                ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details, github");
             $openFile = $this->option('open') || ($config['open'] ?? false);
             $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
 
