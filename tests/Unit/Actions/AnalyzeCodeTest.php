@@ -688,6 +688,152 @@ describe('execute — injectable scorers', function () {
     });
 });
 
+// ── execute — dependency detection as code analysis ──────────────────────────
+
+describe('execute — dependency detection as code analysis', function () {
+    it('adds a constructor injection finding with __construct location', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Services/FooService.php', '<?php
+namespace App\Services;
+class FooService {}');
+
+        addAndStageFile($dir, 'app/Http/Controllers/UserController.php', '<?php
+namespace App\Http\Controllers;
+use App\Services\FooService;
+class UserController {
+    public function __construct(FooService $foo) {}
+}');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $depFindings = collect($content['findings'])
+            ->where('category', 'dependency')
+            ->where('file', 'app/Http/Controllers/UserController.php')
+            ->values()->all();
+
+        expect($depFindings)->not->toBeEmpty();
+
+        $finding = collect($depFindings)->first(fn ($f) => str_contains($f['description'], 'constructor injection'));
+
+        expect($finding)->not->toBeNull()
+            ->and($finding['severity'])->toBe('info')
+            ->and($finding['description'])->toContain('FooService')
+            ->and($finding['location'])->toBe('__construct');
+    });
+
+    it('adds a new instance finding without a location', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Services/Helper.php', '<?php
+namespace App\Services;
+class Helper {}');
+
+        addAndStageFile($dir, 'app/Actions/DoSomething.php', '<?php
+namespace App\Actions;
+use App\Services\Helper;
+class DoSomething {
+    public function handle(): void {
+        $h = new Helper();
+    }
+}');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $finding = collect($content['findings'])
+            ->where('category', 'dependency')
+            ->where('file', 'app/Actions/DoSomething.php')
+            ->first(fn ($f) => str_contains($f['description'], 'new instance'));
+
+        expect($finding)->not->toBeNull()
+            ->and($finding['severity'])->toBe('info')
+            ->and($finding['description'])->toContain('Helper')
+            ->and(array_key_exists('location', $finding))->toBeFalse();
+    });
+
+    it('does not add findings for type_reference dependencies', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Services/BazService.php', '<?php
+namespace App\Services;
+use Some\External\Library;
+class BazService {
+    private Library $dep;
+}');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $depFindings = collect($content['findings'])
+            ->where('category', 'dependency')
+            ->where('file', 'app/Services/BazService.php')
+            ->values()->all();
+
+        expect($depFindings)->toBeEmpty();
+    });
+
+    it('does not add dependency findings for unchanged PHP files', function () {
+        $dir = makeTempGitRepo();
+
+        // Commit a PHP file with constructor injection — it will be unchanged in the diff
+        $path = "{$dir}/app/Services/FooService.php";
+        mkdir(dirname($path), 0755, true);
+        file_put_contents($path, '<?php
+namespace App\Services;
+class BarDep {}
+class FooService {
+    public function __construct(BarDep $dep) {}
+}');
+        shell_exec("git -C {$dir} add . 2>&1");
+        shell_exec("git -C {$dir} commit -m 'add service' 2>&1");
+
+        // Only stage a different new file
+        addAndStageFile($dir, 'app/Actions/NewAction.php', '<?php
+namespace App\Actions;
+class NewAction {}');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $depFindings = collect($content['findings'])
+            ->where('category', 'dependency')
+            ->where('file', 'app/Services/FooService.php')
+            ->values()->all();
+
+        expect($depFindings)->toBeEmpty();
+    });
+});
+
 // ── execute — minSeverity filter ──────────────────────────────────────────────
 
 describe('execute — minSeverity filter', function () {
