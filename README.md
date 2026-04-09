@@ -73,6 +73,11 @@ php artisan code:analyze --format=html --min-severity=medium --open
 composer test
 ```
 
+## Screenshots
+
+![Analysis View](.github/ss1.png)
+![Dependency Graph](.github/ss2.png)
+
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
