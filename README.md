@@ -1,19 +1,17 @@
-# This is my package laravel-code-analytics
+# Laravel Code Analytics
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/vistik/laravel-code-analytics.svg?style=flat-square)](https://packagist.org/packages/vistik/laravel-code-analytics)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/vistik/laravel-code-analytics/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/vistik/laravel-code-analytics/actions?query=workflow%3Arun-tests+branch%3Amain)
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/vistik/laravel-code-analytics/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/vistik/laravel-code-analytics/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/vistik/laravel-code-analytics.svg?style=flat-square)](https://packagist.org/packages/vistik/laravel-code-analytics)
 
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
+Laravel Code Analytics is a powerful tool designed to provide insights into your codebase by analyzing changes, dependencies, and architectural patterns. It helps maintain code health through risk scoring, metric tracking, and visual representations of your application structure.
 
-## Support us
-
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/laravel-code-analytics.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/laravel-code-analytics)
-
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
+## Features
+- **Code Change Analysis:** Analyze git diffs to identify high-risk changes.
+- **Architectural Visualization:** Generate visual reports (Force Graph, Layered Cake, etc.) to understand your application structure.
+- **Metric Tracking:** Track cyclomatic complexity, logical lines of code, and parameter counts.
+- **Customizable Rules:** Define specific rules for your project's architecture and requirements.
 
 ## Installation
 
@@ -36,25 +34,38 @@ You can publish the config file with:
 php artisan vendor:publish --tag="laravel-code-analytics-config"
 ```
 
-This is the contents of the published config file:
-
-```php
-return [
-];
-```
-
-Optionally, you can publish the views using
-
-```bash
-php artisan vendor:publish --tag="laravel-code-analytics-views"
-```
-
 ## Usage
 
-```php
-$laravelCodeAnalytics = new Vistik\LaravelCodeAnalytics();
-echo $laravelCodeAnalytics->echoPhrase('Hello, Vistik!');
+Analyze your code by running the `code:analyze` Artisan command:
+
+```bash
+php artisan code:analyze
 ```
+
+### Arguments and Options
+
+| Argument/Option | Description |
+| :--- | :--- |
+| `repo-path` | Path to the local git repo (defaults to current working directory) |
+| `output` | Output file path (HTML, Markdown, or JSON depending on --format) |
+| `--base` | Base branch or commit to diff against (default: main) |
+| `--pr` | GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123) |
+| `--all` | Analyze all tracked files instead of just the diff |
+| `--title` | Custom title for the analysis report |
+| `--view` | Default graph view to show (force, tree, grouped, cake, arch) |
+| `--config` | Path to a JSON config file |
+| `--format` | Output format: `html`, `md`, `json`, `metrics`, or `metrics-details` (default: `html`) |
+| `--min-severity` | Minimum severity to include (info, low, medium, high, very_high) |
+| `--file` | Only analyze files matching this path or glob pattern (can be repeated) |
+| `--open` | Open the generated file in the browser when done |
+| `--full-files` | Embed full file contents in the report (increases report size) |
+
+Example:
+
+```bash
+php artisan code:analyze --format=html --min-severity=medium --open
+```
+
 
 ## Testing
 
