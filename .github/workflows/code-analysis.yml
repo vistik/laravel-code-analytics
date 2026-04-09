@@ -41,7 +41,7 @@ jobs:
           ./testbench code:analyze \
             --base=origin/${{ github.base_ref }} \
             --format=github \
-            # --min-severity=very_high \
+            --min-severity=very_high \
             --no-ansi \
             . 2>&1 || true
 

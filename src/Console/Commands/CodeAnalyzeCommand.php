@@ -26,7 +26,8 @@ class CodeAnalyzeCommand extends Command
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--open : Open the generated file in the browser when done}
-        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}';
+        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
+        {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -45,6 +46,7 @@ class CodeAnalyzeCommand extends Command
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details, github");
             $openFile = $this->option('open') || ($config['open'] ?? false);
             $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
+            $githubMetrics = $this->option('github-metrics') || ($config['github_metrics'] ?? false);
 
             if ($openFile && $outputPath === null) {
                 $ext = $format->fileExtension();
@@ -82,6 +84,7 @@ class CodeAnalyzeCommand extends Command
                 onProgress: null,
                 raw: ! $openFile && $outputPath === null,
                 includeFileContents: $includeFileContents,
+                githubMetrics: $githubMetrics,
             );
 
             if (! $openFile) {

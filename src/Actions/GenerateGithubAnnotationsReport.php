@@ -7,6 +7,8 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateGithubAnnotationsReport implements ReportGenerator
 {
+    public function __construct(private bool $includeMetrics = false) {}
+
     public function generate(
         array $nodes,
         array $edges,
@@ -43,6 +45,30 @@ class GenerateGithubAnnotationsReport implements ReportGenerator
 
                 $level = $this->annotationLevel($finding['severity']);
                 $lines[] = "::{$level} {$params}::{$description}";
+            }
+        }
+
+        if ($this->includeMetrics && ! empty($metricsData)) {
+            foreach ($metricsData as $filePath => $m) {
+                $parts = array_filter([
+                    isset($m['cc']) ? "CC: {$m['cc']}" : null,
+                    isset($m['mi']) ? 'MI: '.number_format((float) $m['mi'], 1) : null,
+                    isset($m['bugs']) ? 'Bugs: '.number_format((float) $m['bugs'], 3) : null,
+                    isset($m['coupling']) ? "Coupling: {$m['coupling']}" : null,
+                    isset($m['lloc']) ? "LLOC: {$m['lloc']}" : null,
+                ]);
+
+                if (! empty($parts)) {
+                    $title = $this->escapeParam('PHP Metrics');
+                    $lines[] = "::notice file={$filePath},title={$title}::".implode(' | ', $parts);
+                }
+
+                foreach ($m['method_metrics'] ?? [] as $method) {
+                    $methodTitle = $this->escapeParam("Method: {$method['name']}");
+                    $params = "file={$filePath},line={$method['line']},title={$methodTitle}";
+                    $detail = "CC: {$method['cc']} | LLOC: {$method['lloc']} | Params: {$method['params']}";
+                    $lines[] = "::notice {$params}::{$detail}";
+                }
             }
         }
 

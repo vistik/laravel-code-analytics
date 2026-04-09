@@ -92,6 +92,7 @@ class AnalyzeCode
         ?array $filePatterns = null,
         bool $raw = false,
         bool $includeFileContents = false,
+        bool $githubMetrics = false,
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -383,7 +384,7 @@ class AnalyzeCode
         // ── Generate report ───────────────────────────────────────────────────
         $this->progress('info', "Generating {$format->value} report...");
 
-        $reportGenerator = $format->generator();
+        $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
         $content = $reportGenerator->generate(
             nodes: $nodes,
             edges: $this->edges,
