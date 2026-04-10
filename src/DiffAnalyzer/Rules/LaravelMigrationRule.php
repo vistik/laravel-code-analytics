@@ -28,9 +28,15 @@ class LaravelMigrationRule implements Rule
         'uuidMorphs', 'year',
     ];
 
-    public function __construct()
+    /** @param list<string> $criticalTables */
+    public function __construct(private readonly array $criticalTables = [])
     {
         $this->initializeAnalyzer();
+    }
+
+    private function isCriticalTable(?string $tableName): bool
+    {
+        return $tableName !== null && in_array($tableName, $this->criticalTables, true);
     }
 
     public function shortDescription(): string
@@ -90,8 +96,8 @@ class LaravelMigrationRule implements Rule
                 ),
                 'table' => $changes[] = new ClassifiedChange(
                     category: ChangeCategory::LARAVEL,
-                    severity: Severity::MEDIUM,
-                    description: "Migration modifies table{$tableInfo}",
+                    severity: $this->isCriticalTable($tableName) ? Severity::VERY_HIGH : Severity::MEDIUM,
+                    description: 'Migration modifies table'.$tableInfo.($this->isCriticalTable($tableName) ? ' (critical table — high lock risk)' : ''),
                     location: $key,
                     line: $call->getStartLine(),
                 ),

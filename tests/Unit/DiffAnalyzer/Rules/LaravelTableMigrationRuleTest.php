@@ -126,6 +126,63 @@ it('includes line number for index removal', function () use ($migrationFile, $s
         ->and($hit->line)->toBeInt();
 });
 
+// --- Critical tables ---
+
+it('elevates index addition on critical table to very high', function () use ($migrationFile, $stub) {
+    $old = $stub('');
+    $new = $stub('Schema::table("users", function (Blueprint $table) { $table->index("status"); });');
+
+    $comparison = (new AstComparer)->compare($old, $new);
+    $changes = (new LaravelTableMigrationRule(['users']))->analyze($migrationFile(), $comparison);
+
+    $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'existing table'));
+
+    expect($hit)->not->toBeNull()
+        ->and($hit->severity)->toBe(Severity::VERY_HIGH)
+        ->and($hit->description)->toContain('critical table');
+});
+
+it('elevates index removal on critical table to very high', function () use ($migrationFile, $stub) {
+    $old = $stub('');
+    $new = $stub('Schema::table("users", function (Blueprint $table) { $table->dropIndex("users_status_index"); });');
+
+    $comparison = (new AstComparer)->compare($old, $new);
+    $changes = (new LaravelTableMigrationRule(['users']))->analyze($migrationFile(), $comparison);
+
+    $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'Removes index'));
+
+    expect($hit)->not->toBeNull()
+        ->and($hit->severity)->toBe(Severity::VERY_HIGH)
+        ->and($hit->description)->toContain('critical table');
+});
+
+it('does not elevate index addition on non-critical table', function () use ($migrationFile, $stub) {
+    $old = $stub('');
+    $new = $stub('Schema::table("products", function (Blueprint $table) { $table->index("status"); });');
+
+    $comparison = (new AstComparer)->compare($old, $new);
+    $changes = (new LaravelTableMigrationRule(['users']))->analyze($migrationFile(), $comparison);
+
+    $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'existing table'));
+
+    expect($hit)->not->toBeNull()
+        ->and($hit->severity)->toBe(Severity::MEDIUM)
+        ->and($hit->description)->not->toContain('critical table');
+});
+
+it('does not elevate index addition on critical table via schema create', function () use ($migrationFile, $stub) {
+    $old = $stub('');
+    $new = $stub('Schema::create("users", function (Blueprint $table) { $table->id(); $table->index("name"); });');
+
+    $comparison = (new AstComparer)->compare($old, $new);
+    $changes = (new LaravelTableMigrationRule(['users']))->analyze($migrationFile(), $comparison);
+
+    $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'index'));
+
+    expect($hit)->not->toBeNull()
+        ->and($hit->severity)->toBe(Severity::INFO);
+});
+
 // --- Non-migration files ---
 
 it('ignores non-migration files', function () use ($stub) {

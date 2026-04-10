@@ -97,6 +97,7 @@ class CodeAnalyzeCommand extends Command
                 githubMetrics: $githubMetrics,
                 filterDefaults: $config['filter_defaults'] ?? [],
                 riskScoringConfig: $config['risk_scoring'] ?? [],
+                criticalTables: $config['critical_tables'] ?? [],
             );
 
             if (isset($result['content'])) {

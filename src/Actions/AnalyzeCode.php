@@ -96,6 +96,7 @@ class AnalyzeCode
         bool $githubMetrics = false,
         array $filterDefaults = [],
         array $riskScoringConfig = [],
+        array $criticalTables = [],
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -278,7 +279,7 @@ class AnalyzeCode
         $this->progress('info', 'Running AST analysis...');
 
         $astComparer = new AstComparer;
-        $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel, $this->repoPath ?: null);
+        $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel, $this->repoPath ?: null, $criticalTables);
         $oldSources = $this->fetchOldSources($phpFiles, $fileDiffMap);
 
         $fileReports = [];
