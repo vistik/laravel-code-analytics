@@ -78,7 +78,7 @@ return [
 
     'file_signal' => [
         'circular_dependency' => [
-            'base'       => 100,
+            'base' => 100,
             'signal_pct' => 0.20,
         ],
     ],
