@@ -7,8 +7,8 @@ on:
       - '.github/workflows/code-analysis.yml'
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: code-analysis-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   analyze:
