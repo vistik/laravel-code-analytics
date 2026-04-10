@@ -1,7 +1,7 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 
 it('resolves a path to the matching group', function () {
     $resolver = new ArrayFileGroupResolver([
@@ -9,8 +9,8 @@ it('resolves a path to the matching group', function () {
         'model' => ['app/Models/'],
     ]);
 
-    expect($resolver->resolve('tests/Feature/FooTest.php'))->toBe(NodeGroup::TEST);
-    expect($resolver->resolve('app/Models/User.php'))->toBe(NodeGroup::MODEL);
+    expect($resolver->resolve('tests/Feature/FooTest.php'))->toBe(FileGroup::TEST);
+    expect($resolver->resolve('app/Models/User.php'))->toBe(FileGroup::MODEL);
 });
 
 it('returns OTHER when no pattern matches', function () {
@@ -18,7 +18,7 @@ it('returns OTHER when no pattern matches', function () {
         'model' => ['app/Models/'],
     ]);
 
-    expect($resolver->resolve('app/Http/Controllers/FooController.php'))->toBe(NodeGroup::OTHER);
+    expect($resolver->resolve('app/Http/Controllers/FooController.php'))->toBe(FileGroup::OTHER);
 });
 
 it('returns OTHER for an unknown group key', function () {
@@ -26,7 +26,7 @@ it('returns OTHER for an unknown group key', function () {
         'not_a_real_group' => ['some/path/'],
     ]);
 
-    expect($resolver->resolve('some/path/file.php'))->toBe(NodeGroup::OTHER);
+    expect($resolver->resolve('some/path/file.php'))->toBe(FileGroup::OTHER);
 });
 
 it('uses the first matching group when multiple patterns match', function () {
@@ -35,5 +35,5 @@ it('uses the first matching group when multiple patterns match', function () {
         'model' => ['tests/'],  // would also match, but test wins
     ]);
 
-    expect($resolver->resolve('tests/Feature/FooTest.php'))->toBe(NodeGroup::TEST);
+    expect($resolver->resolve('tests/Feature/FooTest.php'))->toBe(FileGroup::TEST);
 });

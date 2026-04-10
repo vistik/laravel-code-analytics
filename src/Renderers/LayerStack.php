@@ -3,7 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\Renderers;
 
 use Countable;
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 
 readonly class LayerStack implements Countable
 {
@@ -26,7 +26,7 @@ readonly class LayerStack implements Countable
 
             foreach ($layer->groups as $group) {
                 if (isset($seenGroups[$group->value])) {
-                    throw new \InvalidArgumentException("NodeGroup {$group->value} appears in both \"{$seenGroups[$group->value]}\" and \"{$layer->label}\".");
+                    throw new \InvalidArgumentException("FileGroup {$group->value} appears in both \"{$seenGroups[$group->value]}\" and \"{$layer->label}\".");
                 }
 
                 $seenGroups[$group->value] = $layer->label;
@@ -39,14 +39,14 @@ readonly class LayerStack implements Countable
     public static function default(): self
     {
         return new self(
-            new CakeLayer('Entry', '#ffa657', [NodeGroup::ROUTE, NodeGroup::CONFIG]),
-            new CakeLayer('Controllers', '#d29922', [NodeGroup::CONTROLLER, NodeGroup::HTTP, NodeGroup::CONSOLE]),
-            new CakeLayer('Requests / Resources', '#e3b341', [NodeGroup::REQUEST]),
-            new CakeLayer('Application', '#79c0ff', [NodeGroup::SERVICE, NodeGroup::ACTION, NodeGroup::JOB, NodeGroup::EVENT]),
-            new CakeLayer('Domain', '#3fb950', [NodeGroup::MODEL, NodeGroup::CORE, NodeGroup::NOVA]),
-            new CakeLayer('Infrastructure', '#8957e5', [NodeGroup::DB, NodeGroup::PROVIDER]),
-            new CakeLayer('Presentation', '#7ee787', [NodeGroup::VIEW, NodeGroup::FRONTEND]),
-            new CakeLayer('Testing', '#58a6ff', [NodeGroup::TEST, NodeGroup::OTHER]),
+            new CakeLayer('Entry', '#ffa657', [FileGroup::ROUTE, FileGroup::CONFIG]),
+            new CakeLayer('Controllers', '#d29922', [FileGroup::CONTROLLER, FileGroup::HTTP, FileGroup::CONSOLE]),
+            new CakeLayer('Requests / Resources', '#e3b341', [FileGroup::REQUEST]),
+            new CakeLayer('Application', '#79c0ff', [FileGroup::SERVICE, FileGroup::ACTION, FileGroup::JOB, FileGroup::EVENT]),
+            new CakeLayer('Domain', '#3fb950', [FileGroup::MODEL, FileGroup::CORE, FileGroup::NOVA]),
+            new CakeLayer('Infrastructure', '#8957e5', [FileGroup::DB, FileGroup::PROVIDER]),
+            new CakeLayer('Presentation', '#7ee787', [FileGroup::VIEW, FileGroup::FRONTEND]),
+            new CakeLayer('Testing', '#58a6ff', [FileGroup::TEST, FileGroup::OTHER]),
         );
     }
 
@@ -63,7 +63,7 @@ readonly class LayerStack implements Countable
         $layers = array_map(fn (array $layer) => new CakeLayer(
             label: $layer['label'],
             color: $layer['color'],
-            groups: array_map(fn (string $g) => NodeGroup::from($g), $layer['groups']),
+            groups: array_map(fn (string $g) => FileGroup::from($g), $layer['groups']),
         ), $data['layers']);
 
         return new self(...$layers);
@@ -78,7 +78,7 @@ readonly class LayerStack implements Countable
             'layers' => array_map(fn (CakeLayer $layer) => [
                 'label' => $layer->label,
                 'color' => $layer->color,
-                'groups' => array_map(fn (NodeGroup $g) => $g->value, $layer->groups),
+                'groups' => array_map(fn (FileGroup $g) => $g->value, $layer->groups),
             ], $this->layers),
         ];
     }

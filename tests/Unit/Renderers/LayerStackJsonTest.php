@@ -1,13 +1,13 @@
 <?php
 
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Renderers\CakeLayer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 
 test('toArray returns correct structure', function () {
     $stack = new LayerStack(
-        new CakeLayer('Entry', '#ffa657', [NodeGroup::ROUTE, NodeGroup::CONFIG]),
-        new CakeLayer('Domain', '#3fb950', [NodeGroup::MODEL]),
+        new CakeLayer('Entry', '#ffa657', [FileGroup::ROUTE, FileGroup::CONFIG]),
+        new CakeLayer('Domain', '#3fb950', [FileGroup::MODEL]),
     );
 
     expect($stack->toArray())->toBe([

@@ -2,7 +2,7 @@
 
 namespace Vistik\LaravelCodeAnalytics\Enums;
 
-enum NodeGroup: string
+enum FileGroup: string
 {
     case TEST = 'test';
     case DB = 'db';

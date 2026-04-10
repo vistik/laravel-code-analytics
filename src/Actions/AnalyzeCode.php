@@ -14,7 +14,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
 use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
@@ -1156,7 +1156,7 @@ class AnalyzeCode
         return strlen($base) > 30 ? '...'.substr($base, -27) : $base;
     }
 
-    private function generateDescription(string $path, NodeGroup $group, FileStatus $status, int $add, int $del): string
+    private function generateDescription(string $path, FileGroup $group, FileStatus $status, int $add, int $del): string
     {
         $action = match ($status) {
             FileStatus::ADDED => 'New',

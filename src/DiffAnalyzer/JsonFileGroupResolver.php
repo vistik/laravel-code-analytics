@@ -5,7 +5,7 @@ namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer;
 use InvalidArgumentException;
 use RuntimeException;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 
 class JsonFileGroupResolver implements FileGroupResolver
 {
@@ -27,16 +27,16 @@ class JsonFileGroupResolver implements FileGroupResolver
         $this->groups = $decoded;
     }
 
-    public function resolve(string $path): NodeGroup
+    public function resolve(string $path): FileGroup
     {
         foreach ($this->groups as $group => $patterns) {
             foreach ($patterns as $pattern) {
                 if ((bool) preg_match('#'.$pattern.'#', $path)) {
-                    return NodeGroup::tryFrom($group) ?? NodeGroup::OTHER;
+                    return FileGroup::tryFrom($group) ?? FileGroup::OTHER;
                 }
             }
         }
 
-        return NodeGroup::OTHER;
+        return FileGroup::OTHER;
     }
 }
