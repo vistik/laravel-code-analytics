@@ -28,6 +28,7 @@ interface ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string;
 
     public function writeFile(string $outputPath, string $content): void;

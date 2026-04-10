@@ -95,15 +95,14 @@ class CodeAnalyzeCommand extends Command
                 raw: $raw,
                 includeFileContents: $includeFileContents,
                 githubMetrics: $githubMetrics,
+                filterDefaults: $config['filter_defaults'] ?? [],
             );
 
-            if (! $openFile && $outputPath === null && isset($result['content'])) {
+            if (isset($result['content'])) {
                 $this->output->write($result['content']);
-
-                return self::SUCCESS;
             }
 
-            if (empty($result['files'])) {
+            if (! $openFile || empty($result['files'])) {
                 return self::SUCCESS;
             }
 

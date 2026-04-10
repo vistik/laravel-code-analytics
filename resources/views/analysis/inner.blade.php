@@ -386,13 +386,15 @@ const links = edgesData.map(([s, t, type]) => ({ source: nodeMap[s], target: nod
 // ── Visibility toggles ────────────────────────────────────────────────────────
 let selectedNode = null;
 let hoveredNode = null;
-var hideConnected = true;
-var hiddenExts = {};
-var hiddenDomains = { 'tests': true };
-var hiddenSeverities = {};
-var hiddenChangeTypes = {};
+var _fd = {!! $filterDefaultsJson !!};
+function _toHiddenSet(arr) { var h = {}; arr.forEach(function(v) { h[v] = true; }); return h; }
+var hideConnected = _fd.hide_connected;
+var hiddenExts = _toHiddenSet(_fd.hidden_extensions);
+var hiddenDomains = _toHiddenSet(_fd.hidden_domains);
+var hiddenSeverities = _toHiddenSet(_fd.hidden_severities);
+var hiddenChangeTypes = _toHiddenSet(_fd.hidden_change_types);
 var reviewedNodes = new Set();
-var hideReviewed = true;
+var hideReviewed = _fd.hide_reviewed;
 var pathfindNodes = new Set();
 var pathResult = { nodes: new Set(), edges: new Set() };
 

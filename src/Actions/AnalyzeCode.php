@@ -94,6 +94,7 @@ class AnalyzeCode
         bool $raw = false,
         bool $includeFileContents = false,
         bool $githubMetrics = false,
+        array $filterDefaults = [],
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -418,6 +419,10 @@ class AnalyzeCode
         // ── Generate report ───────────────────────────────────────────────────
         $this->progress('info', "Generating {$format->value} report...");
 
+        if (empty($filterDefaults)) {
+            $filterDefaults = config('laravel-code-analytics.filter_defaults', []);
+        }
+
         $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
         $content = $reportGenerator->generate(
             nodes: $nodes,
@@ -434,6 +439,7 @@ class AnalyzeCode
             riskScore: $riskResult,
             metricsData: $metricsData,
             fileContents: $fileContents,
+            filterDefaults: $filterDefaults,
         );
 
         if ($raw) {

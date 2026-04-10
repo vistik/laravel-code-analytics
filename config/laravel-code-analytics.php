@@ -34,6 +34,33 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Filter Defaults
+    |--------------------------------------------------------------------------
+    |
+    | Set the default state of the interactive UI filters in the HTML report.
+    | These can also be configured per-run via the JSON config file using the
+    | same keys under "filter_defaults".
+    |
+    | hide_connected     - Hide dependency-only files (not in the diff) by default
+    | hide_reviewed      - Hide files marked as reviewed by default
+    | hidden_domains     - Domains hidden by default (e.g. ["tests"])
+    | hidden_severities  - Severity levels hidden by default (e.g. ["info", "low"])
+    | hidden_extensions  - File extensions hidden by default (e.g. [".blade.php"])
+    | hidden_change_types - Change types hidden by default (e.g. ["added", "deleted"])
+    |
+    */
+
+    // 'filter_defaults' => [
+    //     'hide_connected'     => true,
+    //     'hide_reviewed'      => true,
+    //     'hidden_domains'     => ['tests'],
+    //     'hidden_severities'  => [],
+    //     'hidden_extensions'  => [],
+    //     'hidden_change_types' => [],
+    // ],
+
     'method_metric_thresholds' => [
         'cc' => ['warn' => 5,  'bad' => 10],
         'lloc' => ['warn' => 20, 'bad' => 50],
