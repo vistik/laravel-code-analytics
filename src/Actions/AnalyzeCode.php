@@ -83,7 +83,7 @@ class AnalyzeCode
         ?string $outputPath = null,
         string $baseBranch = 'main',
         ?string $prUrl = null,
-        bool $all = false,
+        bool $full = false,
         ?string $title = null,
         ?string $view = null,
         OutputFormat $format = OutputFormat::HTML,
@@ -112,7 +112,7 @@ class AnalyzeCode
         } else {
             // ── Local mode ───────────────────────────────────────────────────
             $this->repoPath = rtrim(realpath($repoPath) ?: $repoPath, '/');
-            $init = $this->initLocalMode($baseBranch, $title, $all);
+            $init = $this->initLocalMode($baseBranch, $title, $full);
         }
 
         $files = $init['files'];
@@ -650,7 +650,7 @@ class AnalyzeCode
      *
      * @return array{files: list<array{path: string, additions: int, deletions: int}>, totalAdditions: int, totalDeletions: int, repoName: string, prTitle: string, prLinkUrl: string}
      */
-    private function initLocalMode(string $baseBranch, ?string $title, bool $all = false): array
+    private function initLocalMode(string $baseBranch, ?string $title, bool $full = false): array
     {
         $gitDir = trim(shell_exec("git -C {$this->repoPath} rev-parse --git-dir 2>/dev/null") ?? '');
         if ($gitDir === '') {
@@ -667,7 +667,7 @@ class AnalyzeCode
         $repoName = basename($this->repoPath);
         $this->isLaravel = file_exists("{$this->repoPath}/artisan");
 
-        if ($all) {
+        if ($full) {
             // ── All-files mode: analyze entire working tree ───────────────────
             $prTitle = $title ?? "{$this->branchName} (all files)";
             $this->diff = '';
