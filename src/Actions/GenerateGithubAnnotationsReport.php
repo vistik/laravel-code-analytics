@@ -3,6 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateGithubAnnotationsReport implements ReportGenerator
@@ -25,6 +26,7 @@ class GenerateGithubAnnotationsReport implements ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string {
         $lines = [];
 

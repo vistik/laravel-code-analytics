@@ -3,6 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateJsonReport implements ReportGenerator
@@ -23,6 +24,7 @@ class GenerateJsonReport implements ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string {
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));

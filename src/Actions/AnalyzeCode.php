@@ -15,6 +15,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
 use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
@@ -85,7 +86,7 @@ class AnalyzeCode
         ?string $prUrl = null,
         bool $all = false,
         ?string $title = null,
-        ?string $view = null,
+        GraphLayout $view = GraphLayout::Force,
         OutputFormat $format = OutputFormat::HTML,
         ?Severity $minSeverity = null,
         ?Closure $onProgress = null,
@@ -442,6 +443,7 @@ class AnalyzeCode
             metricsData: $metricsData,
             fileContents: $fileContents,
             filterDefaults: $filterDefaults,
+            defaultView: $view,
         );
 
         if ($raw) {
