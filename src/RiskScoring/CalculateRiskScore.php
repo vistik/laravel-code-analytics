@@ -16,7 +16,7 @@ class CalculateRiskScore implements RiskScoring
     /** @param array<string, mixed> $config */
     public function __construct(array $config = [])
     {
-        $config = array_replace_recursive(self::defaults(), $config);
+        $config = array_replace_recursive(config('laravel-code-analytics.risk_scoring', []), $config);
 
         $this->factors = [
             new ChangeSizeFactor($config['change_size']),
@@ -24,58 +24,6 @@ class CalculateRiskScore implements RiskScoring
             new DeletionRatioFactor($config['deletion_ratio']),
             new SeverityFindingsFactor($config['severity_findings']),
             new PhpMetricsFactor($config['php_metrics']),
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    public static function defaults(): array
-    {
-        return [
-            'change_size' => [
-                'max_score' => 25,
-                'thresholds' => [
-                    ['lines' => 1000, 'score' => 25],
-                    ['lines' => 500, 'score' => 15],
-                    ['lines' => 200, 'score' => 10],
-                    ['lines' => 50, 'score' => 5],
-                ],
-            ],
-            'file_spread' => [
-                'max_score' => 10,
-                'thresholds' => [
-                    ['files' => 30, 'score' => 10],
-                    ['files' => 15, 'score' => 7],
-                    ['files' => 8, 'score' => 4],
-                    ['files' => 3, 'score' => 2],
-                ],
-            ],
-            'deletion_ratio' => [
-                'max_score' => 10,
-                'thresholds' => [
-                    ['ratio' => 0.8, 'score' => 10],
-                    ['ratio' => 0.6, 'score' => 6],
-                    ['ratio' => 0.4, 'score' => 3],
-                ],
-            ],
-            'severity_findings' => [
-                'max_score' => 40,
-                'weights' => [
-                    'very_high' => 10,
-                    'high' => 6,
-                    'medium' => 3,
-                    'low' => 1,
-                ],
-            ],
-            'php_metrics' => [
-                'max_score' => 15,
-                'thresholds' => [
-                    ['hotspots' => 11, 'score' => 15],
-                    ['hotspots' => 8, 'score' => 12],
-                    ['hotspots' => 5, 'score' => 9],
-                    ['hotspots' => 3, 'score' => 6],
-                    ['hotspots' => 1, 'score' => 3],
-                ],
-            ],
         ];
     }
 
