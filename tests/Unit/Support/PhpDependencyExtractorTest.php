@@ -107,7 +107,7 @@ it('classifies static call', function () {
     expect($refs['UserRepository'])->toBe(PhpDependencyExtractor::STATIC_CALL);
 });
 
-it('classifies type reference for extends', function () {
+it('classifies extends reference for extends', function () {
     $code = <<<'PHP'
     <?php
     class AdminController extends BaseController {}
@@ -115,7 +115,7 @@ it('classifies type reference for extends', function () {
 
     $refs = (new PhpDependencyExtractor)->extract($code);
 
-    expect($refs['BaseController'])->toBe(PhpDependencyExtractor::TYPE_REFERENCE);
+    expect($refs['BaseController'])->toBe(PhpDependencyExtractor::EXTENDS_REFERENCE);
 });
 
 it('classifies type reference for use import', function () {
@@ -127,7 +127,7 @@ it('classifies type reference for use import', function () {
 
     $refs = (new PhpDependencyExtractor)->extract($code);
 
-    expect($refs['App\\Services\\Billing\\InvoiceService'])->toBe(PhpDependencyExtractor::TYPE_REFERENCE);
+    expect($refs['App\\Services\\Billing\\InvoiceService'])->toBe(PhpDependencyExtractor::USE);
 });
 
 it('constructor injection wins over type reference for same class', function () {
@@ -141,7 +141,7 @@ it('constructor injection wins over type reference for same class', function () 
 
     $refs = (new PhpDependencyExtractor)->extract($code);
 
-    // constructor_injection beats type_reference (from use statement)
+    // constructor_injection beats use (from use statement)
     expect($refs['Mailer'])->toBe(PhpDependencyExtractor::CONSTRUCTOR_INJECTION);
 });
 
@@ -189,6 +189,57 @@ it('classifies new instance when property accessed via (new Foo)->prop', functio
     $refs = (new PhpDependencyExtractor)->extract($code);
 
     expect($refs['Config'])->toBe(PhpDependencyExtractor::NEW_INSTANCE);
+});
+
+it('classifies implements reference', function () {
+    $code = <<<'PHP'
+    <?php
+    class OrderExporter implements Exportable {}
+    PHP;
+
+    $refs = (new PhpDependencyExtractor)->extract($code);
+
+    expect($refs['Exportable'])->toBe(PhpDependencyExtractor::IMPLEMENTS_REFERENCE);
+});
+
+it('classifies property type', function () {
+    $code = <<<'PHP'
+    <?php
+    class UserRepository {
+        private Connection $connection;
+    }
+    PHP;
+
+    $refs = (new PhpDependencyExtractor)->extract($code);
+
+    expect($refs['Connection'])->toBe(PhpDependencyExtractor::PROPERTY_TYPE);
+});
+
+it('classifies return type', function () {
+    $code = <<<'PHP'
+    <?php
+    class UserFactory {
+        public function make(): User {}
+    }
+    PHP;
+
+    $refs = (new PhpDependencyExtractor)->extract($code);
+
+    expect($refs['User'])->toBe(PhpDependencyExtractor::RETURN_TYPE);
+});
+
+it('property type wins over return type for same class', function () {
+    $code = <<<'PHP'
+    <?php
+    class UserCache {
+        private User $cached;
+        public function get(): User {}
+    }
+    PHP;
+
+    $refs = (new PhpDependencyExtractor)->extract($code);
+
+    expect($refs['User'])->toBe(PhpDependencyExtractor::PROPERTY_TYPE);
 });
 
 it('returns empty array for empty content', function () {

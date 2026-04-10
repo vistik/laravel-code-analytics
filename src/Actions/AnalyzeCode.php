@@ -77,6 +77,9 @@ class AnalyzeCode
     /**
      * @return array{files: array<string, string>, risk: RiskScore, content?: string}
      */
+    /**
+     * @return array{files: array<string, string>, risk: RiskScore, content?: string}
+     */
     public function execute(
         string $repoPath = '',
         ?string $outputPath = null,
@@ -1138,7 +1141,7 @@ class AnalyzeCode
         return (new PhpDependencyExtractor)->extract($content);
     }
 
-    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::TYPE_REFERENCE): void
+    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::USE): void
     {
         if ($sourceId === $targetId) {
             return;
