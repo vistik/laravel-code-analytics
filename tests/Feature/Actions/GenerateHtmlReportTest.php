@@ -2,6 +2,7 @@
 
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 
 function makeHtml(): string
 {
@@ -149,4 +150,27 @@ test('blade view contains renderFullFile function', function () {
 test('blade view contains Full file button', function () {
     $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
     expect(file_get_contents($viewPath))->toContain('Full file');
+});
+
+// ── defaultView ───────────────────────────────────────────────────────────────
+
+test('generate uses force as default view when no defaultView is specified', function () {
+    $html = (new GenerateHtmlReport)->generate(
+        nodes: [], edges: [], fileDiffs: [], analysisData: [],
+        title: 'Test', repo: 'test/repo', headCommit: 'abc1234',
+        prAdditions: 0, prDeletions: 0, fileCount: 0,
+    );
+
+    expect($html)->toContain("show('force')");
+});
+
+test('generate uses specified defaultView', function () {
+    $html = (new GenerateHtmlReport)->generate(
+        nodes: [], edges: [], fileDiffs: [], analysisData: [],
+        title: 'Test', repo: 'test/repo', headCommit: 'abc1234',
+        prAdditions: 0, prDeletions: 0, fileCount: 0,
+        defaultView: GraphLayout::Tree,
+    );
+
+    expect($html)->toContain("show('tree')");
 });

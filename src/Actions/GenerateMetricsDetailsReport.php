@@ -3,6 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateMetricsDetailsReport extends GenerateMetricsReport implements ReportGenerator
@@ -23,6 +24,7 @@ class GenerateMetricsDetailsReport extends GenerateMetricsReport implements Repo
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string {
         $output = parent::generate(
             $nodes, $edges, $fileDiffs, $analysisData,

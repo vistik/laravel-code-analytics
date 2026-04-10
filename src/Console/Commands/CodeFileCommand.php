@@ -5,6 +5,7 @@ namespace Vistik\LaravelCodeAnalytics\Console\Commands;
 use Illuminate\Console\Command;
 use RuntimeException;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Support\MethodCallGraphExtractor;
 
@@ -54,7 +55,7 @@ class CodeFileCommand extends Command
 
             $prNumber = pathinfo(basename($fullPath), PATHINFO_FILENAME);
             $title = "Method graph: {$relPath}";
-            $view = $this->option('view') ?? 'force';
+            $view = GraphLayout::from($this->option('view') ?? 'force');
             $outputArg = $this->argument('output');
             $openFile = $this->option('open');
 
