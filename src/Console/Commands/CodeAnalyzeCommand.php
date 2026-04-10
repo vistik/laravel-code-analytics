@@ -96,6 +96,7 @@ class CodeAnalyzeCommand extends Command
                 includeFileContents: $includeFileContents,
                 githubMetrics: $githubMetrics,
                 filterDefaults: $config['filter_defaults'] ?? [],
+                riskScoringConfig: $config['risk_scoring'] ?? [],
             );
 
             if (isset($result['content'])) {

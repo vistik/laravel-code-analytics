@@ -95,6 +95,7 @@ class AnalyzeCode
         bool $includeFileContents = false,
         bool $githubMetrics = false,
         array $filterDefaults = [],
+        array $riskScoringConfig = [],
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -414,7 +415,8 @@ class AnalyzeCode
         }
 
         // ── Compute overall risk score ────────────────────────────────────────
-        $riskResult = $this->riskScorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots);
+        $scorer = $riskScoringConfig !== [] ? new CalculateRiskScore($riskScoringConfig) : $this->riskScorer;
+        $riskResult = $scorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots);
 
         // ── Generate report ───────────────────────────────────────────────────
         $this->progress('info', "Generating {$format->value} report...");

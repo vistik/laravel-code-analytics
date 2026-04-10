@@ -7,6 +7,18 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 
 class DeletionRatioFactor implements RiskFactor
 {
+    private int $maxScore;
+
+    /** @var list<array{ratio: float, score: int}> */
+    private array $thresholds;
+
+    /** @param array{max_score: int, thresholds: list<array{ratio: float, score: int}>} $config */
+    public function __construct(array $config)
+    {
+        $this->maxScore = $config['max_score'];
+        $this->thresholds = $config['thresholds'];
+    }
+
     public function name(): string
     {
         return 'Deletion Ratio';
@@ -17,16 +29,17 @@ class DeletionRatioFactor implements RiskFactor
         $totalLines = $data->additions + $data->deletions;
         $ratio = $totalLines > 0 ? $data->deletions / $totalLines : 0;
 
-        return match (true) {
-            $ratio > 0.8 => 10,
-            $ratio > 0.6 => 6,
-            $ratio > 0.4 => 3,
-            default => 0,
-        };
+        foreach ($this->thresholds as $threshold) {
+            if ($ratio > $threshold['ratio']) {
+                return $threshold['score'];
+            }
+        }
+
+        return 0;
     }
 
     public function maxScore(): int
     {
-        return 10;
+        return $this->maxScore;
     }
 }
