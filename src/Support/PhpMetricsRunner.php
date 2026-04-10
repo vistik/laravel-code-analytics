@@ -52,7 +52,7 @@ class PhpMetricsRunner
             return [];
         }
 
-        $binary = base_path('vendor/bin/phpmetrics');
+        $binary = realpath(__DIR__.'/../../vendor/bin/phpmetrics') ?: base_path('vendor/bin/phpmetrics');
         $cmd = escapeshellcmd($binary)
             .' --report-json='.escapeshellarg($reportPath)
             .' '.escapeshellarg($tmpDir)
