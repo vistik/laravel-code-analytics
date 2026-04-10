@@ -22,6 +22,7 @@ class GenerateMetricsDetailsReport extends GenerateMetricsReport implements Repo
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         $output = parent::generate(
             $nodes, $edges, $fileDiffs, $analysisData,

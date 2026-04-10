@@ -22,6 +22,7 @@ class GenerateMetricsReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         $severityCounts = ['very_high' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'info' => 0];
         $totalFindings = 0;
@@ -52,7 +53,7 @@ class GenerateMetricsReport implements ReportGenerator
             $lines[] = str_repeat('─', min(strlen($title), 60));
         }
 
-        $lines[] = sprintf('Risk Score:   %d / 100', $riskScore?->score ?? 0);
+        $lines[] = sprintf('Risk Score:   %d / 100', $riskScore !== null ? $riskScore->score : 0);
         $lines[] = sprintf('Files:        %d  (+%d / -%d lines)', $fileCount, $prAdditions, $prDeletions);
         $lines[] = sprintf('Findings:     %d  (max severity: %s)', $totalFindings, $maxSeverity ?? 'none');
         $lines[] = sprintf(

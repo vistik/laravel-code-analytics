@@ -62,6 +62,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         return $this->render(
             nodes: $nodes,
@@ -85,6 +86,7 @@ class GenerateHtmlReport implements ReportGenerator
             riskScore: $riskScore,
             metricsData: $metricsData,
             fileContents: $fileContents,
+            filterDefaults: $filterDefaults,
         );
     }
 
@@ -119,6 +121,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): array {
         $layouts = $allLayouts || ! $outputPath
             ? array_keys(self::RENDERERS)
@@ -158,6 +161,7 @@ class GenerateHtmlReport implements ReportGenerator
                 metricsData: $metricsData,
                 layoutSwitcher: $switcherHtml,
                 fileContents: $fileContents,
+                filterDefaults: $filterDefaults,
             );
 
             file_put_contents($file, $html);
@@ -192,6 +196,7 @@ class GenerateHtmlReport implements ReportGenerator
         array $metricsData = [],
         string $layoutSwitcher = '',
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         $rendererClass = self::RENDERERS[$layout] ?? ForceGraphRenderer::class;
         $isLayered = in_array($rendererClass, [LayeredCakeRenderer::class, LayeredArchRenderer::class]);
@@ -210,6 +215,16 @@ class GenerateHtmlReport implements ReportGenerator
             'params' => ['warn' => 3,  'bad' => 5],
         ]);
         $methodThresholdsJson = json_encode($methodThresholds, JSON_HEX_TAG);
+
+        $resolvedDefaults = [
+            'hide_connected' => $filterDefaults['hide_connected'] ?? true,
+            'hide_reviewed' => $filterDefaults['hide_reviewed'] ?? true,
+            'hidden_domains' => array_values($filterDefaults['hidden_domains'] ?? ['tests']),
+            'hidden_severities' => array_values($filterDefaults['hidden_severities'] ?? []),
+            'hidden_extensions' => array_values($filterDefaults['hidden_extensions'] ?? []),
+            'hidden_change_types' => array_values($filterDefaults['hidden_change_types'] ?? []),
+        ];
+        $filterDefaultsJson = json_encode($resolvedDefaults, JSON_HEX_TAG);
 
         return view('laravel-code-analytics::analysis.inner', [
             'prNumber' => $prNumber,
@@ -237,6 +252,7 @@ class GenerateHtmlReport implements ReportGenerator
             'frameHookJs' => $renderer->getFrameHookJs(),
             'riskPanel' => $this->buildRiskPanel($riskScore),
             'layoutSwitcher' => $layoutSwitcher,
+            'filterDefaultsJson' => $filterDefaultsJson,
         ])->render();
     }
 
@@ -565,7 +581,8 @@ class GenerateHtmlReport implements ReportGenerator
             .'const sevScores={'.implode(',', $scores).'};';
     }
 
-    public function buildSeverityToggles(array $nodes): string
+    /** @param list<string> $hiddenSeverities */
+    public function buildSeverityToggles(array $nodes, array $hiddenSeverities = []): string
     {
         $severityCounts = [];
         foreach (Severity::cases() as $severity) {
@@ -585,9 +602,10 @@ class GenerateHtmlReport implements ReportGenerator
             if ($count === 0) {
                 continue;
             }
+            $checked = ! in_array($severity->value, $hiddenSeverities) ? ' checked' : '';
             $html .= '<div class="toggle-row">'
                 .'<span class="legend-dot" style="background:'.$severity->color().'"></span>'
-                .'<label class="toggle"><input type="checkbox" class="severity-toggle" data-severity="'.htmlspecialchars($severity->value).'" checked><span class="slider"></span></label>'
+                .'<label class="toggle"><input type="checkbox" class="severity-toggle" data-severity="'.htmlspecialchars($severity->value).'"'.$checked.'><span class="slider"></span></label>'
                 .'<label class="toggle-label">'.$severity->label().' <span style="color:#484f58">('.$count.')</span></label>'
                 .'</div>';
         }
@@ -595,7 +613,8 @@ class GenerateHtmlReport implements ReportGenerator
         return $html;
     }
 
-    public function buildExtToggles(array $nodes): string
+    /** @param list<string> $hiddenExtensions */
+    public function buildExtToggles(array $nodes, array $hiddenExtensions = []): string
     {
         $extCounts = [];
         foreach ($nodes as $node) {
@@ -605,8 +624,9 @@ class GenerateHtmlReport implements ReportGenerator
 
         $html = '';
         foreach ($extCounts as $ext => $count) {
+            $checked = ! in_array($ext, $hiddenExtensions) ? ' checked' : '';
             $html .= '<div class="toggle-row">'
-                .'<label class="toggle"><input type="checkbox" class="ext-toggle" data-ext="'.htmlspecialchars($ext).'" checked><span class="slider"></span></label>'
+                .'<label class="toggle"><input type="checkbox" class="ext-toggle" data-ext="'.htmlspecialchars($ext).'"'.$checked.'><span class="slider"></span></label>'
                 .'<label class="toggle-label">'.htmlspecialchars($ext).' <span style="color:#484f58">('.$count.')</span></label>'
                 .'</div>';
         }
@@ -614,7 +634,8 @@ class GenerateHtmlReport implements ReportGenerator
         return $html;
     }
 
-    public function buildFolderToggles(array $nodes): string
+    /** @param list<string> $hiddenDomains */
+    public function buildFolderToggles(array $nodes, array $hiddenDomains = ['tests']): string
     {
         $domainCounts = [];
         foreach ($nodes as $node) {
@@ -629,7 +650,7 @@ class GenerateHtmlReport implements ReportGenerator
                 array_filter($nodes, fn ($n) => $n['domain'] === $domain)
             )]['domainColor'] ?? '#8b949e';
 
-            $checked = $domain !== 'tests' ? ' checked' : '';
+            $checked = ! in_array($domain, $hiddenDomains) ? ' checked' : '';
             $html .= '<div class="toggle-row">'
                 .'<span class="legend-dot" style="background:'.htmlspecialchars($color).'"></span>'
                 .'<label class="toggle"><input type="checkbox" class="domain-toggle" data-domain="'.htmlspecialchars($domain).'"'.$checked.'><span class="slider"></span></label>'
@@ -672,6 +693,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         return $this->buildWrapperHtml(
             nodes: $nodes,
@@ -687,12 +709,13 @@ class GenerateHtmlReport implements ReportGenerator
             headCommit: $headCommit,
             fileCount: $fileCount,
             connectedCount: 0,
-            extTogglesHtml: $this->buildExtToggles($nodes),
-            folderTogglesHtml: $this->buildFolderToggles($nodes),
-            severityTogglesHtml: $this->buildSeverityToggles($nodes),
+            extTogglesHtml: $this->buildExtToggles($nodes, $filterDefaults['hidden_extensions'] ?? []),
+            folderTogglesHtml: $this->buildFolderToggles($nodes, $filterDefaults['hidden_domains'] ?? ['tests']),
+            severityTogglesHtml: $this->buildSeverityToggles($nodes, $filterDefaults['hidden_severities'] ?? []),
             riskScore: $riskScore,
             metricsData: $metricsData,
             fileContents: $fileContents,
+            filterDefaults: $filterDefaults,
         );
     }
 
@@ -729,6 +752,7 @@ class GenerateHtmlReport implements ReportGenerator
         array $metricsData = [],
         string $defaultView = 'force',
         array $fileContents = [],
+        array $filterDefaults = [],
     ): void {
         file_put_contents($outputPath, $this->buildWrapperHtml(
             nodes: $nodes,
@@ -752,6 +776,7 @@ class GenerateHtmlReport implements ReportGenerator
             metricsData: $metricsData,
             defaultView: $defaultView,
             fileContents: $fileContents,
+            filterDefaults: $filterDefaults,
         ));
     }
 
@@ -780,6 +805,7 @@ class GenerateHtmlReport implements ReportGenerator
         array $metricsData = [],
         string $defaultView = 'grouped',
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         $labels = ['force' => 'Force', 'tree' => 'Tree', 'grouped' => 'Grouped', 'cake' => 'Cake', 'arch' => 'Architecture'];
 
@@ -807,6 +833,7 @@ class GenerateHtmlReport implements ReportGenerator
                 riskScore: null, // Risk panel lives in the wrapper topbar tooltip
                 metricsData: $metricsData,
                 fileContents: $fileContents,
+                filterDefaults: $filterDefaults,
             );
             // Hide the title-bar inside the iframe — it lives in the wrapper now
             $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}</style></head>', $html);

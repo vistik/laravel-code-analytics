@@ -82,6 +82,7 @@ class CodeAnalyzeCommand extends Command
                 onProgress: null,
                 raw: ! $openFile && $outputPath === null,
                 includeFileContents: $includeFileContents,
+                filterDefaults: $config['filter_defaults'] ?? [],
             );
 
             if (! $openFile) {

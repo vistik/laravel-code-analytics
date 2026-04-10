@@ -23,6 +23,7 @@ class GenerateMdReport implements ReportGenerator
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
+        array $filterDefaults = [],
     ): string {
         $lines = [];
 

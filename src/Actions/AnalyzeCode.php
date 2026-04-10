@@ -75,7 +75,7 @@ class AnalyzeCode
     }
 
     /**
-     * @return array{files: array<string, string>, risk: RiskScore}
+     * @return array{files: array<string, string>, risk: RiskScore, content?: string}
      */
     public function execute(
         string $repoPath = '',
@@ -92,6 +92,7 @@ class AnalyzeCode
         ?array $filePatterns = null,
         bool $raw = false,
         bool $includeFileContents = false,
+        array $filterDefaults = [],
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -383,6 +384,10 @@ class AnalyzeCode
         // ── Generate report ───────────────────────────────────────────────────
         $this->progress('info', "Generating {$format->value} report...");
 
+        if (empty($filterDefaults)) {
+            $filterDefaults = config('laravel-code-analytics.filter_defaults', []);
+        }
+
         $reportGenerator = $format->generator();
         $content = $reportGenerator->generate(
             nodes: $nodes,
@@ -399,6 +404,7 @@ class AnalyzeCode
             riskScore: $riskResult,
             metricsData: $metricsData,
             fileContents: $fileContents,
+            filterDefaults: $filterDefaults,
         );
 
         if ($raw) {
