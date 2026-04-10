@@ -8,7 +8,6 @@ use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 
 class CodeAnalyzeCommand extends Command
