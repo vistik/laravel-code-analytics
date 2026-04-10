@@ -289,6 +289,23 @@ class AnalyzeCode
 
         $this->progress('line', '  Found '.count($this->edges).' dependencies.');
 
+        // ── Detect circular dependencies ──────────────────────────────────────
+        $cycleMap = $this->detectCycles($nodes, $this->edges);
+        $cycleColorPalette = ['#f0883e', '#a371f7', '#3dcfcf', '#ff6b9d', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6b6b'];
+        foreach ($nodes as &$node) {
+            $cycleId = $cycleMap[$node['id']] ?? null;
+            $node['cycleId'] = $cycleId;
+            $node['cycleColor'] = $cycleId !== null
+                ? $cycleColorPalette[($cycleId - 1) % count($cycleColorPalette)]
+                : null;
+        }
+        unset($node);
+        if (! empty($cycleMap)) {
+            $cycleGroupCount = count(array_unique($cycleMap));
+            $cycleNodeCount = count($cycleMap);
+            $this->progress('line', "  Detected {$cycleGroupCount} circular dependency group(s) across {$cycleNodeCount} file(s).");
+        }
+
         // ── Run AST analysis ─────────────────────────────────────────────────
         $this->progress('info', 'Running AST analysis...');
 
@@ -410,12 +427,23 @@ class AnalyzeCode
         }
 
         // ── Compute per-file signal score ─────────────────────────────────────
+        $cycleCfg = config('laravel-code-analytics.file_signal.circular_dependency', []);
+        $cycleBoostBase = (int) ($cycleCfg['base'] ?? 100);
+        $cycleBoostPct = (float) ($cycleCfg['signal_pct'] ?? 0.20);
+
         foreach ($nodes as &$node) {
-            $node['_signal'] = $this->fileSignalScorer->calculate(
+            $base = $this->fileSignalScorer->calculate(
                 $node,
                 $analysisData[$node['path']] ?? [],
                 $metricsData[$node['path']] ?? null,
             );
+            if (($node['cycleId'] ?? null) !== null) {
+                $boost = (int) round($cycleBoostBase + $cycleBoostPct * $base);
+                $node['_signal'] = $base + $boost;
+                $node['_cycleBoost'] = $boost;
+            } else {
+                $node['_signal'] = $base;
+            }
         }
         unset($node);
 
@@ -1450,6 +1478,76 @@ class AnalyzeCode
         }
 
         return null;
+    }
+
+    /**
+     * Detect circular dependencies using Tarjan's strongly connected components algorithm.
+     * Returns a map of nodeId → cycleId (1-based) for every node that belongs to a cycle.
+     * Nodes not in any cycle are absent from the returned array.
+     *
+     * @param  array<int, array{id: string}>  $nodes
+     * @param  list<array{0: string, 1: string, 2: string}>  $edges
+     * @return array<string, int>
+     */
+    private function detectCycles(array $nodes, array $edges): array
+    {
+        $adj = [];
+        foreach ($nodes as $n) {
+            $adj[$n['id']] = [];
+        }
+        foreach ($edges as [$src, $tgt]) {
+            $adj[$src][] = $tgt;
+        }
+
+        $index = 0;
+        $stack = [];
+        $onStack = [];
+        $nodeIndex = [];
+        $lowlink = [];
+        $cycles = [];
+        $cycleCounter = 0;
+
+        $strongconnect = null;
+        $strongconnect = function (string $v) use (&$strongconnect, &$index, &$stack, &$onStack, &$nodeIndex, &$lowlink, &$cycles, &$cycleCounter, $adj): void {
+            $nodeIndex[$v] = $index;
+            $lowlink[$v] = $index;
+            $index++;
+            $stack[] = $v;
+            $onStack[$v] = true;
+
+            foreach ($adj[$v] ?? [] as $w) {
+                if (! isset($nodeIndex[$w])) {
+                    $strongconnect($w);
+                    $lowlink[$v] = min($lowlink[$v], $lowlink[$w]);
+                } elseif ($onStack[$w] ?? false) {
+                    $lowlink[$v] = min($lowlink[$v], $nodeIndex[$w]);
+                }
+            }
+
+            if ($lowlink[$v] === $nodeIndex[$v]) {
+                $scc = [];
+                do {
+                    $w = array_pop($stack);
+                    $onStack[$w] = false;
+                    $scc[] = $w;
+                } while ($w !== $v);
+
+                if (count($scc) > 1) {
+                    $cycleCounter++;
+                    foreach ($scc as $nodeId) {
+                        $cycles[$nodeId] = $cycleCounter;
+                    }
+                }
+            }
+        };
+
+        foreach ($nodes as $n) {
+            if (! isset($nodeIndex[$n['id']])) {
+                $strongconnect($n['id']);
+            }
+        }
+
+        return $cycles;
     }
 
     private function extractFqcnFromContent(string $content): ?string
