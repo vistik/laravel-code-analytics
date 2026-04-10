@@ -39,6 +39,7 @@ enum ChangeCategory: string
     case DB_QUERY_REMOVED = 'db_query_removed';
     case DEPENDENCY = 'dependency';
     case LARAVEL_CONFIG = 'laravel_config';
+    case CIRCULAR_DEPENDENCY = 'circular_dependency';
 
     public function shortDescription(): string
     {
@@ -78,6 +79,7 @@ enum ChangeCategory: string
             self::DB_QUERY_REMOVED => 'DB facade query removals',
             self::DEPENDENCY => 'Class dependency detections',
             self::LARAVEL_CONFIG => 'Config file dependency tracking',
+            self::CIRCULAR_DEPENDENCY => 'Circular dependency between files',
         };
     }
 }

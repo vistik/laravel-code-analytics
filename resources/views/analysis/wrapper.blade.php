@@ -30,6 +30,9 @@
   .tab { padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #30363d; color: #8b949e; background: #21262d; transition: all 0.15s; }
   .tab:hover { background: #30363d; color: #c9d1d9; }
   .tab.active { background: #58a6ff; color: #fff; border-color: #58a6ff; cursor: default; }
+  .tab.tab-orange { color: #f85149; border-color: rgba(248,81,73,0.4); }
+  .tab.tab-orange:hover { color: #f85149; border-color: #f85149; background: #2d1014; }
+  .tab.tab-orange.active { background: #f85149; border-color: #f85149; color: #fff; }
   .content-area { flex: 1; position: relative; overflow: hidden; }
   iframe { border: none; width: 100%; height: 100%; }
 
@@ -172,6 +175,53 @@
   }
   .file-section-divider::after { content: ''; flex: 1; height: 1px; background: #21262d; }
   .file-section-divider.watched { color: #d29922; }
+
+  /* ── Circular dependencies panel ── */
+  .cycles-panel {
+    position: absolute; top: 0; right: 0; height: 100%;
+    background: #161b22; border-left: 1px solid #30363d; z-index: 30;
+    display: flex; flex-direction: column;
+    box-shadow: -4px 0 24px rgba(0,0,0,.5);
+    right: -100%; transition: right 0.25s ease; width: 420px;
+  }
+  .cycles-panel.open { right: 0; }
+  .cycles-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px; border-bottom: 1px solid #30363d; flex-shrink: 0;
+  }
+  .cycles-panel-header h3 { font-size: 14px; font-weight: 600; color: #e6edf3; }
+  .cycles-panel-close {
+    background: none; border: none; color: #8b949e; font-size: 20px;
+    cursor: pointer; line-height: 1; padding: 4px;
+  }
+  .cycles-panel-close:hover { color: #e6edf3; }
+  .cycles-scroll { flex: 1 1 0%; overflow-y: auto; min-height: 0; padding: 12px 0; }
+  .cycles-scroll::-webkit-scrollbar { width: 6px; }
+  .cycles-scroll::-webkit-scrollbar-track { background: transparent; }
+  .cycles-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  .cycle-group { margin-bottom: 8px; }
+  .cycle-group-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 20px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid #21262d;
+  }
+  .cycle-group-header .cycle-pill {
+    border-radius: 10px; padding: 1px 8px; font-size: 10px;
+  }
+  .cycle-file-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 20px 8px 28px; cursor: pointer; transition: background 0.1s;
+    border-bottom: 1px solid #161b22;
+  }
+  .cycle-file-row:hover { background: #21262d; }
+  .cycle-file-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .cycle-file-info { flex: 1; min-width: 0; }
+  .cycle-file-name { font-size: 13px; font-weight: 500; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cycle-file-path { font-size: 11px; color: #484f58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .cycles-empty { padding: 24px 20px; font-size: 13px; color: #6e7681; text-align: center; }
 </style>
 </head>
 <body>
@@ -184,6 +234,9 @@
     {!! $riskBadgeHtml !!}
   </div>
   <div class="tabs">
+    <button class="tab tab-orange" id="cyclesTab" onclick="toggleCyclesPanel()" style="display:none">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 2a6 6 0 1 0 5.659 8.006.75.75 0 0 1 1.414.494A7.5 7.5 0 1 1 14.5 6.32V5.25a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h1.313A6.011 6.011 0 0 0 8 2Z"/></svg>Circular deps
+    </button>
     <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
     </button>
@@ -226,12 +279,125 @@
       <div id="filesRows"></div>
     </div>
   </div>
+
+  <div class="cycles-panel" id="cyclesPanel">
+    <div class="cycles-panel-header">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="#f0883e" style="flex-shrink:0"><path d="M8 2a6 6 0 1 0 5.659 8.006.75.75 0 0 1 1.414.494A7.5 7.5 0 1 1 14.5 6.32V5.25a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h1.313A6.011 6.011 0 0 0 8 2Z"/></svg>
+        Circular Dependencies
+      </h3>
+      <button class="cycles-panel-close" onclick="toggleCyclesPanel()">&times;</button>
+    </div>
+    <div class="cycles-scroll" id="cyclesScroll"></div>
+  </div>
 </div>
 <script>
   {!! $wrapperSeverityJs !!}
   const filesNodes = {!! $wrapperNodesJson !!};
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
+
+  // ── Circular dependencies ──
+  (function() {
+    var cycleNodes = filesNodes.filter(function(n) { return n.cycleId != null; });
+    if (!cycleNodes.length) return;
+
+    document.getElementById('cyclesTab').style.display = '';
+
+    // Group by cycleId
+    var groups = {};
+    cycleNodes.forEach(function(n) {
+      if (!groups[n.cycleId]) groups[n.cycleId] = [];
+      groups[n.cycleId].push(n);
+    });
+
+    function hexA(hex, alpha) {
+      var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+      return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+    }
+
+    function renderCycles() {
+      var html = '';
+      var ids = Object.keys(groups).map(Number).sort(function(a, b) { return a - b; });
+      ids.forEach(function(id) {
+        var members = groups[id];
+        var color = members[0].cycleColor || '#f0883e';
+        html += '<div class="cycle-group">';
+        html += '<div class="cycle-group-header" style="color:' + color + '">' +
+          'Cycle ' + id +
+          ' <span class="cycle-pill" style="background:' + hexA(color, 0.15) + ';border:1px solid ' + hexA(color, 0.35) + ';color:' + color + '">' + members.length + ' files</span>' +
+          '</div>';
+        members.forEach(function(n) {
+          var baseName = n.id.replace(/</g, '&lt;');
+          var path = n.path.replace(/</g, '&lt;');
+          var dot = '<div class="cycle-file-dot" style="background:' + (n.domainColor || '#484f58') + ';border:1.5px dashed ' + color + '"></div>';
+          html += '<div class="cycle-file-row" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" data-cycle-color="' + color + '">' +
+            dot +
+            '<div class="cycle-file-info">' +
+              '<div class="cycle-file-name">' + baseName + '</div>' +
+              '<div class="cycle-file-path">' + path + '</div>' +
+            '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+      });
+      document.getElementById('cyclesScroll').innerHTML = html;
+    }
+
+    // Build nodeId → all sibling nodeIds in same cycle
+    var nodeToCycleMembers = {};
+    Object.keys(groups).forEach(function(id) {
+      var memberIds = groups[id].map(function(n) { return n.id; });
+      groups[id].forEach(function(n) { nodeToCycleMembers[n.id] = memberIds; });
+    });
+
+    renderCycles();
+
+    var cyclesScrollEl = document.getElementById('cyclesScroll');
+
+    cyclesScrollEl.addEventListener('click', function(e) {
+      var row = e.target.closest('.cycle-file-row');
+      if (!row) return;
+      var nodeId = row.dataset.nodeId;
+      toggleCyclesPanel();
+      var iframe = document.getElementById('view');
+      iframe.contentWindow.postMessage({ type: 'openFile', nodeId: nodeId, fromFiles: false }, '*');
+    });
+
+    cyclesScrollEl.addEventListener('mouseover', function(e) {
+      var row = e.target.closest('.cycle-file-row');
+      if (!row) return;
+      var nodeIds = nodeToCycleMembers[row.dataset.nodeId] || [row.dataset.nodeId];
+      document.getElementById('view').contentWindow.postMessage({ type: 'highlightCycle', nodeIds: nodeIds }, '*');
+    });
+
+    cyclesScrollEl.addEventListener('mouseout', function(e) {
+      if (e.target.closest('.cycle-file-row') && !e.relatedTarget?.closest('.cycle-file-row')) {
+        document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
+      }
+    });
+  })();
+
+  function toggleCyclesPanel() {
+    var panel = document.getElementById('cyclesPanel');
+    var isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      document.getElementById('cyclesTab').classList.remove('active');
+      document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
+    } else {
+      // Close files panel if open
+      var filesPanel = document.getElementById('filesPanel');
+      if (filesPanel.classList.contains('open')) {
+        filesPanel.classList.remove('open');
+        document.getElementById('filesTab').classList.remove('active');
+      }
+      var iframe = document.getElementById('view');
+      iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
+      panel.classList.add('open');
+      document.getElementById('cyclesTab').classList.add('active');
+    }
+  }
 
   const layouts = {
     {!! $jsLayoutData !!}
@@ -329,6 +495,9 @@
     if (changePts) {
       rows += '<div class="signal-tooltip-row"><span class="label">Lines changed (&plusmn;' + (n.add + n.del) + ')</span><span class="val" style="color:' + valColor(changePts) + '">+' + changePts + '</span></div>';
     }
+    if (n.cycleId != null && n._cycleBoost != null) {
+      rows += '<div class="signal-tooltip-row"><span class="label" style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;border:1.5px solid ' + (n.cycleColor || '#f0883e') + ';display:inline-block;flex-shrink:0"></span>Circular dependency</span><span class="val" style="color:' + (n.cycleColor || '#f0883e') + '">+' + n._cycleBoost + '</span></div>';
+    }
     if (m) {
       if ((m.cc || 0) > 10) {
         var ccPts = Math.round((m.cc - 10) * 2);
@@ -414,6 +583,9 @@
 
       var chipsHtml = '';
       var chips = [];
+      if (n.cycleId != null) {
+        chips.push('<span class="file-metric-chip" style="color:' + (n.cycleColor || '#f0883e') + ';font-weight:600">&#8635; Cycle ' + n.cycleId + '</span>');
+      }
       if (m.cc != null) {
         var ccChipColor = m.cc >= 20 ? '#f85149' : m.cc >= 10 ? '#d29922' : '#484f58';
         chips.push('<span class="file-metric-chip" style="color:' + ccChipColor + '">cc ' + m.cc + ccArrow + '</span>');
@@ -495,6 +667,12 @@
       panel.classList.remove('open');
       document.getElementById('filesTab').classList.remove('active');
     } else {
+      // Close cycles panel if open
+      var cyclesPanel = document.getElementById('cyclesPanel');
+      if (cyclesPanel.classList.contains('open')) {
+        cyclesPanel.classList.remove('open');
+        document.getElementById('cyclesTab').classList.remove('active');
+      }
       openedFromFiles = false;
       var iframe = document.getElementById('view');
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
@@ -554,6 +732,23 @@
 
   window.addEventListener('message', function(e) {
     if (!e.data) return;
+    if (e.data.type === 'openCyclesPanel') {
+      var cp = document.getElementById('cyclesPanel');
+      if (!cp.classList.contains('open')) toggleCyclesPanel();
+      // Scroll to and flash the target row after the panel slides in
+      setTimeout(function() {
+        var targetRow = null;
+        document.querySelectorAll('.cycle-file-row').forEach(function(r) {
+          if (r.dataset.nodeId === e.data.nodeId) targetRow = r;
+        });
+        if (!targetRow) return;
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var flashColor = targetRow.dataset.cycleColor || '#f0883e';
+        targetRow.style.transition = 'background 0.15s';
+        targetRow.style.background = hexA(flashColor, 0.2);
+        setTimeout(function() { targetRow.style.background = ''; }, 1200);
+      }, 280);
+    }
     if (e.data.type === 'panelClosed' && openedFromFiles) {
       openedFromFiles = false;
       if (!filesPanelEl.classList.contains('open')) toggleFilesPanel();
@@ -564,9 +759,18 @@
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
       if (!filesPanelEl.classList.contains('open')) toggleFilesPanel();
     }
-    if (e.data.type === 'panelOpened' && filesPanelEl.classList.contains('open')) {
-      filesPanelEl.classList.remove('open');
-      document.getElementById('filesTab').classList.remove('active');
+    if (e.data.type === 'panelOpened') {
+      if (filesPanelEl.classList.contains('open')) {
+        filesPanelEl.classList.remove('open');
+        document.getElementById('filesTab').classList.remove('active');
+      }
+      var cyclesPanelEl = document.getElementById('cyclesPanel');
+      if (cyclesPanelEl.classList.contains('open')) {
+        cyclesPanelEl.classList.remove('open');
+        document.getElementById('cyclesTab').classList.remove('active');
+        // Clear any lingering highlight
+        document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
+      }
     }
     if (e.data.type === 'showReviewedChanged') {
       showReviewed = e.data.show;

@@ -63,6 +63,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | File Signal Scoring
+    |--------------------------------------------------------------------------
+    |
+    | Controls how the per-file signal score is adjusted for special conditions.
+    |
+    | circular_dependency:
+    |   Applied after the base signal (findings + changes + metrics) is computed.
+    |   boost = base + signal_pct × base_signal
+    |   Raise 'base' to always push cycle files high regardless of other factors.
+    |   Raise 'signal_pct' to make the boost grow with the file's existing hotness.
+    |
+    */
+
+    'file_signal' => [
+        'circular_dependency' => [
+            'base' => 100,
+            'signal_pct' => 0.20,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Risk Scoring
     |--------------------------------------------------------------------------
     |
