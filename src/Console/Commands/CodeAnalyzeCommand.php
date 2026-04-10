@@ -10,12 +10,17 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 
+use function Laravel\Prompts\select;
+
 class CodeAnalyzeCommand extends Command
 {
     protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}
         {output? : Output file path (HTML, Markdown, or JSON depending on --format)}
         {--base= : Base branch or commit to diff against (default: main). Use HEAD to see only uncommitted changes}
+        {--from= : Start commit hash for a range diff (e.g. abc1234). Use with --to or omit --to to use HEAD}
+        {--to= : End commit hash for a range diff (defaults to HEAD when --from is set)}
+        {--pick : Interactively pick two commits from git history to compare}
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
         {--full : Analyze all tracked files instead of just the diff}
         {--title= : Custom title for the analysis report}
@@ -67,6 +72,8 @@ class CodeAnalyzeCommand extends Command
             $prUrl = $this->option('pr');
             $full = $this->option('full') || ($config['full'] ?? false);
 
+            [$fromCommit, $toCommit] = $this->resolveCommitRange($repoPath);
+
             $filePatterns = $this->option('file') ?: ($config['file'] ?? null) ?: null;
 
             $raw = ! $openFile && $outputPath === null;
@@ -98,6 +105,8 @@ class CodeAnalyzeCommand extends Command
                 filterDefaults: $config['filter_defaults'] ?? [],
                 riskScoringConfig: $config['risk_scoring'] ?? [],
                 criticalTables: $config['critical_tables'] ?? [],
+                fromCommit: $fromCommit,
+                toCommit: $toCommit,
             );
 
             if (isset($result['content'])) {
@@ -139,6 +148,58 @@ class CodeAnalyzeCommand extends Command
         }
 
         return $config;
+    }
+
+    /**
+     * Resolve the from/to commit range from --from/--to options or the interactive --pick flow.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function resolveCommitRange(string $repoPath): array
+    {
+        $fromOption = $this->option('from');
+        $toOption = $this->option('to');
+        $pick = $this->option('pick');
+
+        if (! $pick && $fromOption === null && $toOption === null) {
+            return [null, null];
+        }
+
+        $logLines = array_filter(
+            explode("\n", trim(shell_exec('git -C '.escapeshellarg($repoPath).' log --oneline -40 2>/dev/null') ?? ''))
+        );
+
+        if (empty($logLines)) {
+            throw new RuntimeException('Could not read git log. Is this a git repository?');
+        }
+
+        if ($pick) {
+            $commits = array_values($logLines);
+
+            $fromChoice = select(
+                label: 'Select base commit (from):',
+                options: $commits,
+                scroll: 12,
+            );
+            $fromCommit = substr($fromChoice, 0, 7);
+
+            $toOptions = array_merge(['HEAD (working tree)'], array_values(array_filter($commits, fn ($c) => $c !== $fromChoice)));
+            $toChoice = select(
+                label: 'Select head commit (to):',
+                options: $toOptions,
+                default: 'HEAD (working tree)',
+                scroll: 12,
+            );
+            $toCommit = $toChoice === 'HEAD (working tree)' ? null : substr($toChoice, 0, 7);
+
+            if ($fromCommit === ($toCommit ?? 'HEAD')) {
+                throw new RuntimeException('The from and to commits must be different.');
+            }
+
+            return [$fromCommit, $toCommit];
+        }
+
+        return [$fromOption, $toOption];
     }
 
     /** @param array<string, list<string>> $fileGroups */
