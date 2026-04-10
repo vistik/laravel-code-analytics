@@ -23,6 +23,7 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
 use Vistik\LaravelCodeAnalytics\Support\JsMetricsRunner;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\ViewFileDependencyRule;
 use Vistik\LaravelCodeAnalytics\Support\PhpDependencyExtractor;
 use Vistik\LaravelCodeAnalytics\Support\PhpMethodMetricsCalculator;
 use Vistik\LaravelCodeAnalytics\Support\PhpMetrics;
@@ -1248,41 +1249,11 @@ class AnalyzeCode
             }
         }
 
-        // view()->file(__DIR__ . '/relative/path.blade.php', ...)
-        preg_match_all('/\bview\s*\(\s*\)\s*->\s*file\s*\(\s*__DIR__\s*\.\s*[\'"]([^\'"]+)[\'"]/m', $content, $dirMatches);
-        foreach ($dirMatches[1] as $relPart) {
-            $sourceDir = $sourcePath !== '' ? dirname($sourcePath) : '';
-            $combined = $sourceDir !== '' ? $sourceDir.'/'.$relPart : $relPart;
-            $viewPath = $this->normalizePath($combined);
+        foreach ((new ViewFileDependencyRule)->resolve($content, $sourcePath) as $viewPath) {
             if (isset($this->pathToNode[$viewPath])) {
                 $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
             }
         }
-
-        // view()->file('/absolute/or/relative/path.blade.php', ...)
-        preg_match_all('/\bview\s*\(\s*\)\s*->\s*file\s*\(\s*[\'"]([^\'"]+\.blade\.php)[\'"]/', $content, $fileMatches);
-        foreach ($fileMatches[1] as $filePath) {
-            // Strip leading slash and try to match against known paths
-            $normalized = ltrim($filePath, '/');
-            if (isset($this->pathToNode[$normalized])) {
-                $this->addEdge($sourceNodeId, $this->pathToNode[$normalized]);
-            }
-        }
-    }
-
-    private function normalizePath(string $path): string
-    {
-        $parts = explode('/', $path);
-        $result = [];
-        foreach ($parts as $part) {
-            if ($part === '..') {
-                array_pop($result);
-            } elseif ($part !== '.' && $part !== '') {
-                $result[] = $part;
-            }
-        }
-
-        return implode('/', $result);
     }
 
     private function matchComponentReferences(string $content, string $sourceNodeId, array $componentNameToNode): void
