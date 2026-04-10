@@ -5,11 +5,13 @@ use Vistik\LaravelCodeAnalytics\Renderers\CakeLayer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 
-test('default layers produce valid JS with all node groups', function () {
+test('default layers produce valid JS with all file node groups', function () {
     $renderer = new LayeredCakeRenderer(LayerStack::default());
     $js = $renderer->getLayoutSetupJs();
 
-    foreach (FileGroup::cases() as $group) {
+    $fileGroups = array_filter(FileGroup::cases(), fn (FileGroup $g) => ! str_starts_with($g->value, 'vis_'));
+
+    foreach ($fileGroups as $group) {
         expect($js)->toContain("{$group->value}: { layer:");
     }
 });

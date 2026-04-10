@@ -340,12 +340,15 @@ const groupColor = {
   action: '#d29922', http: '#d29922', console: '#d29922', provider: '#d29922', test: '#58a6ff',
   job: '#e3b341', event: '#f778ba', service: '#79c0ff', view: '#7ee787',
   frontend: '#ff7b72', config: '#ffa657', route: '#ffa657', other: '#8b949e',
+  // method-graph visibility groups
+  vis_public: '#79c0ff', vis_protected: '#e3b341', vis_private: '#8957e5', vis_external: '#484f58',
 };
 const groupLabel = {
   model: 'Model', core: 'Core', db: 'Database', nova: 'Nova Admin',
   action: 'Action', http: 'HTTP', console: 'Console', provider: 'Provider', test: 'Test',
   job: 'Job', event: 'Event', service: 'Service', view: 'View',
   frontend: 'Frontend', config: 'Config', route: 'Route', other: 'Other',
+  vis_public: 'Public', vis_protected: 'Protected', vis_private: 'Private', vis_external: 'External',
 };
 
 const filesData = {!! $nodesJson !!};
@@ -382,7 +385,7 @@ const nodes = filesData.map((f, i) => {
   return node;
 });
 
-const links = edgesData.map(([s, t, type]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use' })).filter(l => l.source && l.target);
+const links = edgesData.map(([s, t, type, line]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use', callLine: line || null })).filter(l => l.source && l.target);
 
 // ── Circular dependency stats ─────────────────────────────────────────────────
 const cycleGroupCount = new Set(nodes.filter(n => n.cycleId != null).map(n => n.cycleId)).size;
@@ -846,8 +849,132 @@ function placeAnnotationDots() {
   });
 }
 
+// ── Method node panel ─────────────────────────────────────────────────────────
+function renderMethodPanel(n) {
+  selectedNode = n;
+  var lineCount = (n.endLine && n.line) ? (n.endLine - n.line + 1) : '?';
+  var ccColor = n.cc > 10 ? '#f85149' : n.cc > 5 ? '#d29922' : '#3fb950';
+  var visColors = {public: '#3fb950', protected: '#d29922', private: '#8957e5'};
+  var visColor = visColors[n.visibility] || '#8b949e';
+
+  // Header
+  document.getElementById('panel-header').innerHTML =
+    '<div class="file-name">' + escapeHtml(n.displayLabel || n.name || n.id) + '()</div>' +
+    '<div class="file-path">' + escapeHtml(n.class || '') + ' &middot; ' + escapeHtml(n.file || n.path || '') + (n.line ? ':' + n.line : '') + '</div>' +
+    '<div class="badge-row">' +
+      '<span class="badge" style="color:' + visColor + ';background:' + visColor + '22;border-color:' + visColor + '55">' + (n.visibility || 'public') + '</span>' +
+      '<span class="badge" style="color:' + ccColor + ';background:' + ccColor + '22;border-color:' + ccColor + '55">CC ' + n.cc + '</span>' +
+      '<span class="badge">' + lineCount + ' lines</span>' +
+      (n.params > 0 ? '<span class="badge">' + n.params + ' param' + (n.params !== 1 ? 's' : '') + '</span>' : '') +
+    '</div>';
+
+  // Actions
+  var ghSvg = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+  var fileUrl = REPO && n.file ? 'https://github.com/' + REPO + '/blob/' + HEAD_COMMIT + '/' + n.file + (n.line ? '#L' + n.line : '') : '';
+  document.getElementById('panel-actions').innerHTML =
+    (fileUrl ? '<a class="btn btn-secondary" href="' + fileUrl + '" target="_blank" rel="noopener">' + ghSvg + ' View on GitHub</a>' : '');
+
+  // Bar: CC indicator
+  var ccPct = Math.min(100, Math.max(4, (n.cc / 15) * 100));
+  document.getElementById('panel-bar').innerHTML =
+    '<div class="change-bar"><div style="width:' + ccPct + '%;height:100%;background:' + ccColor + ';border-radius:2px"></div></div>' +
+    '<div class="change-bar-label"><span style="color:' + ccColor + '">Cyclomatic complexity: ' + n.cc + '</span><span>' + lineCount + ' lines</span></div>';
+
+  // Callers / callees (computed first so callLineMap is ready for code rendering)
+  var calleesLinks = links.filter(function(l) { return isLinkVisible(l) && l.source === n; });
+  var callersLinks = links.filter(function(l) { return isLinkVisible(l) && l.target === n; });
+
+  // line number → [target nodes] for clickable code rows
+  var callLineMap = {};
+  calleesLinks.forEach(function(l) {
+    if (l.callLine) {
+      if (!callLineMap[l.callLine]) callLineMap[l.callLine] = [];
+      callLineMap[l.callLine].push(l.target);
+    }
+  });
+
+  // Body
+  var bodyHtml = '';
+
+  // Metric cards
+  bodyHtml += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">';
+  function metCard(val, label, color) {
+    return '<div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px;text-align:center">' +
+      '<div style="font-size:22px;font-weight:bold;color:' + color + '">' + val + '</div>' +
+      '<div style="font-size:11px;color:#8b949e;margin-top:2px">' + label + '</div></div>';
+  }
+  bodyHtml += metCard(n.cc, 'Cyclomatic Complexity', ccColor);
+  bodyHtml += metCard(n.params, 'Parameters', '#c9d1d9');
+  bodyHtml += metCard(lineCount, 'Lines', '#c9d1d9');
+  bodyHtml += '</div>';
+
+  // Source code with clickable call lines
+  if (n.code) {
+    var codeLines = n.code.split('\n');
+    var codeRows = codeLines.map(function(line, i) {
+      var ln = (n.line || 1) + i;
+      var targets = callLineMap[ln];
+      var rowAttrs = targets
+        ? ' class="code-call-row" data-call-targets="' + targets.map(function(t) { return escapeHtml(t.id); }).join(',') + '" style="cursor:pointer;background:#0d3520"'
+        : '';
+      var indicator = targets
+        ? ' <span style="float:right;font-size:10px;color:#58a6ff;font-family:sans-serif">→ ' +
+            targets.map(function(t) { return escapeHtml(t.displayLabel || t.name || t.id); }).join(', ') +
+          '</span>'
+        : '';
+      return '<tr' + rowAttrs + '><td class="diff-ln">' + ln + '</td>' +
+        '<td class="diff-code diff-ctx">' + highlightPHP(line) + indicator + '</td></tr>';
+    }).join('');
+    bodyHtml += '<div class="diff-section"><h4>Source</h4>' +
+      '<table class="diff-table unified" style="font-size:12px">' + codeRows + '</table></div>';
+  }
+
+  function connItem(nd) {
+    var col = nd.domainColor || groupColor[nd.group] || '#8b949e';
+    return '<div class="dep-item" data-id="' + escapeHtml(nd.id) + '" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #21262d">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + col + ';flex-shrink:0;display:inline-block"></span>' +
+      '<span style="font-size:12px;color:#c9d1d9">' + escapeHtml(nd.displayLabel || nd.id) + '</span>' +
+      '<span style="font-size:11px;color:#8b949e;margin-left:auto">' + escapeHtml(nd.folder || nd.class || '') + '</span>' +
+    '</div>';
+  }
+
+  if (callersLinks.length > 0) {
+    bodyHtml += '<div class="dep-section"><h4>Called by (' + callersLinks.length + ')</h4>';
+    callersLinks.forEach(function(l) { bodyHtml += connItem(l.source); });
+    bodyHtml += '</div>';
+  }
+
+  document.getElementById('panel-body').innerHTML = bodyHtml;
+  document.getElementById('complexity-scroll-btn').classList.remove('visible');
+  document.getElementById('panel-body').onscroll = null;
+
+  // Wire call-line row clicks (navigate to callee panel)
+  document.querySelectorAll('.code-call-row').forEach(function(row) {
+    row.addEventListener('mouseenter', function() { row.style.background = '#1a4a2e'; });
+    row.addEventListener('mouseleave', function() { row.style.background = '#0d3520'; });
+    row.addEventListener('click', function() {
+      var ids = row.getAttribute('data-call-targets').split(',');
+      var nd = nodeMap[ids[0]];
+      if (nd) openPanel(nd);
+    });
+  });
+
+  // Wire dep-item clicks (called-by list)
+  document.querySelectorAll('.dep-item[data-id]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var nd = nodeMap[el.getAttribute('data-id')];
+      if (nd) openPanel(nd);
+    });
+  });
+
+  document.getElementById('panelBack').classList.toggle('visible', openedFromFiles);
+  panel.classList.add('open');
+  if (window.parent !== window) window.parent.postMessage({ type: 'panelOpened' }, '*');
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 function openPanel(n) {
+  if (n.code !== undefined) { renderMethodPanel(n); return; }
   selectedNode = n;
   const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
   const total = n.add + n.del;
@@ -1581,6 +1708,12 @@ function draw() {
     const isPathSelected = pathfindNodes.has(n.id);
     const dim = pathActive ? (!isPathNode && !isHov) : (activeRef && !isHov && !isSel && !isConn);
 
+    if (n.focal && !n.isConnected) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 8, 0, Math.PI * 2);
+      const focalGrad = ctx.createRadialGradient(n.x, n.y, n.r, n.x, n.y, n.r + 8);
+      focalGrad.addColorStop(0, n.color + '55'); focalGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = focalGrad; ctx.fill();
+    }
     if (n.status === 'added' && n.group !== 'test' && !n.isConnected) {
       ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2);
       const grad = ctx.createRadialGradient(n.x, n.y, n.r, n.x, n.y, n.r + 6);
@@ -1692,7 +1825,7 @@ function draw() {
     if (hasFolder) {
       const subSize = Math.max(7, fontSize * 0.7);
       ctx.font = subSize + 'px -apple-system, sans-serif';
-      ctx.fillStyle = dim ? '#8b949e15' : (n.isConnected ? '#48405880' : (n.color + '99'));
+      ctx.fillStyle = dim ? '#8b949e15' : (n.isConnected ? '#48405880' : '#ffffffaa');
       ctx.fillText(n.folder, n.x, labelY + fontSize * 0.9);
     }
 

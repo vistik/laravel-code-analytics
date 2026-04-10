@@ -23,6 +23,11 @@ enum FileGroup: string
     case CONFIG = 'config';
     case ROUTE = 'route';
     case OTHER = 'other';
+    // Method-graph visibility groups (used by code:file command)
+    case VIS_PUBLIC = 'vis_public';
+    case VIS_PROTECTED = 'vis_protected';
+    case VIS_PRIVATE = 'vis_private';
+    case VIS_EXTERNAL = 'vis_external';
 
     public function color(): string
     {
@@ -46,6 +51,10 @@ enum FileGroup: string
             self::CONFIG => '#ffa657',
             self::ROUTE => '#ffab70',
             self::OTHER => '#8b949e',
+            self::VIS_PUBLIC => '#79c0ff',
+            self::VIS_PROTECTED => '#e3b341',
+            self::VIS_PRIVATE => '#8957e5',
+            self::VIS_EXTERNAL => '#484f58',
         };
     }
 
@@ -70,7 +79,7 @@ enum FileGroup: string
             self::CONFIG => "{$action} configuration.",
             self::ROUTE => "{$action} route definition.",
             self::CONSOLE => "{$action} console command.",
-            self::OTHER => "{$action} file.",
+            self::OTHER, self::VIS_PUBLIC, self::VIS_PROTECTED, self::VIS_PRIVATE, self::VIS_EXTERNAL => "{$action} file.",
         };
     }
 
@@ -96,6 +105,10 @@ enum FileGroup: string
             self::CONFIG => 'Config',
             self::ROUTE => 'Route',
             self::OTHER => 'Other',
+            self::VIS_PUBLIC => 'Public',
+            self::VIS_PROTECTED => 'Protected',
+            self::VIS_PRIVATE => 'Private',
+            self::VIS_EXTERNAL => 'External',
         };
     }
 }

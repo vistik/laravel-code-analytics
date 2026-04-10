@@ -108,10 +108,17 @@ class GenerateHtmlReport implements ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?array $onlyLayouts = null,
     ): array {
         $layouts = $allLayouts || ! $outputPath
             ? GraphLayout::cases()
             : [$layout];
+        if ($onlyLayouts !== null) {
+            $layouts = array_values(array_filter(
+                GraphLayout::cases(),
+                fn (GraphLayout $g) => in_array($g->value, $onlyLayouts, true),
+            ));
+        }
 
         // Pre-determine all file paths so the layout switcher can be built upfront.
         $generatedFiles = [];
