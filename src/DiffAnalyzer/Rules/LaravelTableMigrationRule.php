@@ -113,7 +113,7 @@ class LaravelTableMigrationRule implements Rule
                     $criticalNote = $isCriticalTable ? ' (critical table — high lock risk)' : '';
                     $changes[] = new ClassifiedChange(
                         category: ChangeCategory::LARAVEL,
-                        severity: $isCriticalTable ? Severity::VERY_HIGH : Severity::MEDIUM,
+                        severity: $isCriticalTable ? Severity::VERY_HIGH : Severity::HIGH,
                         description: "Adds {$indexMethod} index to existing table{$tableLabel}{$criticalNote} — may lock table during migration",
                         location: $key,
                         line: $call->getStartLine(),
@@ -146,7 +146,7 @@ class LaravelTableMigrationRule implements Rule
                 $criticalNote = $isCriticalTable ? ' (critical table)' : '';
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::LARAVEL,
-                    severity: $isCriticalTable ? Severity::VERY_HIGH : Severity::MEDIUM,
+                    severity: $isCriticalTable ? Severity::VERY_HIGH : Severity::HIGH,
                     description: "Removes index ({$dropMethod}) from table{$tableLabel}{$criticalNote} — may break queries using that index",
                     location: $key,
                     line: $call->getStartLine(),

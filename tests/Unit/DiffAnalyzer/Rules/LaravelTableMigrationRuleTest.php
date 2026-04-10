@@ -24,7 +24,7 @@ class TestMigration extends Migration {
 
 // --- Index additions on existing tables ---
 
-it('flags index addition on existing table as warning', function () use ($migrationFile, $stub) {
+it('flags index addition on existing table as high', function () use ($migrationFile, $stub) {
     $old = $stub('');
     $new = $stub('Schema::table("products", function (Blueprint $table) { $table->index("status"); });');
 
@@ -34,13 +34,13 @@ it('flags index addition on existing table as warning', function () use ($migrat
     $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'existing table'));
 
     expect($hit)->not->toBeNull()
-        ->and($hit->severity)->toBe(Severity::MEDIUM)
+        ->and($hit->severity)->toBe(Severity::HIGH)
         ->and($hit->category)->toBe(ChangeCategory::LARAVEL)
         ->and($hit->description)->toContain('index')
         ->and($hit->description)->toContain('products');
 });
 
-it('flags unique index addition on existing table', function () use ($migrationFile, $stub) {
+it('flags unique index addition on existing table as high', function () use ($migrationFile, $stub) {
     $old = $stub('');
     $new = $stub('Schema::table("products", function (Blueprint $table) { $table->unique("slug"); });');
 
@@ -50,7 +50,7 @@ it('flags unique index addition on existing table', function () use ($migrationF
     $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'unique index'));
 
     expect($hit)->not->toBeNull()
-        ->and($hit->severity)->toBe(Severity::MEDIUM);
+        ->and($hit->severity)->toBe(Severity::HIGH);
 });
 
 it('includes line number for index addition', function () use ($migrationFile, $stub) {
@@ -84,7 +84,7 @@ it('flags index addition on new table as info only', function () use ($migration
 
 // --- Index removals ---
 
-it('flags index removal as warning', function () use ($migrationFile, $stub) {
+it('flags index removal as high', function () use ($migrationFile, $stub) {
     $old = $stub('');
     $new = $stub('Schema::table("products", function (Blueprint $table) { $table->dropIndex("products_status_index"); });');
 
@@ -94,12 +94,12 @@ it('flags index removal as warning', function () use ($migrationFile, $stub) {
     $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'Removes index'));
 
     expect($hit)->not->toBeNull()
-        ->and($hit->severity)->toBe(Severity::MEDIUM)
+        ->and($hit->severity)->toBe(Severity::HIGH)
         ->and($hit->description)->toContain('dropIndex')
         ->and($hit->description)->toContain('products');
 });
 
-it('flags unique index removal', function () use ($migrationFile, $stub) {
+it('flags unique index removal as high', function () use ($migrationFile, $stub) {
     $old = $stub('');
     $new = $stub('Schema::table("users", function (Blueprint $table) { $table->dropUnique("users_email_unique"); });');
 
@@ -109,7 +109,7 @@ it('flags unique index removal', function () use ($migrationFile, $stub) {
     $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'Removes index'));
 
     expect($hit)->not->toBeNull()
-        ->and($hit->severity)->toBe(Severity::MEDIUM)
+        ->and($hit->severity)->toBe(Severity::HIGH)
         ->and($hit->description)->toContain('dropUnique');
 });
 
@@ -156,7 +156,7 @@ it('elevates index removal on critical table to very high', function () use ($mi
         ->and($hit->description)->toContain('critical table');
 });
 
-it('does not elevate index addition on non-critical table', function () use ($migrationFile, $stub) {
+it('does not elevate index addition on non-critical table beyond high', function () use ($migrationFile, $stub) {
     $old = $stub('');
     $new = $stub('Schema::table("products", function (Blueprint $table) { $table->index("status"); });');
 
@@ -166,7 +166,7 @@ it('does not elevate index addition on non-critical table', function () use ($mi
     $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'existing table'));
 
     expect($hit)->not->toBeNull()
-        ->and($hit->severity)->toBe(Severity::MEDIUM)
+        ->and($hit->severity)->toBe(Severity::HIGH)
         ->and($hit->description)->not->toContain('critical table');
 });
 

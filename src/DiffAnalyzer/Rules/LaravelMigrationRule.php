@@ -96,7 +96,7 @@ class LaravelMigrationRule implements Rule
                 ),
                 'table' => $changes[] = new ClassifiedChange(
                     category: ChangeCategory::LARAVEL,
-                    severity: $this->isCriticalTable($tableName) ? Severity::VERY_HIGH : Severity::MEDIUM,
+                    severity: $this->isCriticalTable($tableName) ? Severity::VERY_HIGH : Severity::HIGH,
                     description: 'Migration modifies table'.$tableInfo.($this->isCriticalTable($tableName) ? ' (critical table — high lock risk)' : ''),
                     location: $key,
                     line: $call->getStartLine(),

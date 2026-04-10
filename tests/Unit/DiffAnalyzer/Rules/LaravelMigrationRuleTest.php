@@ -94,7 +94,7 @@ it('elevates schema table on critical table to very high', function () {
         ->and($hit->description)->toContain('critical table');
 });
 
-it('does not elevate schema table on non-critical table', function () {
+it('does not elevate schema table on non-critical table beyond high', function () {
     $old = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class AddBioToPostsTable extends Migration { public function up() { } public function down() { } }';
     $new = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class AddBioToPostsTable extends Migration { public function up() { Schema::table("posts", function (Blueprint $table) { $table->string("bio")->nullable(); }); } public function down() { } }';
 
@@ -107,7 +107,7 @@ it('does not elevate schema table on non-critical table', function () {
     $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'modifies table'));
 
     expect($hit)->not->toBeNull()
-        ->and($hit->severity)->toBe(Severity::MEDIUM)
+        ->and($hit->severity)->toBe(Severity::HIGH)
         ->and($hit->description)->not->toContain('critical table');
 });
 
