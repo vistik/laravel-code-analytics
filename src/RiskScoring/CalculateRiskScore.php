@@ -13,14 +13,17 @@ class CalculateRiskScore implements RiskScoring
     /** @var list<RiskFactor> */
     private array $factors;
 
-    public function __construct()
+    /** @param array<string, mixed> $config */
+    public function __construct(array $config = [])
     {
+        $config = array_replace_recursive(config('laravel-code-analytics.risk_scoring', []), $config);
+
         $this->factors = [
-            new ChangeSizeFactor,
-            new FileSpreadFactor,
-            new DeletionRatioFactor,
-            new SeverityFindingsFactor,
-            new PhpMetricsFactor,
+            new ChangeSizeFactor($config['change_size']),
+            new FileSpreadFactor($config['file_spread']),
+            new DeletionRatioFactor($config['deletion_ratio']),
+            new SeverityFindingsFactor($config['severity_findings']),
+            new PhpMetricsFactor($config['php_metrics']),
         ];
     }
 

@@ -7,6 +7,18 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 
 class ChangeSizeFactor implements RiskFactor
 {
+    private int $maxScore;
+
+    /** @var list<array{lines: int, score: int}> */
+    private array $thresholds;
+
+    /** @param array{max_score: int, thresholds: list<array{lines: int, score: int}>} $config */
+    public function __construct(array $config)
+    {
+        $this->maxScore = $config['max_score'];
+        $this->thresholds = $config['thresholds'];
+    }
+
     public function name(): string
     {
         return 'Change Size';
@@ -16,17 +28,17 @@ class ChangeSizeFactor implements RiskFactor
     {
         $totalLines = $data->additions + $data->deletions;
 
-        return match (true) {
-            $totalLines > 1000 => 25,
-            $totalLines > 500 => 15,
-            $totalLines > 200 => 10,
-            $totalLines > 50 => 5,
-            default => 0,
-        };
+        foreach ($this->thresholds as $threshold) {
+            if ($totalLines > $threshold['lines']) {
+                return $threshold['score'];
+            }
+        }
+
+        return 0;
     }
 
     public function maxScore(): int
     {
-        return 25;
+        return $this->maxScore;
     }
 }

@@ -7,6 +7,18 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 
 class FileSpreadFactor implements RiskFactor
 {
+    private int $maxScore;
+
+    /** @var list<array{files: int, score: int}> */
+    private array $thresholds;
+
+    /** @param array{max_score: int, thresholds: list<array{files: int, score: int}>} $config */
+    public function __construct(array $config)
+    {
+        $this->maxScore = $config['max_score'];
+        $this->thresholds = $config['thresholds'];
+    }
+
     public function name(): string
     {
         return 'File Spread';
@@ -14,17 +26,17 @@ class FileSpreadFactor implements RiskFactor
 
     public function score(RiskData $data): int
     {
-        return match (true) {
-            $data->fileCount > 30 => 10,
-            $data->fileCount > 15 => 7,
-            $data->fileCount > 8 => 4,
-            $data->fileCount > 3 => 2,
-            default => 0,
-        };
+        foreach ($this->thresholds as $threshold) {
+            if ($data->fileCount > $threshold['files']) {
+                return $threshold['score'];
+            }
+        }
+
+        return 0;
     }
 
     public function maxScore(): int
     {
-        return 10;
+        return $this->maxScore;
     }
 }

@@ -7,6 +7,18 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
 
 class PhpMetricsFactor implements RiskFactor
 {
+    private int $maxScore;
+
+    /** @var list<array{hotspots: int, score: int}> */
+    private array $thresholds;
+
+    /** @param array{max_score: int, thresholds: list<array{hotspots: int, score: int}>} $config */
+    public function __construct(array $config)
+    {
+        $this->maxScore = $config['max_score'];
+        $this->thresholds = $config['thresholds'];
+    }
+
     public function name(): string
     {
         return 'PHP Code Quality';
@@ -14,18 +26,17 @@ class PhpMetricsFactor implements RiskFactor
 
     public function score(RiskData $data): int
     {
-        return match (true) {
-            $data->phpHotSpots >= 11 => 15,
-            $data->phpHotSpots >= 8 => 12,
-            $data->phpHotSpots >= 5 => 9,
-            $data->phpHotSpots >= 3 => 6,
-            $data->phpHotSpots >= 1 => 3,
-            default => 0,
-        };
+        foreach ($this->thresholds as $threshold) {
+            if ($data->phpHotSpots >= $threshold['hotspots']) {
+                return $threshold['score'];
+            }
+        }
+
+        return 0;
     }
 
     public function maxScore(): int
     {
-        return 15;
+        return $this->maxScore;
     }
 }
