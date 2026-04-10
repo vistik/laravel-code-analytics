@@ -9,6 +9,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\DiffParser;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
@@ -92,6 +93,7 @@ class AnalyzeCode
         ?array $filePatterns = null,
         bool $raw = false,
         bool $includeFileContents = false,
+        bool $githubMetrics = false,
         array $filterDefaults = [],
     ): array {
         $this->onProgress = $onProgress;
@@ -249,6 +251,7 @@ class AnalyzeCode
             }
         }
 
+        $fileReferences = [];
         foreach ($phpFiles as $node) {
             $content = $headContents[$node['path']] ?? null;
             if ($content === null || $content === '') {
@@ -257,6 +260,7 @@ class AnalyzeCode
             $references = $this->extractReferences($content);
             $this->matchReferences($references, $node['id']);
             $this->matchViewReferences($content, $node['id']);
+            $fileReferences[$node['path']] = $references;
         }
 
         foreach ($frontendFiles as $node) {
@@ -321,6 +325,37 @@ class AnalyzeCode
                 'location' => $c->location,
                 'line' => $c->line,
             ], fn ($v) => $v !== null), $report->changes);
+        }
+
+        // ── Inject dependency detections as code analysis findings ────────────
+        $depTypeLabels = [
+            PhpDependencyExtractor::CONSTRUCTOR_INJECTION => 'constructor injection',
+            PhpDependencyExtractor::METHOD_INJECTION => 'method injection',
+            PhpDependencyExtractor::NEW_INSTANCE => 'new instance',
+            PhpDependencyExtractor::CONTAINER_RESOLVED => 'container resolved',
+            PhpDependencyExtractor::STATIC_CALL => 'static call',
+            PhpDependencyExtractor::EXTENDS_REFERENCE => 'extends',
+            PhpDependencyExtractor::IMPLEMENTS_REFERENCE => 'implements',
+            PhpDependencyExtractor::PROPERTY_TYPE => 'property type',
+        ];
+        $skipTypes = [PhpDependencyExtractor::RETURN_TYPE, PhpDependencyExtractor::USE];
+        foreach ($fileReferences as $filePath => $references) {
+            if (! isset($analysisData[$filePath])) {
+                continue;
+            }
+            foreach ($references as $class => $type) {
+                if (in_array($type, $skipTypes, true)) {
+                    continue; // skip return types and bare use imports — too noisy
+                }
+                $shortName = basename(str_replace('\\', '/', ltrim($class, '\\')));
+                $entry = array_filter([
+                    'category' => ChangeCategory::DEPENDENCY->value,
+                    'severity' => Severity::INFO->value,
+                    'description' => 'Depends on '.$shortName.' ('.($depTypeLabels[$type] ?? $type).')',
+                    'location' => $type === PhpDependencyExtractor::CONSTRUCTOR_INJECTION ? '__construct' : null,
+                ], fn ($v) => $v !== null);
+                $analysisData[$filePath][] = $entry;
+            }
         }
 
         // ── Compute metrics ───────────────────────────────────────────────────
@@ -388,7 +423,7 @@ class AnalyzeCode
             $filterDefaults = config('laravel-code-analytics.filter_defaults', []);
         }
 
-        $reportGenerator = $format->generator();
+        $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
         $content = $reportGenerator->generate(
             nodes: $nodes,
             edges: $this->edges,
@@ -1143,7 +1178,7 @@ class AnalyzeCode
         return (new PhpDependencyExtractor)->extract($content);
     }
 
-    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::TYPE_REFERENCE): void
+    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::USE): void
     {
         if ($sourceId === $targetId) {
             return;

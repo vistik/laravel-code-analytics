@@ -34,6 +34,10 @@ enum ChangeCategory: string
     case CACHE_ADDED = 'cache_added';
     case CACHE_MODIFIED = 'cache_modified';
     case CACHE_REMOVED = 'cache_removed';
+    case DB_QUERY_ADDED = 'db_query_added';
+    case DB_QUERY_MODIFIED = 'db_query_modified';
+    case DB_QUERY_REMOVED = 'db_query_removed';
+    case DEPENDENCY = 'dependency';
 
     public function shortDescription(): string
     {
@@ -68,6 +72,10 @@ enum ChangeCategory: string
             self::CACHE_ADDED => 'Cache operation additions',
             self::CACHE_MODIFIED => 'Cache operation modifications',
             self::CACHE_REMOVED => 'Cache operation removals',
+            self::DB_QUERY_ADDED => 'DB facade query additions',
+            self::DB_QUERY_MODIFIED => 'DB facade query modifications',
+            self::DB_QUERY_REMOVED => 'DB facade query removals',
+            self::DEPENDENCY => 'Class dependency detections',
         };
     }
 }

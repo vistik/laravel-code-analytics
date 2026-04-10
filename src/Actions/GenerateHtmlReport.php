@@ -226,7 +226,7 @@ class GenerateHtmlReport implements ReportGenerator
         ];
         $filterDefaultsJson = json_encode($resolvedDefaults, JSON_HEX_TAG);
 
-        return view('laravel-code-analytics::analysis.inner', [
+        return view()->file(__DIR__.'/../../resources/views/analysis/inner.blade.php', [
             'prNumber' => $prNumber,
             'prTitle' => $prTitle,
             'prUrl' => $prUrl,
@@ -859,7 +859,7 @@ class GenerateHtmlReport implements ReportGenerator
         $wrapperMetricsJson = json_encode($metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $wrapperSeverityJs = $this->buildSeverityDataJs();
 
-        return view('laravel-code-analytics::analysis.wrapper', [
+        return view()->file(__DIR__.'/../../resources/views/analysis/wrapper.blade.php', [
             'prNumber' => $prNumber,
             'escapedTitle' => $escapedTitle,
             'headlineHtml' => $headlineHtml,

@@ -381,7 +381,7 @@ const nodes = filesData.map((f, i) => {
   return node;
 });
 
-const links = edgesData.map(([s, t, type]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'type_reference' })).filter(l => l.source && l.target);
+const links = edgesData.map(([s, t, type]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use' })).filter(l => l.source && l.target);
 
 // ── Visibility toggles ────────────────────────────────────────────────────────
 let selectedNode = null;
@@ -1048,8 +1048,8 @@ function openPanel(n) {
     bodyHtml += '<div class="deps-section"><h4>Summary</h4><p style="font-size:13px;color:#c9d1d9;line-height:1.6">' + n.desc + '</p></div>';
   }
 
-  var depTypeLabel = { constructor_injection: 'injected', method_injection: 'method param', new_instance: 'new', container_resolved: 'app()', static_call: 'static', type_reference: 'type' };
-  var depTypeBadgeColor = { constructor_injection: '#1f6feb', method_injection: '#388bfd', new_instance: '#d29922', container_resolved: '#8957e5', static_call: '#6e7681', type_reference: '#30363d' };
+  var depTypeLabel = { constructor_injection: 'injected', method_injection: 'method param', new_instance: 'new', container_resolved: 'app()', static_call: 'static', extends: 'extends', implements: 'implements', property_type: 'property', return_type: 'return type', use: 'use' };
+  var depTypeBadgeColor = { constructor_injection: '#1f6feb', method_injection: '#388bfd', new_instance: '#d29922', container_resolved: '#8957e5', static_call: '#6e7681', extends: '#f78166', implements: '#ffa657', property_type: '#3fb950', return_type: '#79c0ff', use: '#30363d' };
   if (dependsOn.length) {
     bodyHtml += '<div class="deps-section"><h4>Depends on (' + dependsOn.length + ')</h4>';
     for (const l of dependsOnLinks) {
@@ -1483,13 +1483,13 @@ function draw() {
 
     // Line — style varies by dependency type
     // constructor_injection: solid, thicker | method_injection: solid | new_instance: long dash
-    // container_resolved: dash-dot | static_call: dotted | type_reference: faint solid
+    // container_resolved: dash-dot | static_call: dotted | use: faint solid
     var depDash = [];
     if (!isConnEdge) {
       if      (l.depType === 'new_instance')       depDash = [8, 4];
       else if (l.depType === 'container_resolved') depDash = [6, 3, 2, 3];
       else if (l.depType === 'static_call')        depDash = [2, 4];
-      else if (l.depType === 'type_reference')     depDash = [3, 6];
+      else if (l.depType === 'use')                depDash = [3, 6];
     }
     ctx.beginPath(); ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y);
     if (isConnEdge && !highlight) {
