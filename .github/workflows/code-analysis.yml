@@ -27,6 +27,10 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin ${{ github.base_ref }}
 
+      - name: Compute merge base
+        id: merge_base
+        run: echo "sha=$(git merge-base origin/${{ github.base_ref }} HEAD)" >> $GITHUB_OUTPUT
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -39,7 +43,7 @@ jobs:
       - name: Annotate PR with very high severity findings
         run: |
           ./testbench code:analyze \
-            --base=origin/${{ github.base_ref }} \
+            --base=${{ steps.merge_base.outputs.sha }} \
             --format=github \
             --min-severity=very_high \
             --no-ansi \
@@ -48,7 +52,7 @@ jobs:
       - name: Generate HTML report
         run: |
           ./testbench code:analyze \
-            --base=origin/${{ github.base_ref }} \
+            --base=${{ steps.merge_base.outputs.sha }} \
             --full-files \
             --format=html \
             --title="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
@@ -59,7 +63,7 @@ jobs:
         id: metrics
         run: |
           SUMMARY=$(./testbench code:analyze \
-            --base=origin/${{ github.base_ref }} \
+            --base=${{ steps.merge_base.outputs.sha }} \
             --format=metrics \
             --no-ansi \
             . 2>&1 || true)
