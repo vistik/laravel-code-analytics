@@ -5,6 +5,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 use Closure;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\ViewFileDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
@@ -261,7 +262,7 @@ class AnalyzeCode
             }
             $references = $this->extractReferences($content);
             $this->matchReferences($references, $node['id']);
-            $this->matchViewReferences($content, $node['id']);
+            $this->matchViewReferences($content, $node['id'], $node['path']);
             $fileReferences[$node['path']] = $references;
         }
 
@@ -1233,7 +1234,7 @@ class AnalyzeCode
         }
     }
 
-    private function matchViewReferences(string $content, string $sourceNodeId): void
+    private function matchViewReferences(string $content, string $sourceNodeId, string $sourcePath = ''): void
     {
         preg_match_all('/(?:Inertia::render|inertia)\s*\(\s*[\'"]([^\'"]+)[\'"]/m', $content, $inertiaMatches);
         foreach ($inertiaMatches[1] as $page) {
@@ -1249,6 +1250,12 @@ class AnalyzeCode
         preg_match_all('/\bview\s*\(\s*[\'"]([^\'"]+)[\'"]/m', $content, $viewMatches);
         foreach ($viewMatches[1] as $view) {
             $viewPath = 'resources/views/'.str_replace('.', '/', $view).'.blade.php';
+            if (isset($this->pathToNode[$viewPath])) {
+                $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+            }
+        }
+
+        foreach ((new ViewFileDependencyRule)->resolve($content, $sourcePath) as $viewPath) {
             if (isset($this->pathToNode[$viewPath])) {
                 $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
             }
