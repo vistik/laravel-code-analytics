@@ -10,6 +10,10 @@
                 "command": "./testbench code:analyze --format=html --open --full-files"
             },
             {
+                "label": "Analyze code (--format=html --full-files --min-severity=medium)",
+                "command": "./testbench code:analyze --format=html --open --full-files --min-severity=medium"
+            },
+            {
                 "label": "Analyze code (--format=html --all)",
                 "command": "./testbench code:analyze --format=html --open --all"
             },
