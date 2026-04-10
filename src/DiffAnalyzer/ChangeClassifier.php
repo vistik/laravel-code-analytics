@@ -20,6 +20,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ImportRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelApiResourceRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelAuthRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelCacheRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentAddedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentDefaultChangedRule;
@@ -101,6 +102,7 @@ class ChangeClassifier
                 new LaravelNotificationRule,
                 new LaravelServiceContainerRule,
                 new LaravelConfigRule,
+                new LaravelConfigDependencyRule($this->repoPath),
                 new LaravelApiResourceRule,
                 new LaravelLivewireRule,
                 new LaravelConsoleRule,
