@@ -771,6 +771,7 @@ class AnalyzeCode
         foreach ($paths as $path) {
             if ($pos >= $len) {
                 $headContents[$path] = null;
+
                 continue;
             }
 
@@ -785,6 +786,7 @@ class AnalyzeCode
 
             if (str_ends_with($header, ' missing')) {
                 $headContents[$path] = null;
+
                 continue;
             }
 
