@@ -856,7 +856,7 @@
     resizeOverlay.style.display = 'none';
   });
 
-  show('force');
+  show('{{ $defaultView }}');
 </script>
 </body>
 </html>

@@ -8,6 +8,7 @@ use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 
 use function Laravel\Prompts\select;
@@ -44,7 +45,10 @@ class CodeAnalyzeCommand extends Command
             $outputPath = $this->argument('output') ?? $config['output'] ?? null;
             $baseBranch = $this->option('base') ?? $config['base'] ?? 'main';
             $title = $this->option('title') ?? $config['title'] ?? null;
-            $view = $this->option('view') ?? $config['view'] ?? null;
+            $viewString = $this->option('view') ?? $config['view'] ?? null;
+            $view = $viewString !== null
+                ? (GraphLayout::tryFrom($viewString) ?? throw new RuntimeException("Invalid view: {$viewString}. Valid options: force, tree, grouped, cake, arch"))
+                : GraphLayout::Force;
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details, github");

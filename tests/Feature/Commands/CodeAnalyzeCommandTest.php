@@ -1,6 +1,7 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 it('fails when the path is not a git repo', function () {
@@ -181,7 +182,7 @@ it('passes custom view from --view option to execute', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === 'tree')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === GraphLayout::Tree)
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -195,7 +196,7 @@ it('passes custom view from config to execute', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === 'arch')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === GraphLayout::Arch)
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
@@ -211,7 +212,7 @@ it('cli --view takes precedence over config view', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
-            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === 'grouped')
+            ->withArgs(fn ($repoPath, $outputPath, $baseBranch, $prUrl, $all, $title, $view) => $view === GraphLayout::Grouped)
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
