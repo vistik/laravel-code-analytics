@@ -3,8 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\RiskScoring\Factors;
 
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskData;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;
-use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\FileSpreadFactor; // TEMP: fake cycle for testing
+use Vistik\LaravelCodeAnalytics\RiskScoring\RiskFactor;// TEMP: fake cycle for testing
 
 class DeletionRatioFactor implements RiskFactor
 {

@@ -3,7 +3,8 @@
 namespace Vistik\LaravelCodeAnalytics\FileSignal;
 
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
-use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore; // TEMP: fake cycle for testing
+
+// TEMP: fake cycle for testing
 
 class CalculateFileSignal implements FileSignalScoring
 {

@@ -1,7 +1,7 @@
 <?php
 
-use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsDetailsReport;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 
 function metricsNode(string $path, ?int $cycleId = null): array
 {

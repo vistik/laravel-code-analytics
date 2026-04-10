@@ -1,7 +1,6 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null): array
 {
