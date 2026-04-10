@@ -6,6 +6,7 @@ use Vistik\LaravelCodeAnalytics\Renderers\ForceGraphRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\GroupedRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayeredArchRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
+use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Renderers\LayoutRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\TreeRenderer;
 
@@ -28,15 +29,14 @@ enum GraphLayout: string
         };
     }
 
-    /** @return class-string<LayoutRenderer> */
-    public function renderer(): string
+    public function renderer(?LayerStack $stack = null): LayoutRenderer
     {
         return match ($this) {
-            self::Force => ForceGraphRenderer::class,
-            self::Tree => TreeRenderer::class,
-            self::Grouped => GroupedRenderer::class,
-            self::Cake => LayeredCakeRenderer::class,
-            self::Arch => LayeredArchRenderer::class,
+            self::Force => new ForceGraphRenderer,
+            self::Tree => new TreeRenderer,
+            self::Grouped => new GroupedRenderer,
+            self::Cake => new LayeredCakeRenderer($stack),
+            self::Arch => new LayeredArchRenderer($stack),
         };
     }
 }

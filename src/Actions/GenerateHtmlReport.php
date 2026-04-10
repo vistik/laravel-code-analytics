@@ -11,8 +11,6 @@ use Vistik\LaravelCodeAnalytics\PhpMetrics\MetricTrend;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsBadgeDeciderInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsScorerInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\WeightedDegradationScorer;
-use Vistik\LaravelCodeAnalytics\Renderers\LayeredArchRenderer;
-use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
@@ -187,9 +185,7 @@ class GenerateHtmlReport implements ReportGenerator
         array $fileContents = [],
         array $filterDefaults = [],
     ): string {
-        $rendererClass = $layout->renderer();
-        $isLayered = in_array($rendererClass, [LayeredCakeRenderer::class, LayeredArchRenderer::class]);
-        $renderer = $isLayered ? new $rendererClass($layerStack) : new $rendererClass;
+        $renderer = $layout->renderer($layerStack);
 
         $nodesJson = json_encode($nodes, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $edgesJson = json_encode($edges, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
