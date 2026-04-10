@@ -55,6 +55,16 @@ readonly class LayerStack implements Countable
         return config('analysis.layer_stack') ?? self::default();
     }
 
+    public static function forMethodGraph(): self
+    {
+        return new self(
+            new CakeLayer('Public', '#79c0ff', [FileGroup::VIS_PUBLIC]),
+            new CakeLayer('Protected', '#e3b341', [FileGroup::VIS_PROTECTED]),
+            new CakeLayer('Private', '#8957e5', [FileGroup::VIS_PRIVATE]),
+            new CakeLayer('External', '#484f58', [FileGroup::VIS_EXTERNAL]),
+        );
+    }
+
     /**
      * @param  array{layers: array<array{label: string, color: string, groups: string[]}>}  $data
      */
