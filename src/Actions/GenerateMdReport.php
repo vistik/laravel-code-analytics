@@ -3,8 +3,8 @@
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
-use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateMdReport implements ReportGenerator

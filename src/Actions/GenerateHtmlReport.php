@@ -18,7 +18,6 @@ use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateHtmlReport implements ReportGenerator
 {
-
     public function __construct(
         private readonly PhpMetricsScorerInterface $metricsScorer = new WeightedDegradationScorer,
         private readonly PhpMetricsBadgeDeciderInterface $metricsBadgeDecider = new HotspotRatioBadgeDecider,
