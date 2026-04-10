@@ -570,7 +570,7 @@ class AnalyzeCode
             'files' => $files,
             'totalAdditions' => $totalAdditions,
             'totalDeletions' => $totalDeletions,
-            'repoName' => basename($this->prRepo),
+            'repoName' => $this->prRepo,
             'prTitle' => $prJson['title'],
         ];
     }
@@ -665,7 +665,12 @@ class AnalyzeCode
             throw new RuntimeException('Could not resolve HEAD commit.');
         }
 
-        $repoName = basename($this->repoPath);
+        $remoteUrl = trim(shell_exec("git -C {$this->repoPath} remote get-url origin 2>/dev/null") ?? '');
+        if (preg_match('#github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$#', $remoteUrl, $rm)) {
+            $repoName = $rm[1];
+        } else {
+            $repoName = basename($this->repoPath);
+        }
         $this->isLaravel = file_exists("{$this->repoPath}/artisan");
 
         if ($full) {

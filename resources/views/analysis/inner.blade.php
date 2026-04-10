@@ -250,7 +250,7 @@
 <div class="tooltip" id="tooltip"></div>
 
 <div class="title-bar">
-  <h2><a href="{{ $prUrl }}" target="_blank">PR #{{ $prNumber }}</a> — {{ $prTitle }}</h2>
+  <h2>@if($prUrl)<a href="{{ $prUrl }}" target="_blank" rel="noopener">PR #{{ $prNumber }}</a> —@endif {{ $prTitle }}</h2>
   <p>{{ $fileCount }} files changed &middot; +{{ $prAdditions }} &minus;{{ $prDeletions }} &middot; <span id="reviewedCount" style="color:#3fb950"></span></p>
   <div class="layout-switcher">{!! $layoutSwitcher !!}</div>
 </div>
@@ -835,7 +835,7 @@ function placeAnnotationDots() {
 // ── Panel ─────────────────────────────────────────────────────────────────────
 function openPanel(n) {
   selectedNode = n;
-  const ghFileUrl = PR_URL + '/changes#diff-' + n.hash;
+  const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
   const total = n.add + n.del;
   const addPct = total > 0 ? (n.add / total * 100) : 0;
   const delPct = total > 0 ? (n.del / total * 100) : 0;
@@ -865,18 +865,15 @@ function openPanel(n) {
   var reviewBtn = '<button class="btn ' + (isReviewed ? 'btn-reviewed' : 'btn-review') + '" id="reviewBtn">' +
     (isReviewed ? '&#10003; Reviewed' : '&#9744; Mark as reviewed') + '</button>';
 
+  var ghSvg = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
   if (n.isConnected) {
+    var fileUrl = REPO ? 'https://github.com/' + REPO + '/blob/' + HEAD_COMMIT + '/' + n.path : '';
     document.getElementById('panel-actions').innerHTML =
-      '<a class="btn btn-secondary" href="https://github.com/' + REPO + '/blob/' + HEAD_COMMIT + '/' + n.path + '" target="_blank" rel="noopener">' +
-        '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>' +
-        'View file on GitHub' +
-      '</a>' + reviewBtn;
+      (fileUrl ? '<a class="btn btn-secondary" href="' + fileUrl + '" target="_blank" rel="noopener">' + ghSvg + 'View file on GitHub</a>' : '') +
+      reviewBtn;
   } else {
     document.getElementById('panel-actions').innerHTML =
-      '<a class="btn btn-primary" href="' + ghFileUrl + '" target="_blank" rel="noopener">' +
-        '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>' +
-        'View diff on GitHub' +
-      '</a>' +
+      (PR_URL ? '<a class="btn btn-primary" href="' + ghFileUrl + '" target="_blank" rel="noopener">' + ghSvg + 'View diff on GitHub</a>' : '') +
       reviewBtn;
   }
 
