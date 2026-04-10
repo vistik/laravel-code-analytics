@@ -59,7 +59,7 @@ class ChangeClassifier
     private array $rules;
 
     /**
-     * @param list<string> $criticalTables
+     * @param  list<string>  $criticalTables
      */
     public function __construct(AstComparer $comparer, bool $isLaravel = true, private readonly ?string $repoPath = null, private readonly array $criticalTables = [])
     {
