@@ -67,6 +67,16 @@ class CodeAnalyzeCommand extends Command
 
             $filePatterns = $this->option('file') ?: ($config['file'] ?? null) ?: null;
 
+            $raw = ! $openFile && $outputPath === null;
+
+            $onProgress = $raw ? null : function (string $level, string $message): void {
+                match ($level) {
+                    'info' => $this->info($message),
+                    'warn' => $this->warn($message),
+                    default => $this->line($message),
+                };
+            };
+
             $result = $action->execute(
                 repoPath: $repoPath,
                 outputPath: $outputPath,
@@ -79,8 +89,8 @@ class CodeAnalyzeCommand extends Command
                 minSeverity: $minSeverity,
                 watchedFiles: $config['watched_files'] ?? null,
                 filePatterns: $filePatterns ?: null,
-                onProgress: null,
-                raw: ! $openFile && $outputPath === null,
+                onProgress: $onProgress,
+                raw: $raw,
                 includeFileContents: $includeFileContents,
             );
 
