@@ -24,20 +24,6 @@ class MinSeverityFilter
     ): array {
         $minScore = $minSeverity->score();
 
-        $nodes = array_values(array_filter($nodes, function (array $node) use ($minScore): bool {
-            if ($node['severity'] === null) {
-                return false;
-            }
-
-            return Severity::from($node['severity'])->score() >= $minScore;
-        }));
-
-        $filteredPaths = array_column($nodes, 'path');
-        $analysisData = array_intersect_key($analysisData, array_flip($filteredPaths));
-        $metricsData = array_intersect_key($metricsData, array_flip($filteredPaths));
-        $fileDiffs = array_intersect_key($fileDiffs, array_flip($filteredPaths));
-        $fileContents = array_intersect_key($fileContents, array_flip($filteredPaths));
-
         foreach ($analysisData as &$reports) {
             $reports = array_values(array_filter($reports, fn ($r) => Severity::from($r['severity'])->score() >= $minScore));
         }

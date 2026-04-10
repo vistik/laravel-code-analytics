@@ -29,32 +29,18 @@ function applyFilter(array $nodes, array $analysisData, Severity $min): array
     return (new MinSeverityFilter)->apply($nodes, $analysisData, [], [], $min);
 }
 
-// ── File-level filtering ──────────────────────────────────────────────────────
+// ── File-level inclusion ──────────────────────────────────────────────────────
 
-it('keeps files whose max severity meets the minimum', function () {
-    $nodes = [makeNode('app/Foo.php', 'high')];
+it('keeps all files regardless of their max severity', function () {
+    $nodes = [makeNode('app/High.php', 'high'), makeNode('app/Low.php', 'low')];
     $result = applyFilter($nodes, [], Severity::HIGH);
 
-    expect($result['nodes'])->toHaveCount(1);
+    expect($result['nodes'])->toHaveCount(2);
 });
 
-it('excludes files whose max severity is below the minimum', function () {
-    $nodes = [makeNode('app/Foo.php', 'low')];
-    $result = applyFilter($nodes, [], Severity::HIGH);
-
-    expect($result['nodes'])->toBeEmpty();
-});
-
-it('excludes files with no findings when min-severity is set', function () {
+it('keeps files with no findings when min-severity is set', function () {
     $nodes = [makeNode('app/Foo.jsx', null)];
     $result = applyFilter($nodes, [], Severity::LOW);
-
-    expect($result['nodes'])->toBeEmpty();
-});
-
-it('keeps files with very_high severity regardless of min threshold', function () {
-    $nodes = [makeNode('app/Foo.php', 'very_high')];
-    $result = applyFilter($nodes, [], Severity::VERY_HIGH);
 
     expect($result['nodes'])->toHaveCount(1);
 });
@@ -132,33 +118,35 @@ it('recalculates per-severity counts correctly after filtering', function () {
 
 // ── analysisData / metricsData / fileDiffs scoping ───────────────────────────
 
-it('drops analysisData for excluded files', function () {
+it('filters analysisData findings but keeps all files in the result', function () {
     $nodes = [
-        makeNode('app/Keep.php', 'high'),
-        makeNode('app/Drop.php', 'low'),
+        makeNode('app/High.php', 'high'),
+        makeNode('app/Low.php', 'low'),
     ];
     $analysisData = [
-        'app/Keep.php' => [makeSeverityReport('high')],
-        'app/Drop.php' => [makeSeverityReport('low')],
+        'app/High.php' => [makeSeverityReport('high')],
+        'app/Low.php' => [makeSeverityReport('low')],
     ];
 
     $result = applyFilter($nodes, $analysisData, Severity::HIGH);
 
-    expect($result['analysisData'])->toHaveKey('app/Keep.php')
-        ->not->toHaveKey('app/Drop.php');
+    expect($result['nodes'])->toHaveCount(2)
+        ->and($result['analysisData'])->toHaveKey('app/High.php')
+        ->and($result['analysisData']['app/High.php'])->toHaveCount(1)
+        ->and($result['analysisData']['app/Low.php'])->toHaveCount(0);
 });
 
-it('drops metricsData and fileDiffs for excluded files', function () {
-    $nodes = [makeNode('app/Drop.php', 'low')];
+it('preserves metricsData and fileDiffs for all files', function () {
+    $nodes = [makeNode('app/Low.php', 'low')];
     $filter = new MinSeverityFilter;
     $result = $filter->apply(
         $nodes,
         [],
-        ['app/Drop.php' => ['cc' => 5]],
-        ['app/Drop.php' => 'diff content'],
+        ['app/Low.php' => ['cc' => 5]],
+        ['app/Low.php' => 'diff content'],
         Severity::HIGH,
     );
 
-    expect($result['metricsData'])->not->toHaveKey('app/Drop.php')
-        ->and($result['fileDiffs'])->not->toHaveKey('app/Drop.php');
+    expect($result['metricsData'])->toHaveKey('app/Low.php')
+        ->and($result['fileDiffs'])->toHaveKey('app/Low.php');
 });
