@@ -327,7 +327,7 @@ class MethodCallGraphExtractor
     /**
      * @param  list<string>  $fileMethodIds
      * @param  array<string,string>  $propTypeMap  propName → shortClassName
-     * @param  array<string,string>  $useMap       shortName → FQCN
+     * @param  array<string,string>  $useMap  shortName → FQCN
      * @param  list<array{0:string,1:string,2:string,3:int}>  $edges
      * @param  array<string,array<string,mixed>>  $externalStubs
      * @param  array<string,string>  $discoveredFqcns  shortName → FQCN
@@ -549,7 +549,6 @@ class MethodCallGraphExtractor
      * Handles: promoted params, nullable types, `$this->p = $arg`, `$this->p = new Foo()`,
      * and `$this->p = $arg ?? new Foo()`.
      *
-     * @param  Stmt\Class_|Stmt\Trait_|Stmt\Interface_|Stmt\Enum_  $classLike
      * @param  array<string,string>  $useMap
      * @return array<string,string>
      */
