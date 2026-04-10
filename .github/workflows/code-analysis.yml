@@ -36,6 +36,15 @@ jobs:
       - name: Install composer dependencies
         uses: ramsey/composer-install@v4
 
+      - name: Annotate PR with very high severity findings
+        run: |
+          ./testbench code:analyze \
+            --base=origin/${{ github.base_ref }} \
+            --format=github \
+            --min-severity=very_high \
+            --no-ansi \
+            . 2>&1 || true
+
       - name: Generate HTML report
         run: |
           ./testbench code:analyze \
