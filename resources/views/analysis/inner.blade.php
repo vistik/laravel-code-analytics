@@ -439,6 +439,7 @@ function markReviewed(n) {
   updateReviewedCount();
   clearHidden();
   if (window.parent !== window) window.parent.postMessage({ type: 'fileReviewed', nodeId: n.id }, '*');
+  closePanel();
 }
 
 function unmarkReviewed(n) {
