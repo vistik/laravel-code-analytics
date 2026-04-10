@@ -15,7 +15,7 @@ class CodeAnalyzeCommand extends Command
     protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}
         {output? : Output file path (HTML, Markdown, or JSON depending on --format)}
-        {--base= : Base branch or commit to diff against (default: main)}
+        {--base= : Base branch or commit to diff against (default: main). Use HEAD to see only uncommitted changes}
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
         {--all : Analyze all tracked files instead of just the diff}
         {--title= : Custom title for the analysis report}

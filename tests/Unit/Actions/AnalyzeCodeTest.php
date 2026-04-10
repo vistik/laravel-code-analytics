@@ -547,6 +547,81 @@ describe('execute — progress callback', function () {
     });
 });
 
+// ── execute — HEAD base ───────────────────────────────────────────────────────
+
+describe('execute — HEAD base', function () {
+    it('uses "uncommitted changes on <branch>" as title and shows "(uncommitted only)" in progress', function () {
+        $dir = makeTempGitRepo();
+        addAndStageFile($dir, 'new-file.php', '<?php echo "hello";');
+
+        $messages = [];
+        (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'HEAD',
+            format: OutputFormat::JSON,
+            raw: true,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+        );
+
+        removeTempDir($dir);
+
+        $infoText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'info')->pluck(1)->all());
+        $lineText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'line')->pluck(1)->all());
+
+        expect($infoText)->toContain('uncommitted changes on')
+            ->and($lineText)->toContain('(uncommitted only)');
+    });
+
+    it('returns empty files and warns "No uncommitted changes found." when there is no diff', function () {
+        $dir = makeTempGitRepo();
+        // No uncommitted changes after the initial commit
+
+        $messages = [];
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'HEAD',
+            format: OutputFormat::JSON,
+            raw: true,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+        );
+
+        removeTempDir($dir);
+
+        $warnText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'warn')->pluck(1)->all());
+
+        expect($result['files'])->toBeEmpty()
+            ->and($warnText)->toContain('No uncommitted changes found.');
+    });
+
+    it('detects HEAD base when passing the literal current commit hash', function () {
+        $dir = makeTempGitRepo();
+        addAndStageFile($dir, 'new-file.php', '<?php echo "hello";');
+
+        $currentHash = trim(shell_exec("git -C {$dir} rev-parse HEAD 2>/dev/null") ?? '');
+
+        $messages = [];
+        (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: $currentHash,
+            format: OutputFormat::JSON,
+            raw: true,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+        );
+
+        removeTempDir($dir);
+
+        $infoText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'info')->pluck(1)->all());
+
+        expect($infoText)->toContain('uncommitted changes on');
+    });
+});
+
 // ── execute — file pattern filter ────────────────────────────────────────────
 
 describe('execute — file pattern filter', function () {
