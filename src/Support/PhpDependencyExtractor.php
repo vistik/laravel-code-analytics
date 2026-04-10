@@ -16,7 +16,6 @@ use PhpParser\Node\UnionType;
 use PhpParser\NodeFinder;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
-use PhpParser\PrettyPrinter\Standard;
 
 /**
  * Extracts class references from PHP source and classifies how each dependency is used:
