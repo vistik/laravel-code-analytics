@@ -2,6 +2,7 @@
 
 namespace Vistik\LaravelCodeAnalytics\RiskScoring;
 
+use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal; // TEMP: fake cycle for testing
 use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\ChangeSizeFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\DeletionRatioFactor;
 use Vistik\LaravelCodeAnalytics\RiskScoring\Factors\FileSpreadFactor;

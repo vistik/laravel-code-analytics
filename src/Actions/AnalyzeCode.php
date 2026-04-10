@@ -391,6 +391,41 @@ class AnalyzeCode
             }
         }
 
+        // ── Inject circular dependency findings ───────────────────────────────
+        if (! empty($cycleMap)) {
+            // Build cycleId → [paths] for a short member list in descriptions
+            $cycleMembers = [];
+            foreach ($nodes as $n) {
+                if (($n['cycleId'] ?? null) !== null) {
+                    $cycleMembers[$n['cycleId']][] = $n['path'];
+                }
+            }
+
+            foreach ($nodes as &$node) {
+                if (($node['cycleId'] ?? null) === null) {
+                    continue;
+                }
+                $others = array_filter(
+                    $cycleMembers[$node['cycleId']],
+                    fn ($p) => $p !== $node['path'],
+                );
+                $description = 'Circular dependency (cycle '.$node['cycleId'].'): '
+                    .implode(', ', array_map(fn ($p) => basename($p), $others));
+
+                $analysisData[$node['path']] ??= [];
+                $analysisData[$node['path']][] = [
+                    'category' => ChangeCategory::CIRCULAR_DEPENDENCY->value,
+                    'severity' => Severity::VERY_HIGH->value,
+                    'description' => $description,
+                ];
+
+                $node['severity'] = Severity::VERY_HIGH->value;
+                $node['veryHighCount'] = ($node['veryHighCount'] ?? 0) + 1;
+                $node['analysisCount'] = ($node['analysisCount'] ?? 0) + 1;
+            }
+            unset($node);
+        }
+
         // ── Compute metrics ───────────────────────────────────────────────────
         ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics($headContents, $oldSources, $fqcnToFilePath);
         ['hotSpots' => $jsHotSpots, 'metricsData' => $jsMetricsData] = $this->computeJsMetrics($frontendFiles, $headContents, $oldSources);

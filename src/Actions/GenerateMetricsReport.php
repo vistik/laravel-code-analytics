@@ -30,6 +30,9 @@ class GenerateMetricsReport implements ReportGenerator
 
         $severityOrder = ['very_high' => 5, 'high' => 4, 'medium' => 3, 'low' => 2, 'info' => 1];
 
+        $cycleFileCount = 0;
+        $cycleIds = [];
+
         foreach ($nodes as $node) {
             $severityCounts['very_high'] += $node['veryHighCount'] ?? 0;
             $severityCounts['high'] += $node['highCount'] ?? 0;
@@ -44,6 +47,11 @@ class GenerateMetricsReport implements ReportGenerator
                     $maxSeverity = $nodeSeverity;
                 }
             }
+
+            if (($node['cycleId'] ?? null) !== null) {
+                $cycleFileCount++;
+                $cycleIds[$node['cycleId']] = true;
+            }
         }
 
         $lines = [];
@@ -56,6 +64,9 @@ class GenerateMetricsReport implements ReportGenerator
         $lines[] = sprintf('Risk Score:   %d / 100', $riskScore instanceof RiskScore ? $riskScore->score : 0);
         $lines[] = sprintf('Files:        %d  (+%d / -%d lines)', $fileCount, $prAdditions, $prDeletions);
         $lines[] = sprintf('Findings:     %d  (max severity: %s)', $totalFindings, $maxSeverity ?? 'none');
+        if ($cycleFileCount > 0) {
+            $lines[] = sprintf('Circular deps: %d cycle(s)  %d file(s)', count($cycleIds), $cycleFileCount);
+        }
         $lines[] = sprintf(
             'Severity:     very_high=%d  high=%d  medium=%d  low=%d  info=%d',
             $severityCounts['very_high'],

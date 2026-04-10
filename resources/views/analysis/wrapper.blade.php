@@ -584,7 +584,7 @@
       var chipsHtml = '';
       var chips = [];
       if (n.cycleId != null) {
-        chips.push('<span class="file-metric-chip" style="color:' + (n.cycleColor || '#f0883e') + ';font-weight:600">&#8635; cycle ' + n.cycleId + '</span>');
+        chips.push('<span class="file-metric-chip" style="color:' + (n.cycleColor || '#f0883e') + ';font-weight:600">&#8635; Cycle ' + n.cycleId + '</span>');
       }
       if (m.cc != null) {
         var ccChipColor = m.cc >= 20 ? '#f85149' : m.cc >= 10 ? '#d29922' : '#484f58';

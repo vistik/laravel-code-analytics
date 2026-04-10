@@ -873,7 +873,7 @@ function openPanel(n) {
       (n.lowCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.low + ';flex-shrink:0;display:inline-block"></span>' + n.lowCount + '</span>' : '') +
       (n.infoCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.info + ';flex-shrink:0;display:inline-block"></span>' + n.infoCount + '</span>' : '') +
       (n.watched ? '<span class="badge" style="background:#d29922;color:#000">&#9670; Watched</span>' : '') +
-      (n.cycleId != null ? '<button class="badge" data-open-cycles="' + n.id.replace(/"/g,'&quot;') + '" style="background:' + hexAlpha(n.cycleColor,0.15) + ';color:' + n.cycleColor + ';border:1px solid ' + hexAlpha(n.cycleColor,0.4) + ';cursor:pointer;font:inherit">&#8635; Circular dep</button>' : '') +
+      (n.cycleId != null ? '<button class="badge" data-open-cycles="' + n.id.replace(/"/g,'&quot;') + '" style="background:' + hexAlpha(n.cycleColor,0.15) + ';color:' + n.cycleColor + ';border:1px solid ' + hexAlpha(n.cycleColor,0.5) + ';cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;line-height:1.5;appearance:none">&#8635; Cycle ' + n.cycleId + '</button>' : '') +
     '</div>';
 
   var isReviewed = reviewedNodes.has(n.id);
@@ -1069,7 +1069,7 @@ function openPanel(n) {
     bodyHtml += '<div class="deps-section" style="border-left:2px solid ' + hexAlpha(n.cycleColor,0.5) + ';margin-left:0;padding-left:22px">' +
       '<h4 style="color:' + n.cycleColor + ';display:flex;align-items:center;gap:6px">' +
         '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + n.cycleColor + '"><path d="M8 2a6 6 0 1 0 5.659 8.006.75.75 0 0 1 1.414.494A7.5 7.5 0 1 1 14.5 6.32V5.25a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h1.313A6.011 6.011 0 0 0 8 2Z"/></svg>' +
-        'Circular Dependency — group ' + n.cycleId +
+        'Cycle ' + n.cycleId +
       '</h4>' +
       '<p style="font-size:12px;color:#6e7681;margin-bottom:10px;line-height:1.5">This file is part of a dependency cycle with ' + cycleMembers.length + ' other file' + (cycleMembers.length !== 1 ? 's' : '') + '. Circular dependencies make code harder to test and reason about.</p>';
     for (var ci = 0; ci < cycleMembers.length; ci++) {
@@ -1470,7 +1470,7 @@ canvas.addEventListener('mousemove', e => {
       }
       var cycleLine = '';
       if (n.cycleId != null) {
-        cycleLine = '<div class="stat"><span style="color:' + n.cycleColor + '">&#8635; Circular dependency</span> <span style="color:#6e7681">group ' + n.cycleId + '</span></div>';
+        cycleLine = '<div class="stat"><span style="color:' + n.cycleColor + '">&#8635; Cycle ' + n.cycleId + '</span></div>';
       }
       tooltip.innerHTML =
         '<div class="path">' + n.path + '</div>' +
