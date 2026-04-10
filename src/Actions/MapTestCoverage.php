@@ -119,7 +119,7 @@ class MapTestCoverage
     }
 
     /**
-     * @param array<string, string> $srcPsr4
+     * @param  array<string, string>  $srcPsr4
      * @return list<string>
      */
     private function extractSourceImports(string $testFile, string $repoPath, array $srcPsr4): array
