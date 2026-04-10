@@ -37,6 +37,7 @@ enum ChangeCategory: string
     case DB_QUERY_ADDED = 'db_query_added';
     case DB_QUERY_MODIFIED = 'db_query_modified';
     case DB_QUERY_REMOVED = 'db_query_removed';
+    case DEPENDENCY = 'dependency';
 
     public function shortDescription(): string
     {
@@ -74,6 +75,7 @@ enum ChangeCategory: string
             self::DB_QUERY_ADDED => 'DB facade query additions',
             self::DB_QUERY_MODIFIED => 'DB facade query modifications',
             self::DB_QUERY_REMOVED => 'DB facade query removals',
+            self::DEPENDENCY => 'Class dependency detections',
         };
     }
 }
