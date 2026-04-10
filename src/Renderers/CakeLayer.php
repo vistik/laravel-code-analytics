@@ -2,12 +2,12 @@
 
 namespace Vistik\LaravelCodeAnalytics\Renderers;
 
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 
 readonly class CakeLayer
 {
     /**
-     * @param  NodeGroup[]  $groups
+     * @param  FileGroup[]  $groups
      */
     public function __construct(
         public string $label,

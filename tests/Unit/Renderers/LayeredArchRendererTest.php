@@ -1,6 +1,6 @@
 <?php
 
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Renderers\CakeLayer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayeredArchRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
@@ -9,15 +9,15 @@ test('default layers produce valid JS with all node groups', function () {
     $renderer = new LayeredArchRenderer(LayerStack::default());
     $js = $renderer->getLayoutSetupJs();
 
-    foreach (NodeGroup::cases() as $group) {
+    foreach (FileGroup::cases() as $group) {
         expect($js)->toContain("{$group->value}: { layer:");
     }
 });
 
 test('custom layers override defaults', function () {
     $stack = new LayerStack(
-        new CakeLayer('Left', '#ff0000', [NodeGroup::ROUTE, NodeGroup::HTTP]),
-        new CakeLayer('Right', '#00ff00', [NodeGroup::MODEL, NodeGroup::TEST]),
+        new CakeLayer('Left', '#ff0000', [FileGroup::ROUTE, FileGroup::HTTP]),
+        new CakeLayer('Right', '#00ff00', [FileGroup::MODEL, FileGroup::TEST]),
     );
 
     $renderer = new LayeredArchRenderer($stack);
@@ -34,7 +34,7 @@ test('custom layers override defaults', function () {
 
 test('fallback layer index matches last layer', function () {
     $stack = new LayerStack(
-        new CakeLayer('Only', '#aabbcc', [NodeGroup::ROUTE]),
+        new CakeLayer('Only', '#aabbcc', [FileGroup::ROUTE]),
     );
 
     $renderer = new LayeredArchRenderer($stack);

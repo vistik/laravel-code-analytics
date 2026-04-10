@@ -8,7 +8,6 @@ use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 
 class CodeAnalyzeCommand extends Command
@@ -60,8 +59,9 @@ class CodeAnalyzeCommand extends Command
                 ? (Severity::tryFrom($minSeverityString) ?? throw new RuntimeException("Invalid min-severity: {$minSeverityString}. Valid options: info, low, medium, high, very_high"))
                 : null;
 
-            if (isset($config['file_groups'])) {
-                $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($config));
+            $fileGroups = $config['file_groups'] ?? config('laravel-code-analytics.file_groups');
+            if ($fileGroups !== null) {
+                $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($fileGroups));
             }
 
             $prUrl = $this->option('pr');
@@ -139,13 +139,9 @@ class CodeAnalyzeCommand extends Command
         return $config;
     }
 
-    /** @param array<string, mixed> $config */
-    private function resolveGroupResolver(array $config): FileGroupResolver
+    /** @param array<string, list<string>> $fileGroups */
+    private function resolveGroupResolver(array $fileGroups): FileGroupResolver
     {
-        if (isset($config['file_groups']) && is_array($config['file_groups'])) {
-            return new ArrayFileGroupResolver($config['file_groups']);
-        }
-
-        return new PatternBasedGroupResolver;
+        return new ArrayFileGroupResolver($fileGroups);
     }
 }

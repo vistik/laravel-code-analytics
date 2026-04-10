@@ -1,7 +1,7 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\JsonFileGroupResolver;
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 
 beforeEach(function () {
     $this->jsonPath = tempnam(sys_get_temp_dir(), 'groups_').'.json';
@@ -21,8 +21,8 @@ it('resolves a path to the matching group', function () {
 
     $resolver = new JsonFileGroupResolver($this->jsonPath);
 
-    expect($resolver->resolve('tests/Feature/FooTest.php'))->toBe(NodeGroup::TEST)
-        ->and($resolver->resolve('app/Models/User.php'))->toBe(NodeGroup::MODEL);
+    expect($resolver->resolve('tests/Feature/FooTest.php'))->toBe(FileGroup::TEST)
+        ->and($resolver->resolve('app/Models/User.php'))->toBe(FileGroup::MODEL);
 });
 
 it('returns other when no pattern matches', function () {
@@ -32,7 +32,7 @@ it('returns other when no pattern matches', function () {
 
     $resolver = new JsonFileGroupResolver($this->jsonPath);
 
-    expect($resolver->resolve('app/Services/FooService.php'))->toBe(NodeGroup::OTHER);
+    expect($resolver->resolve('app/Services/FooService.php'))->toBe(FileGroup::OTHER);
 });
 
 it('matches the first group when multiple patterns could match', function () {
@@ -43,7 +43,7 @@ it('matches the first group when multiple patterns could match', function () {
 
     $resolver = new JsonFileGroupResolver($this->jsonPath);
 
-    expect($resolver->resolve('app/Http/Controllers/FooController.php'))->toBe(NodeGroup::HTTP);
+    expect($resolver->resolve('app/Http/Controllers/FooController.php'))->toBe(FileGroup::HTTP);
 });
 
 it('throws when the file does not exist', function () {

@@ -1,6 +1,6 @@
 <?php
 
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Renderers\CakeLayer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 
@@ -72,12 +72,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | File Groups
+    |--------------------------------------------------------------------------
+    |
+    | Map FileGroup names to arrays of regex patterns. The first matching
+    | pattern wins. Use this to override the default Laravel path conventions
+    | or to teach the analyser about your custom directory layout.
+    |
+    | Keys must be valid FileGroup values: test, db, nova, model, action, job,
+    | controller, request, http, console, provider, core, event, service,
+    | view, frontend, config, route, other.
+    |
+    | Examples:
+    |   FileGroup::MODEL->value    => ['app/Domain/.+/Models/', 'app/Models/'],
+    |   FileGroup::SERVICE->value  => ['app/Domain/.+/Services/'],
+    |   FileGroup::TEST->value     => ['^tests/', '^src/.+Test\.php$'],
+    |
+    */
+
+    // 'file_groups' => [
+    // ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Architecture Layer Stack
     |--------------------------------------------------------------------------
     |
     | Define the architectural layers used by the "cake" and "arch" layouts.
     | Each layer is rendered as a ring (cake) or column (arch) from outermost/
-    | leftmost (first) to innermost/rightmost (last). Every NodeGroup must
+    | leftmost (first) to innermost/rightmost (last). Every FileGroup must
     | appear in exactly one layer. Groups not listed here fall into the last
     | layer automatically.
     |
@@ -85,39 +108,39 @@ return [
 
     'layer_stack' => new LayerStack(
         new CakeLayer(label: 'Entry', color: '#ffa657', groups: [
-            NodeGroup::ROUTE,
-            NodeGroup::CONFIG,
+            FileGroup::ROUTE,
+            FileGroup::CONFIG,
         ]),
         new CakeLayer(label: 'Controllers', color: '#d29922', groups: [
-            NodeGroup::CONTROLLER,
-            NodeGroup::HTTP,
-            NodeGroup::CONSOLE,
+            FileGroup::CONTROLLER,
+            FileGroup::HTTP,
+            FileGroup::CONSOLE,
         ]),
         new CakeLayer(label: 'Requests / Resources', color: '#e3b341', groups: [
-            NodeGroup::REQUEST,
+            FileGroup::REQUEST,
         ]),
         new CakeLayer(label: 'Application', color: '#79c0ff', groups: [
-            NodeGroup::SERVICE,
-            NodeGroup::ACTION,
-            NodeGroup::JOB,
-            NodeGroup::EVENT,
+            FileGroup::SERVICE,
+            FileGroup::ACTION,
+            FileGroup::JOB,
+            FileGroup::EVENT,
         ]),
         new CakeLayer(label: 'Domain', color: '#3fb950', groups: [
-            NodeGroup::MODEL,
-            NodeGroup::CORE,
-            NodeGroup::NOVA,
+            FileGroup::MODEL,
+            FileGroup::CORE,
+            FileGroup::NOVA,
         ]),
         new CakeLayer(label: 'Infrastructure', color: '#8957e5', groups: [
-            NodeGroup::DB,
-            NodeGroup::PROVIDER,
+            FileGroup::DB,
+            FileGroup::PROVIDER,
         ]),
         new CakeLayer(label: 'Presentation', color: '#7ee787', groups: [
-            NodeGroup::VIEW,
-            NodeGroup::FRONTEND,
+            FileGroup::VIEW,
+            FileGroup::FRONTEND,
         ]),
         new CakeLayer(label: 'Testing', color: '#58a6ff', groups: [
-            NodeGroup::TEST,
-            NodeGroup::OTHER,
+            FileGroup::TEST,
+            FileGroup::OTHER,
         ]),
     ),
 

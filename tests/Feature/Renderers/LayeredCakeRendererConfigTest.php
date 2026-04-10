@@ -1,13 +1,13 @@
 <?php
 
-use Vistik\LaravelCodeAnalytics\Enums\NodeGroup;
+use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Renderers\CakeLayer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 
 test('config file layers are used when no constructor args given', function () {
     config()->set('analysis.layer_stack', new LayerStack(
-        new CakeLayer('Custom', '#112233', [NodeGroup::ROUTE, NodeGroup::MODEL]),
+        new CakeLayer('Custom', '#112233', [FileGroup::ROUTE, FileGroup::MODEL]),
     ));
 
     $renderer = new LayeredCakeRenderer;
