@@ -693,20 +693,27 @@ class AnalyzeCode
             throw new RuntimeException("Could not resolve base: {$baseBranch}");
         }
 
-        $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
-        $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
-        $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
+        $isHeadBase = $this->baseCommit === $this->headCommit;
 
-        $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
-        $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
-        if ($hasUncommitted) {
-            $this->progress('line', '  Including staged and unstaged working tree changes.');
+        if ($isHeadBase) {
+            $prTitle = $title ?? "uncommitted changes on {$this->branchName}";
+            $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+            $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).' (uncommitted only)');
+        } else {
+            $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
+            $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
+            $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
+            $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+            $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
+            if ($hasUncommitted) {
+                $this->progress('line', '  Including staged and unstaged working tree changes.');
+            }
         }
 
         $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
 
         if (! str_contains($this->diff, 'diff --git')) {
-            $this->progress('warn', "No changes found between working tree and {$baseBranch}.");
+            $this->progress('warn', $isHeadBase ? 'No uncommitted changes found.' : "No changes found between working tree and {$baseBranch}.");
 
             return ['files' => [], 'totalAdditions' => 0, 'totalDeletions' => 0, 'repoName' => $repoName, 'prTitle' => $prTitle, 'prLinkUrl' => ''];
         }
