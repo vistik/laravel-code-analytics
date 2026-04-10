@@ -77,6 +77,40 @@ it('detects column drop', function () {
         ->and($columnDrop->severity)->toBe(Severity::VERY_HIGH);
 });
 
+it('elevates schema table on critical table to very high', function () {
+    $old = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class AddIndexToUsersTable extends Migration { public function up() { } public function down() { } }';
+    $new = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class AddIndexToUsersTable extends Migration { public function up() { Schema::table("users", function (Blueprint $table) { $table->string("bio")->nullable(); }); } public function down() { } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('database/migrations/2024_01_01_000003_add_bio_to_users_table.php', 'database/migrations/2024_01_01_000003_add_bio_to_users_table.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelMigrationRule(['users']))->analyze($file, $comparison);
+
+    $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'modifies table'));
+
+    expect($hit)->not->toBeNull()
+        ->and($hit->severity)->toBe(Severity::VERY_HIGH)
+        ->and($hit->description)->toContain('critical table');
+});
+
+it('does not elevate schema table on non-critical table beyond high', function () {
+    $old = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class AddBioToPostsTable extends Migration { public function up() { } public function down() { } }';
+    $new = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class AddBioToPostsTable extends Migration { public function up() { Schema::table("posts", function (Blueprint $table) { $table->string("bio")->nullable(); }); } public function down() { } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('database/migrations/2024_01_01_000003_add_bio_to_posts_table.php', 'database/migrations/2024_01_01_000003_add_bio_to_posts_table.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelMigrationRule(['users']))->analyze($file, $comparison);
+
+    $hit = collect($changes)->first(fn ($c) => str_contains($c->description, 'modifies table'));
+
+    expect($hit)->not->toBeNull()
+        ->and($hit->severity)->toBe(Severity::HIGH)
+        ->and($hit->description)->not->toContain('critical table');
+});
+
 it('ignores non-migration files', function () {
     $old = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class CreateUsersTable extends Migration { public function up() { } public function down() { } }';
     $new = '<?php use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema; class CreateUsersTable extends Migration { public function up() { Schema::create("users", function (Blueprint $table) { $table->id(); }); } public function down() { Schema::dropIfExists("users"); } }';

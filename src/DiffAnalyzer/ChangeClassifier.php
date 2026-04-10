@@ -58,7 +58,10 @@ class ChangeClassifier
     /** @var list<Rule> */
     private array $rules;
 
-    public function __construct(AstComparer $comparer, bool $isLaravel = true, private readonly ?string $repoPath = null)
+    /**
+     * @param  list<string>  $criticalTables
+     */
+    public function __construct(AstComparer $comparer, bool $isLaravel = true, private readonly ?string $repoPath = null, private readonly array $criticalTables = [])
     {
         $this->rules = [
             // Generic rules
@@ -90,8 +93,8 @@ class ChangeClassifier
         if ($isLaravel) {
             $this->rules = [
                 ...$this->rules,
-                new LaravelMigrationRule,
-                new LaravelTableMigrationRule,
+                new LaravelMigrationRule($this->criticalTables),
+                new LaravelTableMigrationRule($this->criticalTables),
                 new LaravelDataMigrationRule,
                 new LaravelRouteRule,
                 new LaravelUnauthorizedRouteRule,
