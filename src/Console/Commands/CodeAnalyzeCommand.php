@@ -166,7 +166,7 @@ class CodeAnalyzeCommand extends Command
         }
 
         $logLines = array_filter(
-            explode("\n", trim(shell_exec("git -C ".escapeshellarg($repoPath)." log --oneline -40 2>/dev/null") ?? ''))
+            explode("\n", trim(shell_exec('git -C '.escapeshellarg($repoPath).' log --oneline -40 2>/dev/null') ?? ''))
         );
 
         if (empty($logLines)) {

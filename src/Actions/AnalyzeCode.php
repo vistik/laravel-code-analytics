@@ -668,28 +668,28 @@ class AnalyzeCode
      */
     private function initTwoCommitMode(string $fromCommit, ?string $toCommit, ?string $title): array
     {
-        $gitDir = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse --git-dir 2>/dev/null") ?? '');
+        $gitDir = trim(shell_exec('git -C '.escapeshellarg($this->repoPath).' rev-parse --git-dir 2>/dev/null') ?? '');
         if ($gitDir === '') {
             throw new RuntimeException("Not a git repository: {$this->repoPath}");
         }
 
-        $resolvedFrom = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse ".escapeshellarg($fromCommit)." 2>/dev/null") ?? '');
+        $resolvedFrom = trim(shell_exec('git -C '.escapeshellarg($this->repoPath).' rev-parse '.escapeshellarg($fromCommit).' 2>/dev/null') ?? '');
         if (empty($resolvedFrom)) {
             throw new RuntimeException("Could not resolve commit: {$fromCommit}");
         }
 
         if ($toCommit !== null) {
-            $resolvedTo = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse ".escapeshellarg($toCommit)." 2>/dev/null") ?? '');
+            $resolvedTo = trim(shell_exec('git -C '.escapeshellarg($this->repoPath).' rev-parse '.escapeshellarg($toCommit).' 2>/dev/null') ?? '');
             if (empty($resolvedTo)) {
                 throw new RuntimeException("Could not resolve commit: {$toCommit}");
             }
         } else {
-            $resolvedTo = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse HEAD 2>/dev/null") ?? '');
+            $resolvedTo = trim(shell_exec('git -C '.escapeshellarg($this->repoPath).' rev-parse HEAD 2>/dev/null') ?? '');
         }
 
         $this->baseCommit = $resolvedFrom;
         $this->headCommit = $resolvedTo;
-        $this->branchName = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse --abbrev-ref HEAD 2>/dev/null") ?? 'HEAD');
+        $this->branchName = trim(shell_exec('git -C '.escapeshellarg($this->repoPath).' rev-parse --abbrev-ref HEAD 2>/dev/null') ?? 'HEAD');
         $this->isLaravel = file_exists("{$this->repoPath}/artisan");
         $this->readContentsFromCommit = true;
 
@@ -702,7 +702,7 @@ class AnalyzeCode
         $this->progress('line', "  From: {$shortFrom}  To: {$shortTo}");
 
         $rangeSpec = escapeshellarg("{$resolvedFrom}..{$resolvedTo}");
-        $this->diff = shell_exec("git -C ".escapeshellarg($this->repoPath)." diff {$rangeSpec} 2>/dev/null") ?? '';
+        $this->diff = shell_exec('git -C '.escapeshellarg($this->repoPath)." diff {$rangeSpec} 2>/dev/null") ?? '';
 
         if (! str_contains($this->diff, 'diff --git')) {
             $this->progress('warn', "No changes found between {$shortFrom} and {$shortTo}.");
@@ -710,7 +710,7 @@ class AnalyzeCode
             return ['files' => [], 'totalAdditions' => 0, 'totalDeletions' => 0, 'repoName' => $repoName, 'prTitle' => $prTitle, 'prLinkUrl' => ''];
         }
 
-        $numstat = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." diff --numstat {$rangeSpec} 2>/dev/null") ?? '');
+        $numstat = trim(shell_exec('git -C '.escapeshellarg($this->repoPath)." diff --numstat {$rangeSpec} 2>/dev/null") ?? '');
         $files = [];
         $totalAdditions = 0;
         $totalDeletions = 0;
@@ -753,7 +753,7 @@ class AnalyzeCode
         }
 
         $stdin = implode("\n", array_map(fn ($p) => "{$this->headCommit}:{$p}", $paths))."\n";
-        $batchOutput = Process::input($stdin)->run("git -C ".escapeshellarg($this->repoPath)." cat-file --batch")->output();
+        $batchOutput = Process::input($stdin)->run('git -C '.escapeshellarg($this->repoPath).' cat-file --batch')->output();
 
         $contents = [];
         $pos = 0;
@@ -762,6 +762,7 @@ class AnalyzeCode
         foreach ($paths as $path) {
             if ($pos >= $len) {
                 $contents[$path] = null;
+
                 continue;
             }
 
@@ -776,6 +777,7 @@ class AnalyzeCode
 
             if (str_ends_with($header, ' missing')) {
                 $contents[$path] = null;
+
                 continue;
             }
 
