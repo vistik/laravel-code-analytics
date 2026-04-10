@@ -22,10 +22,10 @@ class CodeAnalyzeCommand extends Command
         {--to= : End commit hash for a range diff (defaults to HEAD when --from is set)}
         {--pick : Interactively pick two commits from git history to compare}
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
-        {--all : Analyze all tracked files instead of just the diff}
+        {--full : Analyze all tracked files instead of just the diff}
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
-        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file, all)}
+        {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file, full)}
         {--format=html : Output format: html, md, json, metrics, metrics-details, or github}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
@@ -70,7 +70,7 @@ class CodeAnalyzeCommand extends Command
             }
 
             $prUrl = $this->option('pr');
-            $all = $this->option('all') || ($config['all'] ?? false);
+            $full = $this->option('full') || ($config['full'] ?? false);
 
             [$fromCommit, $toCommit] = $this->resolveCommitRange($repoPath);
 
@@ -91,7 +91,7 @@ class CodeAnalyzeCommand extends Command
                 outputPath: $outputPath,
                 baseBranch: $baseBranch,
                 prUrl: $prUrl ?: null,
-                all: $all,
+                full: $full,
                 title: $title,
                 view: $view,
                 format: $format,
@@ -104,6 +104,7 @@ class CodeAnalyzeCommand extends Command
                 githubMetrics: $githubMetrics,
                 filterDefaults: $config['filter_defaults'] ?? [],
                 riskScoringConfig: $config['risk_scoring'] ?? [],
+                criticalTables: $config['critical_tables'] ?? [],
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
             );

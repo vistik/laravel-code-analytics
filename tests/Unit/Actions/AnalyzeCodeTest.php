@@ -532,12 +532,11 @@ describe('execute — progress callback', function () {
         $messages = [];
         (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
-            raw: true,
             onProgress: function (string $level, string $message) use (&$messages) {
                 $messages[] = [$level, $message];
             },
+            raw: true,
         );
 
         removeTempDir($dir);
@@ -559,10 +558,10 @@ describe('execute — HEAD base', function () {
             repoPath: $dir,
             baseBranch: 'HEAD',
             format: OutputFormat::JSON,
-            raw: true,
             onProgress: function (string $level, string $message) use (&$messages) {
                 $messages[] = [$level, $message];
             },
+            raw: true,
         );
 
         removeTempDir($dir);
@@ -583,10 +582,10 @@ describe('execute — HEAD base', function () {
             repoPath: $dir,
             baseBranch: 'HEAD',
             format: OutputFormat::JSON,
-            raw: true,
             onProgress: function (string $level, string $message) use (&$messages) {
                 $messages[] = [$level, $message];
             },
+            raw: true,
         );
 
         removeTempDir($dir);
@@ -608,10 +607,10 @@ describe('execute — HEAD base', function () {
             repoPath: $dir,
             baseBranch: $currentHash,
             format: OutputFormat::JSON,
-            raw: true,
             onProgress: function (string $level, string $message) use (&$messages) {
                 $messages[] = [$level, $message];
             },
+            raw: true,
         );
 
         removeTempDir($dir);
@@ -635,10 +634,9 @@ describe('execute — file pattern filter', function () {
         // Use a str_contains-compatible pattern (the execute() filter uses fnmatch || str_contains)
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
-            raw: true,
             filePatterns: ['.php'],
+            raw: true,
         );
 
         removeTempDir($dir);
@@ -657,10 +655,8 @@ describe('execute — file pattern filter', function () {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             filePatterns: ['*.php'],
-            onProgress: null,
         );
 
         removeTempDir($dir);
@@ -679,12 +675,11 @@ describe('execute — watched files', function () {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
-            raw: true,
             watchedFiles: [
                 ['pattern' => 'config/auth.php', 'reason' => 'Security-sensitive config'],
             ],
+            raw: true,
         );
 
         removeTempDir($dir);
@@ -706,7 +701,6 @@ describe('execute — raw mode', function () {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -724,7 +718,6 @@ describe('execute — raw mode', function () {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -752,7 +745,6 @@ describe('execute — injectable scorers', function () {
 
         $result = (new AnalyzeCode(riskScorer: $mockScorer))->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -782,7 +774,6 @@ class UserController {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -823,7 +814,6 @@ class DoSomething {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -855,7 +845,6 @@ class BazService {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -893,7 +882,6 @@ class NewAction {}');
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
             raw: true,
         );
@@ -919,10 +907,9 @@ describe('execute — minSeverity filter', function () {
 
         $result = (new AnalyzeCode)->execute(
             repoPath: $dir,
-            baseBranch: 'main',
             format: OutputFormat::JSON,
-            raw: true,
             minSeverity: Severity::HIGH,
+            raw: true,
         );
 
         removeTempDir($dir);

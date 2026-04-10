@@ -15,8 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write
       pull-requests: write
+
+    outputs:
+      metrics: ${{ steps.metrics.outputs.summary }}
 
     steps:
       - name: Checkout code
@@ -26,6 +28,10 @@ jobs:
 
       - name: Fetch base branch
         run: git fetch origin ${{ github.base_ref }}
+
+      - name: Compute merge base
+        id: merge_base
+        run: echo "sha=$(git merge-base origin/${{ github.base_ref }} HEAD)" >> $GITHUB_OUTPUT
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -39,7 +45,7 @@ jobs:
       - name: Annotate PR with very high severity findings
         run: |
           ./testbench code:analyze \
-            --base=origin/${{ github.base_ref }} \
+            --base=${{ steps.merge_base.outputs.sha }} \
             --format=github \
             --min-severity=very_high \
             --no-ansi \
@@ -48,7 +54,7 @@ jobs:
       - name: Generate HTML report
         run: |
           ./testbench code:analyze \
-            --base=origin/${{ github.base_ref }} \
+            --base=${{ steps.merge_base.outputs.sha }} \
             --full-files \
             --format=html \
             --title="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
@@ -59,7 +65,7 @@ jobs:
         id: metrics
         run: |
           SUMMARY=$(./testbench code:analyze \
-            --base=origin/${{ github.base_ref }} \
+            --base=${{ steps.merge_base.outputs.sha }} \
             --format=metrics \
             --no-ansi \
             . 2>&1 || true)
@@ -72,12 +78,11 @@ jobs:
           mkdir -p _site
           cp report.html _site/pr-${{ github.event.pull_request.number }}.html
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _site
-          keep_files: true
+          name: pr-report-${{ github.event.pull_request.number }}
+          path: _site/
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -143,3 +148,27 @@ jobs:
             await github.rest.pulls.update({
               owner, repo, pull_number: prNumber, body: description,
             });
+
+  deploy:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Download report artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-report-${{ github.event.pull_request.number }}
+          path: _site/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          keep_files: true
