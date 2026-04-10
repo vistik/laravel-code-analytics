@@ -49,6 +49,7 @@ jobs:
         run: |
           ./testbench code:analyze \
             --base=origin/${{ github.base_ref }} \
+            --full-files \
             --format=html \
             --title="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
             --no-ansi \
