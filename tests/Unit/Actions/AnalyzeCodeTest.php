@@ -767,14 +767,15 @@ class DoSomething {
             ->and(array_key_exists('location', $finding))->toBeFalse();
     });
 
-    it('does not add findings for type_reference dependencies', function () {
+    it('does not add findings for use-import-only or return-type-only dependencies', function () {
         $dir = makeTempGitRepo();
 
+        // use import → USE type (skipped); return type → RETURN_TYPE (skipped)
         addAndStageFile($dir, 'app/Services/BazService.php', '<?php
 namespace App\Services;
 use Some\External\Library;
 class BazService {
-    private Library $dep;
+    public function handle(): Library {}
 }');
 
         $result = (new AnalyzeCode)->execute(

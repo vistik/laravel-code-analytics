@@ -78,9 +78,6 @@ class AnalyzeCode
     /**
      * @return array{files: array<string, string>, risk: RiskScore, content?: string}
      */
-    /**
-     * @return array{files: array<string, string>, risk: RiskScore, content?: string}
-     */
     public function execute(
         string $repoPath = '',
         ?string $outputPath = null,
@@ -336,14 +333,18 @@ class AnalyzeCode
             PhpDependencyExtractor::NEW_INSTANCE => 'new instance',
             PhpDependencyExtractor::CONTAINER_RESOLVED => 'container resolved',
             PhpDependencyExtractor::STATIC_CALL => 'static call',
+            PhpDependencyExtractor::EXTENDS_REFERENCE => 'extends',
+            PhpDependencyExtractor::IMPLEMENTS_REFERENCE => 'implements',
+            PhpDependencyExtractor::PROPERTY_TYPE => 'property type',
         ];
+        $skipTypes = [PhpDependencyExtractor::RETURN_TYPE, PhpDependencyExtractor::USE];
         foreach ($fileReferences as $filePath => $references) {
             if (! isset($analysisData[$filePath])) {
                 continue;
             }
             foreach ($references as $class => $type) {
-                if ($type === PhpDependencyExtractor::TYPE_REFERENCE) {
-                    continue; // skip pure type references — too noisy
+                if (in_array($type, $skipTypes, true)) {
+                    continue; // skip return types and bare use imports — too noisy
                 }
                 $shortName = basename(str_replace('\\', '/', ltrim($class, '\\')));
                 $entry = array_filter([
