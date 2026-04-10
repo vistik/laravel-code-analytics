@@ -52,7 +52,7 @@ class GenerateMetricsReport implements ReportGenerator
             $lines[] = str_repeat('─', min(strlen($title), 60));
         }
 
-        $lines[] = sprintf('Risk Score:   %d / 100', $riskScore?->score ?? 0);
+        $lines[] = sprintf('Risk Score:   %d / 100', $riskScore instanceof RiskScore ? $riskScore->score : 0);
         $lines[] = sprintf('Files:        %d  (+%d / -%d lines)', $fileCount, $prAdditions, $prDeletions);
         $lines[] = sprintf('Findings:     %d  (max severity: %s)', $totalFindings, $maxSeverity ?? 'none');
         $lines[] = sprintf(

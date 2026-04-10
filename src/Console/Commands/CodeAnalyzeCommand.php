@@ -84,8 +84,8 @@ class CodeAnalyzeCommand extends Command
                 includeFileContents: $includeFileContents,
             );
 
-            if (! $openFile) {
-                $this->output->write($result['content'] ?? '');
+            if (! $openFile && $outputPath === null && isset($result['content'])) {
+                $this->output->write($result['content']);
 
                 return self::SUCCESS;
             }

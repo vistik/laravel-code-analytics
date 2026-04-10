@@ -77,6 +77,9 @@ class AnalyzeCode
     /**
      * @return array{files: array<string, string>, risk: RiskScore}
      */
+    /**
+     * @return array{files: array<string, string>, risk: RiskScore, content?: string}
+     */
     public function execute(
         string $repoPath = '',
         ?string $outputPath = null,

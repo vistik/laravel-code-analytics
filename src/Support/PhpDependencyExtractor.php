@@ -58,13 +58,10 @@ class PhpDependencyExtractor
 
     private NodeFinder $finder;
 
-    private Standard $printer;
-
     public function __construct()
     {
         $this->parser = (new ParserFactory)->createForHostVersion();
         $this->finder = new NodeFinder;
-        $this->printer = new Standard;
     }
 
     /**
@@ -288,8 +285,8 @@ class PhpDependencyExtractor
         }
 
         // interface extends
+        /** @var Stmt\Interface_ $iface */
         foreach ($this->finder->findInstanceOf($nodes, Stmt\Interface_::class) as $iface) {
-            /** @var Stmt\Interface_ $iface */
             foreach ($iface->extends as $parent) {
                 $refs[$parent->toString()][] = self::EXTENDS_REFERENCE;
             }
