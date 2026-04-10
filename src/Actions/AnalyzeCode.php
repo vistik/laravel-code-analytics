@@ -49,6 +49,9 @@ class AnalyzeCode
     /** Bare-clone path when analyzing a remote GitHub PR (null in local mode) */
     private ?string $repoDir = null;
 
+    /** Whether file contents should be read from a specific git commit rather than the filesystem */
+    private bool $readContentsFromCommit = false;
+
     /** GitHub "owner/repo" when analyzing a remote PR (empty in local mode) */
     private string $prRepo = '';
 
@@ -96,6 +99,8 @@ class AnalyzeCode
         bool $githubMetrics = false,
         array $filterDefaults = [],
         array $riskScoringConfig = [],
+        ?string $fromCommit = null,
+        ?string $toCommit = null,
     ): array {
         $this->onProgress = $onProgress;
         $this->fqcnToNode = [];
@@ -104,11 +109,16 @@ class AnalyzeCode
         $this->edgeSet = [];
         $this->repoDir = null;
         $this->prRepo = '';
+        $this->readContentsFromCommit = false;
 
         if ($prUrl !== null) {
             // ── GitHub PR mode ───────────────────────────────────────────────
             $init = $this->initFromPrUrl($prUrl);
             $init['prLinkUrl'] = $prUrl;
+        } elseif ($fromCommit !== null) {
+            // ── Two-commit range mode ────────────────────────────────────────
+            $this->repoPath = rtrim(realpath($repoPath) ?: $repoPath, '/');
+            $init = $this->initTwoCommitMode($fromCommit, $toCommit, $title);
         } else {
             // ── Local mode ───────────────────────────────────────────────────
             $this->repoPath = rtrim(realpath($repoPath) ?: $repoPath, '/');
@@ -199,6 +209,9 @@ class AnalyzeCode
         if ($this->repoDir !== null) {
             // PR URL mode: read from the bare git clone via cat-file --batch
             $headContents = $this->readFileContentsFromGit($allFilePaths);
+        } elseif ($this->readContentsFromCommit) {
+            // Two-commit range mode: read file contents at the "to" commit
+            $headContents = $this->readFileContentsFromLocalCommit($allFilePaths);
         } else {
             // Local mode: read directly from the working tree — this naturally
             // includes any staged or unstaged modifications git diff picked up.
@@ -374,6 +387,8 @@ class AnalyzeCode
             if (! empty($diffPaths)) {
                 if ($this->repoDir !== null) {
                     $rawContents = $this->readFileContentsFromGit($diffPaths);
+                } elseif ($this->readContentsFromCommit) {
+                    $rawContents = $this->readFileContentsFromLocalCommit($diffPaths);
                 } else {
                     $rawContents = [];
                     foreach ($diffPaths as $path) {
@@ -643,6 +658,134 @@ class AnalyzeCode
 
         $shaArgs = implode(' ', $blobShas);
         shell_exec("git -C {$repoDir} fetch origin {$shaArgs} 2>/dev/null");
+    }
+
+    /**
+     * Initialize state for a two-commit range diff (e.g. git diff abc..def).
+     *
+     * @return array{files: list<array{path: string, additions: int, deletions: int}>, totalAdditions: int, totalDeletions: int, repoName: string, prTitle: string, prLinkUrl: string}
+     */
+    private function initTwoCommitMode(string $fromCommit, ?string $toCommit, ?string $title): array
+    {
+        $gitDir = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse --git-dir 2>/dev/null") ?? '');
+        if ($gitDir === '') {
+            throw new RuntimeException("Not a git repository: {$this->repoPath}");
+        }
+
+        $resolvedFrom = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse ".escapeshellarg($fromCommit)." 2>/dev/null") ?? '');
+        if (empty($resolvedFrom)) {
+            throw new RuntimeException("Could not resolve commit: {$fromCommit}");
+        }
+
+        if ($toCommit !== null) {
+            $resolvedTo = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse ".escapeshellarg($toCommit)." 2>/dev/null") ?? '');
+            if (empty($resolvedTo)) {
+                throw new RuntimeException("Could not resolve commit: {$toCommit}");
+            }
+        } else {
+            $resolvedTo = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse HEAD 2>/dev/null") ?? '');
+        }
+
+        $this->baseCommit = $resolvedFrom;
+        $this->headCommit = $resolvedTo;
+        $this->branchName = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." rev-parse --abbrev-ref HEAD 2>/dev/null") ?? 'HEAD');
+        $this->isLaravel = file_exists("{$this->repoPath}/artisan");
+        $this->readContentsFromCommit = true;
+
+        $repoName = basename($this->repoPath);
+        $shortFrom = substr($resolvedFrom, 0, 7);
+        $shortTo = substr($resolvedTo, 0, 7);
+        $prTitle = $title ?? "{$shortFrom}..{$shortTo}";
+
+        $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
+        $this->progress('line', "  From: {$shortFrom}  To: {$shortTo}");
+
+        $rangeSpec = escapeshellarg("{$resolvedFrom}..{$resolvedTo}");
+        $this->diff = shell_exec("git -C ".escapeshellarg($this->repoPath)." diff {$rangeSpec} 2>/dev/null") ?? '';
+
+        if (! str_contains($this->diff, 'diff --git')) {
+            $this->progress('warn', "No changes found between {$shortFrom} and {$shortTo}.");
+
+            return ['files' => [], 'totalAdditions' => 0, 'totalDeletions' => 0, 'repoName' => $repoName, 'prTitle' => $prTitle, 'prLinkUrl' => ''];
+        }
+
+        $numstat = trim(shell_exec("git -C ".escapeshellarg($this->repoPath)." diff --numstat {$rangeSpec} 2>/dev/null") ?? '');
+        $files = [];
+        $totalAdditions = 0;
+        $totalDeletions = 0;
+
+        foreach (explode("\n", $numstat) as $line) {
+            if (empty($line)) {
+                continue;
+            }
+
+            $parts = explode("\t", $line, 3);
+            if (count($parts) < 3) {
+                continue;
+            }
+
+            [$add, $del, $path] = $parts;
+            $add = is_numeric($add) ? (int) $add : 0;
+            $del = is_numeric($del) ? (int) $del : 0;
+            $files[] = ['path' => $path, 'additions' => $add, 'deletions' => $del];
+            $totalAdditions += $add;
+            $totalDeletions += $del;
+        }
+
+        if (empty($files)) {
+            throw new RuntimeException('No files found in diff output.');
+        }
+
+        return compact('files', 'totalAdditions', 'totalDeletions', 'repoName', 'prTitle') + ['prLinkUrl' => ''];
+    }
+
+    /**
+     * Read file contents from a specific local git commit using cat-file --batch.
+     *
+     * @param  list<string>  $paths
+     * @return array<string, ?string>
+     */
+    private function readFileContentsFromLocalCommit(array $paths): array
+    {
+        if (empty($paths)) {
+            return [];
+        }
+
+        $stdin = implode("\n", array_map(fn ($p) => "{$this->headCommit}:{$p}", $paths))."\n";
+        $batchOutput = Process::input($stdin)->run("git -C ".escapeshellarg($this->repoPath)." cat-file --batch")->output();
+
+        $contents = [];
+        $pos = 0;
+        $len = strlen($batchOutput);
+
+        foreach ($paths as $path) {
+            if ($pos >= $len) {
+                $contents[$path] = null;
+                continue;
+            }
+
+            $nl = strpos($batchOutput, "\n", $pos);
+            if ($nl === false) {
+                $contents[$path] = null;
+                break;
+            }
+
+            $header = substr($batchOutput, $pos, $nl - $pos);
+            $pos = $nl + 1;
+
+            if (str_ends_with($header, ' missing')) {
+                $contents[$path] = null;
+                continue;
+            }
+
+            $size = (int) (explode(' ', $header)[2] ?? 0);
+            $content = $size > 0 ? substr($batchOutput, $pos, $size) : '';
+            $pos += $size + 1;
+
+            $contents[$path] = $content !== '' ? $content : null;
+        }
+
+        return $contents;
     }
 
     /**
