@@ -68,15 +68,6 @@ return [
     ],
 
     'watched_files' => [
-        // ['pattern' => 'app/Http/Kernel.php', 'reason' => 'Boot critical'],
-        // ['pattern' => 'app/Models/*'],
-        // ['pattern' => 'config/'],
-
-        // Temp: laravel/cloud PR #4604
-        ['pattern' => 'app/Http/Middleware/ValidateWorkOSSession.php', 'reason' => 'Auth middleware'],
-        ['pattern' => 'app/Http/Controllers/Auth/*', 'reason' => 'Auth controllers'],
-        ['pattern' => 'app/Enums/Feature.php', 'reason' => 'Feature flags'],
-        ['pattern' => 'app/Contracts/Services/MetricProvider.php', 'reason' => 'Core contract'],
     ],
 
     /*
