@@ -201,7 +201,7 @@
   }
   .diff-table td { padding: 0 12px; white-space: pre-wrap; word-break: break-all; vertical-align: top; }
   .diff-table .diff-ln {
-    position: relative; width: 1px; min-width: 40px; color: #484f58; text-align: right; padding-right: 8px;
+    position: relative; width: 1px; min-width: 52px; color: #484f58; text-align: right; padding-right: 8px;
     user-select: none; font-size: 11px;
   }
   .diff-table .diff-add { background: #0d3520; color: #aff5b4; }
