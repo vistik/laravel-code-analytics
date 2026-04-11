@@ -16,6 +16,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
 use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
@@ -89,7 +90,7 @@ class AnalyzeCode
         ?string $prUrl = null,
         bool $full = false,
         ?string $title = null,
-        ?string $view = null,
+        GraphLayout $view = GraphLayout::Force,
         OutputFormat $format = OutputFormat::HTML,
         ?Severity $minSeverity = null,
         ?Closure $onProgress = null,
@@ -147,11 +148,15 @@ class AnalyzeCode
 
         [$fqcnToFilePath, $fileReferences] = $this->buildDependencyGraph($nodes, $phpFiles, $frontendFiles, $headContents);
 
+        [$nodes, $cycleMap] = $this->detectAndAnnotateCycles($nodes);
+
         [$fileReports, $oldSources] = $this->runAstAnalysis($phpFiles, $headContents, $fileDiffMap, $criticalTables);
 
         $nodes = $this->enrichNodesWithAnalysis($nodes, $fileReports);
 
         $analysisData = $this->buildAnalysisData($fileReports, $fileReferences);
+
+        [$nodes, $analysisData] = $this->injectCycleFindings($nodes, $analysisData, $cycleMap);
 
         ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics($headContents, $oldSources, $fqcnToFilePath);
         ['hotSpots' => $jsHotSpots, 'metricsData' => $jsMetricsData] = $this->computeJsMetrics($frontendFiles, $headContents, $oldSources);
@@ -160,7 +165,7 @@ class AnalyzeCode
         $fileDiffs = $this->extractFileDiffs();
         $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs) : [];
 
-        $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData);
+        $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap);
 
         if ($minSeverity !== null) {
             ['nodes' => $nodes, 'analysisData' => $analysisData, 'metricsData' => $metricsData,
@@ -440,6 +445,34 @@ class AnalyzeCode
     }
 
     /**
+     * Detect circular dependencies and annotate each node with cycleId/cycleColor.
+     *
+     * @return array{0: array, 1: array<string, int>}
+     */
+    private function detectAndAnnotateCycles(array $nodes): array
+    {
+        $cycleMap = $this->detectCycles($nodes, $this->edges);
+        $cycleColorPalette = ['#f0883e', '#a371f7', '#3dcfcf', '#ff6b9d', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6b6b'];
+
+        foreach ($nodes as &$node) {
+            $cycleId = $cycleMap[$node['id']] ?? null;
+            $node['cycleId'] = $cycleId;
+            $node['cycleColor'] = $cycleId !== null
+                ? $cycleColorPalette[($cycleId - 1) % count($cycleColorPalette)]
+                : null;
+        }
+        unset($node);
+
+        if (! empty($cycleMap)) {
+            $cycleGroupCount = count(array_unique($cycleMap));
+            $cycleNodeCount = count($cycleMap);
+            $this->progress('line', "  Detected {$cycleGroupCount} circular dependency group(s) across {$cycleNodeCount} file(s).");
+        }
+
+        return [$nodes, $cycleMap];
+    }
+
+    /**
      * @return array{0: array, 1: array<string, string>}
      */
     private function runAstAnalysis(array $phpFiles, array $headContents, array $fileDiffMap, array $criticalTables = []): array
@@ -547,6 +580,60 @@ class AnalyzeCode
         return $analysisData;
     }
 
+    /**
+     * @return array{0: array, 1: array}
+     */
+    private function injectCycleFindings(array $nodes, array $analysisData, array $cycleMap): array
+    {
+        if (empty($cycleMap)) {
+            return [$nodes, $analysisData];
+        }
+
+        $cycleMembers = $this->buildCycleMemberMap($nodes);
+
+        foreach ($nodes as &$node) {
+            if (($node['cycleId'] ?? null) === null) {
+                continue;
+            }
+            [$analysisData, $node] = $this->addCycleFinding($node, $analysisData, $cycleMembers);
+        }
+        unset($node);
+
+        return [$nodes, $analysisData];
+    }
+
+    private function buildCycleMemberMap(array $nodes): array
+    {
+        $cycleMembers = [];
+        foreach ($nodes as $n) {
+            if (($n['cycleId'] ?? null) !== null) {
+                $cycleMembers[$n['cycleId']][] = $n['path'];
+            }
+        }
+
+        return $cycleMembers;
+    }
+
+    private function addCycleFinding(array $node, array $analysisData, array $cycleMembers): array
+    {
+        $others = array_filter($cycleMembers[$node['cycleId']], fn ($p) => $p !== $node['path']);
+        $description = 'Circular dependency (cycle '.$node['cycleId'].'): '
+            .implode(', ', array_map(fn ($p) => basename($p), $others));
+
+        $analysisData[$node['path']] ??= [];
+        $analysisData[$node['path']][] = [
+            'category' => ChangeCategory::CIRCULAR_DEPENDENCY->value,
+            'severity' => Severity::VERY_HIGH->value,
+            'description' => $description,
+        ];
+
+        $node['severity'] = Severity::VERY_HIGH->value;
+        $node['veryHighCount'] = ($node['veryHighCount'] ?? 0) + 1;
+        $node['analysisCount'] = ($node['analysisCount'] ?? 0) + 1;
+
+        return [$analysisData, $node];
+    }
+
     private function collectFileContents(array $fileDiffs): array
     {
         $diffPaths = array_keys($fileDiffs);
@@ -587,14 +674,25 @@ class AnalyzeCode
         return $rawContents;
     }
 
-    private function computeSignalScores(array $nodes, array $analysisData, array $metricsData): array
+    private function computeSignalScores(array $nodes, array $analysisData, array $metricsData, array $cycleMap = []): array
     {
+        $cycleCfg = config('laravel-code-analytics.file_signal.circular_dependency', []);
+        $cycleBoostBase = (int) ($cycleCfg['base'] ?? 100);
+        $cycleBoostPct = (float) ($cycleCfg['signal_pct'] ?? 0.20);
+
         foreach ($nodes as &$node) {
-            $node['_signal'] = $this->fileSignalScorer->calculate(
+            $base = $this->fileSignalScorer->calculate(
                 $node,
                 $analysisData[$node['path']] ?? [],
                 $metricsData[$node['path']] ?? null,
             );
+            if (($node['cycleId'] ?? null) !== null) {
+                $boost = (int) round($cycleBoostBase + $cycleBoostPct * $base);
+                $node['_signal'] = $base + $boost;
+                $node['_cycleBoost'] = $boost;
+            } else {
+                $node['_signal'] = $base;
+            }
         }
         unset($node);
 
@@ -1685,6 +1783,89 @@ class AnalyzeCode
         }
 
         return null;
+    }
+
+    /**
+     * Detect circular dependencies using Tarjan's strongly connected components algorithm.
+     * Returns a map of nodeId → cycleId (1-based) for every node that belongs to a cycle.
+     * Nodes not in any cycle are absent from the returned array.
+     *
+     * @param  array<int, array{id: string}>  $nodes
+     * @param  list<array{0: string, 1: string, 2: string}>  $edges
+     * @return array<string, int>
+     */
+    /** @return array<string, int> nodeId → cycleId (1-based) */
+    private function detectCycles(array $nodes, array $edges): array
+    {
+        $adj = $this->buildAdjacencyList($nodes, $edges);
+
+        return $this->runTarjanScc($nodes, $adj);
+    }
+
+    private function buildAdjacencyList(array $nodes, array $edges): array
+    {
+        $adj = [];
+        foreach ($nodes as $n) {
+            $adj[$n['id']] = [];
+        }
+        foreach ($edges as [$src, $tgt]) {
+            $adj[$src][] = $tgt;
+        }
+
+        return $adj;
+    }
+
+    /** @return array<string, int> */
+    private function runTarjanScc(array $nodes, array $adj): array
+    {
+        $state = ['index' => 0, 'stack' => [], 'onStack' => [], 'nodeIndex' => [], 'lowlink' => [], 'cycles' => [], 'cycleCounter' => 0];
+
+        foreach ($nodes as $n) {
+            if (! isset($state['nodeIndex'][$n['id']])) {
+                $this->tarjanVisit($n['id'], $adj, $state);
+            }
+        }
+
+        return $state['cycles'];
+    }
+
+    private function tarjanVisit(string $v, array $adj, array &$state): void
+    {
+        $state['nodeIndex'][$v] = $state['index'];
+        $state['lowlink'][$v] = $state['index'];
+        $state['index']++;
+        $state['stack'][] = $v;
+        $state['onStack'][$v] = true;
+
+        foreach ($adj[$v] ?? [] as $w) {
+            if (! isset($state['nodeIndex'][$w])) {
+                $this->tarjanVisit($w, $adj, $state);
+                $state['lowlink'][$v] = min($state['lowlink'][$v], $state['lowlink'][$w]);
+            } elseif ($state['onStack'][$w] ?? false) {
+                $state['lowlink'][$v] = min($state['lowlink'][$v], $state['nodeIndex'][$w]);
+            }
+        }
+
+        if ($state['lowlink'][$v] === $state['nodeIndex'][$v]) {
+            $this->extractScc($v, $state);
+        }
+    }
+
+    private function extractScc(string $v, array &$state): void
+    {
+        $scc = [];
+        do {
+            $w = array_pop($state['stack']);
+            $state['onStack'][$w] = false;
+            $scc[] = $w;
+        } while ($w !== $v);
+
+        if (count($scc) > 1) {
+            $state['cycleCounter']++;
+            foreach ($scc as $nodeId) {
+                $state['cycles'][$nodeId] = $state['cycleCounter'];
+            }
+        }
     }
 
     private function extractFqcnFromContent(string $content): ?string

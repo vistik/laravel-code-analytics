@@ -251,7 +251,7 @@
 
 <div class="title-bar">
   <h2>@if($prUrl)<a href="{{ $prUrl }}" target="_blank" rel="noopener">PR #{{ $prNumber }}</a> —@endif {{ $prTitle }}</h2>
-  <p>{{ $fileCount }} files changed &middot; +{{ $prAdditions }} &minus;{{ $prDeletions }} &middot; <span id="reviewedCount" style="color:#3fb950"></span></p>
+  <p>{{ $fileCount }} files changed &middot; +{{ $prAdditions }} &minus;{{ $prDeletions }} &middot; <span id="reviewedCount" style="color:#3fb950"></span> <span id="cycleCount" style="color:#f0883e"></span></p>
   <div class="layout-switcher">{!! $layoutSwitcher !!}</div>
 </div>
 
@@ -269,6 +269,7 @@
   <span style="font-size:11px;color:#8b949e">
     <span style="border-bottom:2px dashed #3fb950">Dashed border</span> = new file &middot;
     <span style="border-bottom:2px dashed #6e7681">Gray dashed</span> = connected file<br>
+    <span style="border-bottom:2px solid #f0883e">Orange ring</span> = circular dependency<br>
     Circle size = lines changed &middot; Scroll to zoom &middot; Click for details &middot; Shift+click to find paths
   </span>
   <div class="toggle-row">
@@ -339,12 +340,15 @@ const groupColor = {
   action: '#d29922', http: '#d29922', console: '#d29922', provider: '#d29922', test: '#58a6ff',
   job: '#e3b341', event: '#f778ba', service: '#79c0ff', view: '#7ee787',
   frontend: '#ff7b72', config: '#ffa657', route: '#ffa657', other: '#8b949e',
+  // method-graph visibility groups
+  vis_public: '#79c0ff', vis_protected: '#e3b341', vis_private: '#8957e5', vis_external: '#484f58',
 };
 const groupLabel = {
   model: 'Model', core: 'Core', db: 'Database', nova: 'Nova Admin',
   action: 'Action', http: 'HTTP', console: 'Console', provider: 'Provider', test: 'Test',
   job: 'Job', event: 'Event', service: 'Service', view: 'View',
   frontend: 'Frontend', config: 'Config', route: 'Route', other: 'Other',
+  vis_public: 'Public', vis_protected: 'Protected', vis_private: 'Private', vis_external: 'External',
 };
 
 const filesData = {!! $nodesJson !!};
@@ -381,11 +385,24 @@ const nodes = filesData.map((f, i) => {
   return node;
 });
 
-const links = edgesData.map(([s, t, type]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use' })).filter(l => l.source && l.target);
+const links = edgesData.map(([s, t, type, line]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use', callLine: line || null })).filter(l => l.source && l.target);
+
+// ── Circular dependency stats ─────────────────────────────────────────────────
+const cycleGroupCount = new Set(nodes.filter(n => n.cycleId != null).map(n => n.cycleId)).size;
+
+function hexAlpha(hex, alpha) {
+  var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+if (cycleGroupCount > 0) {
+  var cycleEl = document.getElementById('cycleCount');
+  if (cycleEl) cycleEl.textContent = '\u00b7 ' + cycleGroupCount + ' circular dep' + (cycleGroupCount > 1 ? 's' : '') + ' detected';
+}
 
 // ── Visibility toggles ────────────────────────────────────────────────────────
 let selectedNode = null;
 let hoveredNode = null;
+var externalHighlightNodes = new Set(); // set by parent frame on cycle-panel hover
 var _fd = {!! $filterDefaultsJson !!};
 function _toHiddenSet(arr) { var h = {}; arr.forEach(function(v) { h[v] = true; }); return h; }
 var hideConnected = _fd.hide_connected;
@@ -832,8 +849,132 @@ function placeAnnotationDots() {
   });
 }
 
+// ── Method node panel ─────────────────────────────────────────────────────────
+function renderMethodPanel(n) {
+  selectedNode = n;
+  var lineCount = (n.endLine && n.line) ? (n.endLine - n.line + 1) : '?';
+  var ccColor = n.cc > 10 ? '#f85149' : n.cc > 5 ? '#d29922' : '#3fb950';
+  var visColors = {public: '#3fb950', protected: '#d29922', private: '#8957e5'};
+  var visColor = visColors[n.visibility] || '#8b949e';
+
+  // Header
+  document.getElementById('panel-header').innerHTML =
+    '<div class="file-name">' + escapeHtml(n.displayLabel || n.name || n.id) + '()</div>' +
+    '<div class="file-path">' + escapeHtml(n.class || '') + ' &middot; ' + escapeHtml(n.file || n.path || '') + (n.line ? ':' + n.line : '') + '</div>' +
+    '<div class="badge-row">' +
+      '<span class="badge" style="color:' + visColor + ';background:' + visColor + '22;border-color:' + visColor + '55">' + (n.visibility || 'public') + '</span>' +
+      '<span class="badge" style="color:' + ccColor + ';background:' + ccColor + '22;border-color:' + ccColor + '55">CC ' + n.cc + '</span>' +
+      '<span class="badge">' + lineCount + ' lines</span>' +
+      (n.params > 0 ? '<span class="badge">' + n.params + ' param' + (n.params !== 1 ? 's' : '') + '</span>' : '') +
+    '</div>';
+
+  // Actions
+  var ghSvg = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+  var fileUrl = REPO && n.file ? 'https://github.com/' + REPO + '/blob/' + HEAD_COMMIT + '/' + n.file + (n.line ? '#L' + n.line : '') : '';
+  document.getElementById('panel-actions').innerHTML =
+    (fileUrl ? '<a class="btn btn-secondary" href="' + fileUrl + '" target="_blank" rel="noopener">' + ghSvg + ' View on GitHub</a>' : '');
+
+  // Bar: CC indicator
+  var ccPct = Math.min(100, Math.max(4, (n.cc / 15) * 100));
+  document.getElementById('panel-bar').innerHTML =
+    '<div class="change-bar"><div style="width:' + ccPct + '%;height:100%;background:' + ccColor + ';border-radius:2px"></div></div>' +
+    '<div class="change-bar-label"><span style="color:' + ccColor + '">Cyclomatic complexity: ' + n.cc + '</span><span>' + lineCount + ' lines</span></div>';
+
+  // Callers / callees (computed first so callLineMap is ready for code rendering)
+  var calleesLinks = links.filter(function(l) { return isLinkVisible(l) && l.source === n; });
+  var callersLinks = links.filter(function(l) { return isLinkVisible(l) && l.target === n; });
+
+  // line number → [target nodes] for clickable code rows
+  var callLineMap = {};
+  calleesLinks.forEach(function(l) {
+    if (l.callLine) {
+      if (!callLineMap[l.callLine]) callLineMap[l.callLine] = [];
+      callLineMap[l.callLine].push(l.target);
+    }
+  });
+
+  // Body
+  var bodyHtml = '';
+
+  // Metric cards
+  bodyHtml += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">';
+  function metCard(val, label, color) {
+    return '<div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px;text-align:center">' +
+      '<div style="font-size:22px;font-weight:bold;color:' + color + '">' + val + '</div>' +
+      '<div style="font-size:11px;color:#8b949e;margin-top:2px">' + label + '</div></div>';
+  }
+  bodyHtml += metCard(n.cc, 'Cyclomatic Complexity', ccColor);
+  bodyHtml += metCard(n.params, 'Parameters', '#c9d1d9');
+  bodyHtml += metCard(lineCount, 'Lines', '#c9d1d9');
+  bodyHtml += '</div>';
+
+  // Source code with clickable call lines
+  if (n.code) {
+    var codeLines = n.code.split('\n');
+    var codeRows = codeLines.map(function(line, i) {
+      var ln = (n.line || 1) + i;
+      var targets = callLineMap[ln];
+      var rowAttrs = targets
+        ? ' class="code-call-row" data-call-targets="' + targets.map(function(t) { return escapeHtml(t.id); }).join(',') + '" style="cursor:pointer;background:#0d3520"'
+        : '';
+      var indicator = targets
+        ? ' <span style="float:right;font-size:10px;color:#58a6ff;font-family:sans-serif">→ ' +
+            targets.map(function(t) { return escapeHtml(t.displayLabel || t.name || t.id); }).join(', ') +
+          '</span>'
+        : '';
+      return '<tr' + rowAttrs + '><td class="diff-ln">' + ln + '</td>' +
+        '<td class="diff-code diff-ctx">' + highlightPHP(line) + indicator + '</td></tr>';
+    }).join('');
+    bodyHtml += '<div class="diff-section"><h4>Source</h4>' +
+      '<table class="diff-table unified" style="font-size:12px">' + codeRows + '</table></div>';
+  }
+
+  function connItem(nd) {
+    var col = nd.domainColor || groupColor[nd.group] || '#8b949e';
+    return '<div class="dep-item" data-id="' + escapeHtml(nd.id) + '" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #21262d">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + col + ';flex-shrink:0;display:inline-block"></span>' +
+      '<span style="font-size:12px;color:#c9d1d9">' + escapeHtml(nd.displayLabel || nd.id) + '</span>' +
+      '<span style="font-size:11px;color:#8b949e;margin-left:auto">' + escapeHtml(nd.folder || nd.class || '') + '</span>' +
+    '</div>';
+  }
+
+  if (callersLinks.length > 0) {
+    bodyHtml += '<div class="dep-section"><h4>Called by (' + callersLinks.length + ')</h4>';
+    callersLinks.forEach(function(l) { bodyHtml += connItem(l.source); });
+    bodyHtml += '</div>';
+  }
+
+  document.getElementById('panel-body').innerHTML = bodyHtml;
+  document.getElementById('complexity-scroll-btn').classList.remove('visible');
+  document.getElementById('panel-body').onscroll = null;
+
+  // Wire call-line row clicks (navigate to callee panel)
+  document.querySelectorAll('.code-call-row').forEach(function(row) {
+    row.addEventListener('mouseenter', function() { row.style.background = '#1a4a2e'; });
+    row.addEventListener('mouseleave', function() { row.style.background = '#0d3520'; });
+    row.addEventListener('click', function() {
+      var ids = row.getAttribute('data-call-targets').split(',');
+      var nd = nodeMap[ids[0]];
+      if (nd) openPanel(nd);
+    });
+  });
+
+  // Wire dep-item clicks (called-by list)
+  document.querySelectorAll('.dep-item[data-id]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var nd = nodeMap[el.getAttribute('data-id')];
+      if (nd) openPanel(nd);
+    });
+  });
+
+  document.getElementById('panelBack').classList.toggle('visible', openedFromFiles);
+  panel.classList.add('open');
+  if (window.parent !== window) window.parent.postMessage({ type: 'panelOpened' }, '*');
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 function openPanel(n) {
+  if (n.code !== undefined) { renderMethodPanel(n); return; }
   selectedNode = n;
   const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
   const total = n.add + n.del;
@@ -859,6 +1000,7 @@ function openPanel(n) {
       (n.lowCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.low + ';flex-shrink:0;display:inline-block"></span>' + n.lowCount + '</span>' : '') +
       (n.infoCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.info + ';flex-shrink:0;display:inline-block"></span>' + n.infoCount + '</span>' : '') +
       (n.watched ? '<span class="badge" style="background:#d29922;color:#000">&#9670; Watched</span>' : '') +
+      (n.cycleId != null ? '<button class="badge" data-open-cycles="' + n.id.replace(/"/g,'&quot;') + '" style="background:' + hexAlpha(n.cycleColor,0.15) + ';color:' + n.cycleColor + ';border:1px solid ' + hexAlpha(n.cycleColor,0.5) + ';cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;line-height:1.5;appearance:none">&#8635; Cycle ' + n.cycleId + '</button>' : '') +
     '</div>';
 
   var isReviewed = reviewedNodes.has(n.id);
@@ -1048,6 +1190,38 @@ function openPanel(n) {
 
   var depTypeLabel = { constructor_injection: 'injected', method_injection: 'method param', new_instance: 'new', container_resolved: 'app()', static_call: 'static', extends: 'extends', implements: 'implements', property_type: 'property', return_type: 'return type', use: 'use' };
   var depTypeBadgeColor = { constructor_injection: '#1f6feb', method_injection: '#388bfd', new_instance: '#d29922', container_resolved: '#8957e5', static_call: '#6e7681', extends: '#f78166', implements: '#ffa657', property_type: '#3fb950', return_type: '#79c0ff', use: '#30363d' };
+
+  if (n.cycleId != null) {
+    var cycleMembers = nodes.filter(function(m) { return m.cycleId === n.cycleId && m !== n; });
+    bodyHtml += '<div class="deps-section" style="border-left:2px solid ' + hexAlpha(n.cycleColor,0.5) + ';margin-left:0;padding-left:22px">' +
+      '<h4 style="color:' + n.cycleColor + ';display:flex;align-items:center;gap:6px">' +
+        '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + n.cycleColor + '"><path d="M8 2a6 6 0 1 0 5.659 8.006.75.75 0 0 1 1.414.494A7.5 7.5 0 1 1 14.5 6.32V5.25a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h1.313A6.011 6.011 0 0 0 8 2Z"/></svg>' +
+        'Cycle ' + n.cycleId +
+      '</h4>' +
+      '<p style="font-size:12px;color:#6e7681;margin-bottom:10px;line-height:1.5">This file is part of a dependency cycle with ' + cycleMembers.length + ' other file' + (cycleMembers.length !== 1 ? 's' : '') + '. Circular dependencies make code harder to test and reason about.</p>';
+    for (var ci = 0; ci < cycleMembers.length; ci++) {
+      var cm = cycleMembers[ci];
+      // Find the edge(s) between n and cm to show direction
+      var outLink = links.find(function(l) { return l.source === n && l.target === cm; });
+      var inLink  = links.find(function(l) { return l.source === cm && l.target === n; });
+      var dirLabel = outLink && inLink ? '&#8646; mutual'
+                   : outLink ? '&#8594; depends on'
+                   : '&#8592; used by';
+      var dtBadge = '';
+      var relevantLink = outLink || inLink;
+      if (relevantLink) {
+        var dtLabel = depTypeLabel[relevantLink.depType] || relevantLink.depType;
+        dtBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + (depTypeBadgeColor[relevantLink.depType] || '#30363d') + ';color:#e6edf3;margin-left:6px;white-space:nowrap">' + dtLabel + '</span>';
+      }
+      bodyHtml += '<div class="dep-item" data-node-id="' + cm.id.replace(/"/g, '&quot;') + '">' +
+        '<span class="dep-dot" style="background:' + cm.color + ';border:1.5px dashed ' + cm.cycleColor + ';box-sizing:content-box"></span>' +
+        cm.id + dtBadge +
+        '<span style="color:#6e7681;margin-left:auto;font-size:11px;white-space:nowrap">' + dirLabel + '</span>' +
+        '</div>';
+    }
+    bodyHtml += '</div>';
+  }
+
   if (dependsOn.length) {
     bodyHtml += '<div class="deps-section"><h4>Depends on (' + dependsOn.length + ')</h4>';
     for (const l of dependsOnLinks) {
@@ -1421,12 +1595,17 @@ canvas.addEventListener('mousemove', e => {
         watchLine = '<div class="stat"><span style="color:#d29922">&#9670; Watched</span>' +
           (n.watchReason ? ' <span style="color:#6e7681">' + n.watchReason + '</span>' : '') + '</div>';
       }
+      var cycleLine = '';
+      if (n.cycleId != null) {
+        cycleLine = '<div class="stat"><span style="color:' + n.cycleColor + '">&#8635; Cycle ' + n.cycleId + '</span></div>';
+      }
       tooltip.innerHTML =
         '<div class="path">' + n.path + '</div>' +
         '<div class="stat"><span class="added">+' + n.add + '</span> &nbsp;<span class="removed">&minus;' + n.del + '</span> &nbsp;' +
         (function(s) { var m = { added: ['#3fb950','NEW'], deleted: ['#f85149','DELETED'], renamed: ['#a5b4fc','RENAMED'], modified: ['#d29922','MODIFIED'] }; var p = m[s] || m.modified; return '<span style="color:' + p[0] + '">' + p[1] + '</span>'; })(n.status) + '</div>' +
         severityLine +
         watchLine +
+        cycleLine +
         '<div class="hint">Click for details &middot; Shift+click to find paths</div>';
     }
   } else {
@@ -1461,16 +1640,20 @@ function draw() {
   ctx.scale(zoom, zoom);
   {!! $frameHookJs !!}
 
-  var activeRef = hoveredNode || selectedNode;
+  var extActive = externalHighlightNodes.size > 0;
+  var ehov = hoveredNode;
+  var activeRef = extActive || ehov || selectedNode;
   var pathActive = pathfindNodes.size >= 2;
   for (const l of links) {
     if (!isLinkVisible(l)) continue;
     const isSelected = selectedNode && (l.source === selectedNode || l.target === selectedNode);
-    const isHovered = hoveredNode && (l.source === hoveredNode || l.target === hoveredNode);
+    const isHovered = (ehov && (l.source === ehov || l.target === ehov)) ||
+                      (extActive && externalHighlightNodes.has(l.source) && externalHighlightNodes.has(l.target));
     const isPath = pathActive && pathResult.edges.has(l);
     const highlight = isSelected || isHovered || isPath;
     const dimmed = pathActive ? (!isPath && !isHovered) : (activeRef && !highlight);
     const isConnEdge = l.source.isConnected || l.target.isConnected;
+    const isCycleEdge = !isConnEdge && l.source.cycleId != null && l.source.cycleId === l.target.cycleId;
 
     // Direction color: outgoing (depends on) = red, incoming (used by) = green
     var dirColor = null;
@@ -1495,10 +1678,11 @@ function draw() {
       ctx.strokeStyle = dimmed ? 'rgba(48,54,61,0.1)' : 'rgba(72,79,88,0.35)';
     } else {
       ctx.setLineDash(highlight ? [] : depDash);
-      ctx.strokeStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.3)');
+      const cycleEdgeColor = isCycleEdge ? hexAlpha(l.source.cycleColor, dimmed ? 0.15 : 0.7) : null;
+      ctx.strokeStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleEdgeColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.3)');
     }
     var depWidth = (l.depType === 'constructor_injection' || l.depType === 'container_resolved') ? 2 : 1.5;
-    ctx.lineWidth = isPath ? 3 : highlight ? 2.5 : depWidth; ctx.stroke(); ctx.setLineDash([]);
+    ctx.lineWidth = isPath ? 3 : highlight ? 2.5 : (isCycleEdge ? 2 : depWidth); ctx.stroke(); ctx.setLineDash([]);
 
     // Arrowhead (always drawn, brighter when highlighted)
     const dx = l.target.x - l.source.x, dy = l.target.y - l.source.y;
@@ -1510,20 +1694,26 @@ function draw() {
     ctx.lineTo(tipX - ux*size - uy*size*0.5, tipY - uy*size + ux*size*0.5);
     ctx.lineTo(tipX - ux*size + uy*size*0.5, tipY - uy*size - ux*size*0.5);
     ctx.closePath();
-    ctx.fillStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.35)');
+    const cycleArrowColor = isCycleEdge ? hexAlpha(l.source.cycleColor, dimmed ? 0.15 : 0.7) : null;
+    ctx.fillStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleArrowColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.35)');
     ctx.fill();
   }
 
   for (const n of nodes) {
     if (!isVisible(n)) continue;
-    const isHov = n === hoveredNode, isSel = n === selectedNode;
-    const isConn = (hoveredNode && links.some(l => isLinkVisible(l) && ((l.source === hoveredNode && l.target === n) || (l.target === hoveredNode && l.source === n)))) ||
+    const isHov = n === ehov || (extActive && externalHighlightNodes.has(n)), isSel = n === selectedNode;
+    const isConn = (ehov && links.some(l => isLinkVisible(l) && ((l.source === ehov && l.target === n) || (l.target === ehov && l.source === n)))) ||
                    (selectedNode && links.some(l => isLinkVisible(l) && ((l.source === selectedNode && l.target === n) || (l.target === selectedNode && l.source === n))));
     const isPathNode = pathActive && pathResult.nodes.has(n.id);
     const isPathSelected = pathfindNodes.has(n.id);
-    const activeRef = hoveredNode || selectedNode;
     const dim = pathActive ? (!isPathNode && !isHov) : (activeRef && !isHov && !isSel && !isConn);
 
+    if (n.focal && !n.isConnected) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 8, 0, Math.PI * 2);
+      const focalGrad = ctx.createRadialGradient(n.x, n.y, n.r, n.x, n.y, n.r + 8);
+      focalGrad.addColorStop(0, n.color + '55'); focalGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = focalGrad; ctx.fill();
+    }
     if (n.status === 'added' && n.group !== 'test' && !n.isConnected) {
       ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2);
       const grad = ctx.createRadialGradient(n.x, n.y, n.r, n.x, n.y, n.r + 6);
@@ -1546,6 +1736,13 @@ function draw() {
     } else if (isSel) {
       ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, Math.PI * 2);
       ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    // Circular dependency ring
+    if (n.cycleId != null) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + (isSel ? 8 : isHov ? 7 : 4), 0, Math.PI * 2);
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = hexAlpha(n.cycleColor, dim ? 0.2 : 0.85);
+      ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
     if (n.isConnected) {
@@ -1628,7 +1825,7 @@ function draw() {
     if (hasFolder) {
       const subSize = Math.max(7, fontSize * 0.7);
       ctx.font = subSize + 'px -apple-system, sans-serif';
-      ctx.fillStyle = dim ? '#8b949e15' : (n.isConnected ? '#48405880' : (n.color + '99'));
+      ctx.fillStyle = dim ? '#8b949e15' : (n.isConnected ? '#48405880' : '#ffffffaa');
       ctx.fillText(n.folder, n.x, labelY + fontSize * 0.9);
     }
 
@@ -1659,6 +1856,12 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'closePanel') {
     closePanel();
   }
+  if (e.data.type === 'highlightCycle') {
+    externalHighlightNodes = new Set((e.data.nodeIds || []).map(function(id) { return nodeMap[id]; }).filter(Boolean));
+  }
+  if (e.data.type === 'clearHighlight') {
+    externalHighlightNodes = new Set();
+  }
   if (e.data.type === 'markFileReviewed') {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.add(n.id); updateReviewedCount(); clearHidden(); }
@@ -1666,6 +1869,13 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'unmarkFileReviewed') {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.delete(n.id); updateReviewedCount(); clearHidden(); }
+  }
+});
+
+document.getElementById('panel-header').addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-open-cycles]');
+  if (btn && window.parent !== window) {
+    window.parent.postMessage({ type: 'openCyclesPanel', nodeId: btn.dataset.openCycles }, '*');
   }
 });
 

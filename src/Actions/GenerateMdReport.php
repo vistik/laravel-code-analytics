@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateMdReport implements ReportGenerator
@@ -24,6 +25,7 @@ class GenerateMdReport implements ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string {
         $lines = [];
 
@@ -69,16 +71,39 @@ class GenerateMdReport implements ReportGenerator
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
 
-        $lines[] = '| File | Status | +/- | Severity | Signal |';
-        $lines[] = '|------|--------|----:|----------|-------:|';
+        $lines[] = '| File | Status | +/- | Severity | Signal | Cycle |';
+        $lines[] = '|------|--------|----:|----------|-------:|------:|';
 
         foreach ($sorted as $node) {
             $sev = $node['severity'] ? ucfirst($node['severity']) : '—';
             $signal = $node['_signal'] ?? 0;
             $status = ucfirst($node['status']);
-            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} |";
+            $cycle = ($node['cycleId'] ?? null) !== null ? "↻ {$node['cycleId']}" : '—';
+            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} | {$cycle} |";
         }
         $lines[] = '';
+
+        // ── Circular Dependencies ────────────────────────────────────────────
+        $cycleGroups = [];
+        foreach ($nodes as $node) {
+            if (($node['cycleId'] ?? null) !== null) {
+                $cycleGroups[$node['cycleId']][] = $node['path'];
+            }
+        }
+
+        if (! empty($cycleGroups)) {
+            ksort($cycleGroups);
+            $lines[] = '## Circular Dependencies';
+            $lines[] = '';
+            foreach ($cycleGroups as $id => $paths) {
+                $lines[] = "**Cycle {$id}** (".count($paths).' files)';
+                $lines[] = '';
+                foreach ($paths as $path) {
+                    $lines[] = "- `{$path}`";
+                }
+                $lines[] = '';
+            }
+        }
 
         // ── AST Findings ────────────────────────────────────────────────────
         $hasFindings = ! empty(array_filter($analysisData, fn ($f) => ! empty($f)));

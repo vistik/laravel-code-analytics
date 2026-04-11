@@ -3,6 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateJsonReport implements ReportGenerator
@@ -23,6 +24,7 @@ class GenerateJsonReport implements ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string {
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
@@ -34,7 +36,17 @@ class GenerateJsonReport implements ReportGenerator
             'deletions' => $node['del'],
             'severity' => $node['severity'] ?? null,
             'signal' => $node['_signal'] ?? 0,
+            'cycle_id' => $node['cycleId'] ?? null,
+            'cycle_boost' => $node['_cycleBoost'] ?? null,
         ], $sorted);
+
+        $cycleGroups = [];
+        foreach ($nodes as $node) {
+            if (($node['cycleId'] ?? null) !== null) {
+                $cycleGroups[$node['cycleId']][] = $node['path'];
+            }
+        }
+        ksort($cycleGroups);
 
         $findings = [];
         foreach ($analysisData as $filePath => $fileFindings) {
@@ -81,6 +93,10 @@ class GenerateJsonReport implements ReportGenerator
             'findings' => $findings,
             'metrics' => $metrics,
             'dependencies' => $dependencies,
+            'circular_dependencies' => array_map(
+                fn ($paths) => ['files' => $paths],
+                array_values($cycleGroups),
+            ),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 

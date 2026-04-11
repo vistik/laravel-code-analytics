@@ -4,32 +4,18 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\FileMetrics;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\HotspotRatioBadgeDecider;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\MetricTrend;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsBadgeDeciderInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\PhpMetricsScorerInterface;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\WeightedDegradationScorer;
-use Vistik\LaravelCodeAnalytics\Renderers\ForceGraphRenderer;
-use Vistik\LaravelCodeAnalytics\Renderers\GroupedRenderer;
-use Vistik\LaravelCodeAnalytics\Renderers\LayeredArchRenderer;
-use Vistik\LaravelCodeAnalytics\Renderers\LayeredCakeRenderer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
-use Vistik\LaravelCodeAnalytics\Renderers\LayoutRenderer;
-use Vistik\LaravelCodeAnalytics\Renderers\TreeRenderer;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateHtmlReport implements ReportGenerator
 {
-    /** @var array<string, class-string<LayoutRenderer>> */
-    public const RENDERERS = [
-        'force' => ForceGraphRenderer::class,
-        'tree' => TreeRenderer::class,
-        'grouped' => GroupedRenderer::class,
-        'cake' => LayeredCakeRenderer::class,
-        'arch' => LayeredArchRenderer::class,
-    ];
-
     public function __construct(
         private readonly PhpMetricsScorerInterface $metricsScorer = new WeightedDegradationScorer,
         private readonly PhpMetricsBadgeDeciderInterface $metricsBadgeDecider = new HotspotRatioBadgeDecider,
@@ -57,7 +43,7 @@ class GenerateHtmlReport implements ReportGenerator
         string $extTogglesHtml,
         string $folderTogglesHtml,
         string $severityTogglesHtml = '',
-        string $layout = 'force',
+        GraphLayout $layout = GraphLayout::Force,
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
@@ -115,25 +101,33 @@ class GenerateHtmlReport implements ReportGenerator
         string $severityTogglesHtml,
         string $outputDir,
         ?string $outputPath = null,
-        string $layout = 'force',
+        GraphLayout $layout = GraphLayout::Force,
         bool $allLayouts = false,
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?array $onlyLayouts = null,
     ): array {
         $layouts = $allLayouts || ! $outputPath
-            ? array_keys(self::RENDERERS)
+            ? GraphLayout::cases()
             : [$layout];
+        if ($onlyLayouts !== null) {
+            $layouts = array_values(array_filter(
+                GraphLayout::cases(),
+                fn (GraphLayout $g) => in_array($g->value, $onlyLayouts, true),
+            ));
+        }
 
         // Pre-determine all file paths so the layout switcher can be built upfront.
         $generatedFiles = [];
-        foreach ($layouts as $layoutName) {
-            $generatedFiles[$layoutName] = $outputPath ?? "{$outputDir}/pr-{$prNumber}-{$layoutName}.html";
+        foreach ($layouts as $graphLayout) {
+            $generatedFiles[$graphLayout->value] = $outputPath ?? "{$outputDir}/pr-{$prNumber}-{$graphLayout->value}.html";
         }
 
-        foreach ($generatedFiles as $currentLayout => $file) {
+        foreach ($generatedFiles as $layoutValue => $file) {
+            $currentLayout = GraphLayout::from($layoutValue);
             $switcherHtml = count($generatedFiles) > 1
                 ? $this->buildLayoutSwitcher($currentLayout, $generatedFiles)
                 : '';
@@ -190,7 +184,7 @@ class GenerateHtmlReport implements ReportGenerator
         string $extTogglesHtml,
         string $folderTogglesHtml,
         string $severityTogglesHtml,
-        string $layout,
+        GraphLayout $layout,
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
@@ -198,9 +192,7 @@ class GenerateHtmlReport implements ReportGenerator
         array $fileContents = [],
         array $filterDefaults = [],
     ): string {
-        $rendererClass = self::RENDERERS[$layout] ?? ForceGraphRenderer::class;
-        $isLayered = in_array($rendererClass, [LayeredCakeRenderer::class, LayeredArchRenderer::class]);
-        $renderer = $isLayered ? new $rendererClass($layerStack) : new $rendererClass;
+        $renderer = $layout->renderer($layerStack);
 
         $nodesJson = json_encode($nodes, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $edgesJson = json_encode($edges, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
@@ -661,17 +653,16 @@ class GenerateHtmlReport implements ReportGenerator
         return $html;
     }
 
-    private function buildLayoutSwitcher(string $current, array $files): string
+    private function buildLayoutSwitcher(GraphLayout $current, array $files): string
     {
-        $labels = ['force' => 'Force', 'tree' => 'Tree', 'grouped' => 'Grouped', 'cake' => 'Cake', 'arch' => 'Architecture'];
         $buttons = '';
-        foreach ($files as $layout => $path) {
-            $label = $labels[$layout] ?? $layout;
+        foreach ($files as $layoutValue => $path) {
+            $graphLayout = GraphLayout::from($layoutValue);
             $filename = basename($path);
-            if ($layout === $current) {
-                $buttons .= "<span class=\"layout-btn active\">{$label}</span>";
+            if ($graphLayout === $current) {
+                $buttons .= "<span class=\"layout-btn active\">{$graphLayout->label()}</span>";
             } else {
-                $buttons .= "<a class=\"layout-btn\" href=\"{$filename}\">{$label}</a>";
+                $buttons .= "<a class=\"layout-btn\" href=\"{$filename}\">{$graphLayout->label()}</a>";
             }
         }
 
@@ -694,6 +685,7 @@ class GenerateHtmlReport implements ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string {
         return $this->buildWrapperHtml(
             nodes: $nodes,
@@ -716,6 +708,7 @@ class GenerateHtmlReport implements ReportGenerator
             metricsData: $metricsData,
             fileContents: $fileContents,
             filterDefaults: $filterDefaults,
+            defaultView: $defaultView ?? GraphLayout::Force,
         );
     }
 
@@ -750,7 +743,7 @@ class GenerateHtmlReport implements ReportGenerator
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
-        string $defaultView = 'force',
+        GraphLayout $defaultView = GraphLayout::Force,
         array $fileContents = [],
         array $filterDefaults = [],
     ): void {
@@ -803,14 +796,12 @@ class GenerateHtmlReport implements ReportGenerator
         ?LayerStack $layerStack = null,
         ?RiskScore $riskScore = null,
         array $metricsData = [],
-        string $defaultView = 'grouped',
+        GraphLayout $defaultView = GraphLayout::Grouped,
         array $fileContents = [],
         array $filterDefaults = [],
     ): string {
-        $labels = ['force' => 'Force', 'tree' => 'Tree', 'grouped' => 'Grouped', 'cake' => 'Cake', 'arch' => 'Architecture'];
-
         $jsEntries = [];
-        foreach (array_keys(self::RENDERERS) as $layoutName) {
+        foreach (GraphLayout::cases() as $graphLayout) {
             $html = $this->execute(
                 nodes: $nodes,
                 edges: $edges,
@@ -828,7 +819,7 @@ class GenerateHtmlReport implements ReportGenerator
                 extTogglesHtml: $extTogglesHtml,
                 folderTogglesHtml: $folderTogglesHtml,
                 severityTogglesHtml: $severityTogglesHtml,
-                layout: $layoutName,
+                layout: $graphLayout,
                 layerStack: $layerStack,
                 riskScore: null, // Risk panel lives in the wrapper topbar tooltip
                 metricsData: $metricsData,
@@ -837,13 +828,13 @@ class GenerateHtmlReport implements ReportGenerator
             );
             // Hide the title-bar inside the iframe — it lives in the wrapper now
             $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}</style></head>', $html);
-            $jsEntries[] = "'{$layoutName}':'".base64_encode($htmlForWrapper)."'";
+            $jsEntries[] = "'{$graphLayout->value}':'".base64_encode($htmlForWrapper)."'";
         }
 
         $tabButtons = '';
-        foreach ($labels as $name => $label) {
-            $active = $name === $defaultView ? ' active' : '';
-            $tabButtons .= "<button class=\"tab{$active}\" data-layout=\"{$name}\">{$label}</button>";
+        foreach (GraphLayout::cases() as $graphLayout) {
+            $active = $graphLayout === $defaultView ? ' active' : '';
+            $tabButtons .= "<button class=\"tab{$active}\" data-layout=\"{$graphLayout->value}\">{$graphLayout->label()}</button>";
         }
 
         $escapedTitle = htmlspecialchars($prTitle);
@@ -873,6 +864,7 @@ class GenerateHtmlReport implements ReportGenerator
             'wrapperAnalysisJson' => $wrapperAnalysisJson,
             'wrapperMetricsJson' => $wrapperMetricsJson,
             'jsLayoutData' => $jsLayoutData,
+            'defaultView' => $defaultView->value,
         ])->render();
     }
 }

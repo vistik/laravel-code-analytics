@@ -2,6 +2,7 @@
 
 namespace Vistik\LaravelCodeAnalytics\Contracts;
 
+use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 interface ReportGenerator
@@ -29,6 +30,7 @@ interface ReportGenerator
         array $metricsData = [],
         array $fileContents = [],
         array $filterDefaults = [],
+        ?GraphLayout $defaultView = null,
     ): string;
 
     public function writeFile(string $outputPath, string $content): void;
