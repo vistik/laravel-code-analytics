@@ -13,8 +13,8 @@ class CouponValidator
     public function validate(string $couponCode): bool
     {
         return isset(self::VALID_COUPONS[$couponCode])
-            && !$this->isExpired($couponCode)
-            && !$this->isExhausted($couponCode);
+            && ! $this->isExpired($couponCode)
+            && ! $this->isExhausted($couponCode);
     }
 
     public function getDiscountRate(string $couponCode): float

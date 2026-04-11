@@ -5,6 +5,7 @@ namespace Example;
 class OrderValidator
 {
     private const MAX_ITEMS_PER_ORDER = 50;
+
     private const MAX_QTY_PER_ITEM = 20;
 
     public function __construct(
@@ -27,7 +28,7 @@ class OrderValidator
                 return false;
             }
 
-            if (!$this->inventoryChecker->hasStock([$item])) {
+            if (! $this->inventoryChecker->hasStock([$item])) {
                 return false;
             }
         }

@@ -23,11 +23,11 @@ class OrderService
         string $shippingMethod = 'standard',
         ?string $couponCode = null,
     ): string {
-        if (!$this->orderValidator->validateItems($items)) {
+        if (! $this->orderValidator->validateItems($items)) {
             throw new \InvalidArgumentException('Invalid items in order');
         }
 
-        if (!$this->orderValidator->validateCustomer($customerId)) {
+        if (! $this->orderValidator->validateCustomer($customerId)) {
             throw new \InvalidArgumentException('Invalid or inactive customer');
         }
 
@@ -38,11 +38,11 @@ class OrderService
 
         $address = $this->customerRepository->getShippingAddress($customerId);
 
-        if (!$this->orderValidator->validateShippingAddress($address)) {
+        if (! $this->orderValidator->validateShippingAddress($address)) {
             throw new \InvalidArgumentException('Invalid shipping address');
         }
 
-        if (!$this->inventoryChecker->hasStock($items)) {
+        if (! $this->inventoryChecker->hasStock($items)) {
             throw new \RuntimeException('Insufficient stock for one or more items');
         }
 
@@ -51,7 +51,7 @@ class OrderService
         $orderId = $this->generateOrderId();
 
         $charged = $this->paymentProcessor->charge($customerId, $total);
-        if (!$charged) {
+        if (! $charged) {
             throw new \RuntimeException('Payment failed');
         }
 
@@ -129,6 +129,6 @@ class OrderService
 
     private function generateOrderId(): string
     {
-        return 'ORD-' . strtoupper(substr(md5(uniqid('', true)), 0, 8));
+        return 'ORD-'.strtoupper(substr(md5(uniqid('', true)), 0, 8));
     }
 }

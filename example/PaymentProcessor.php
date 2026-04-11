@@ -18,7 +18,7 @@ class PaymentProcessor
         $success = $this->callGateway('charge', $customerId, $amount);
 
         if ($success) {
-            $this->auditLogger->logPaymentProcessed('pending-' . $customerId, $amount);
+            $this->auditLogger->logPaymentProcessed('pending-'.$customerId, $amount);
         }
 
         return $success;

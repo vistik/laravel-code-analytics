@@ -23,14 +23,14 @@ class PriceCalculator
     public function calculateSubtotal(array $items): float
     {
         return array_sum(array_map(
-            fn(array $item) => $item['price'] * $item['qty'],
+            fn (array $item) => $item['price'] * $item['qty'],
             $items,
         ));
     }
 
     public function applyDiscount(float $subtotal, string $couponCode): float
     {
-        if (!$this->couponValidator->validate($couponCode)) {
+        if (! $this->couponValidator->validate($couponCode)) {
             return $subtotal;
         }
 
@@ -57,7 +57,7 @@ class PriceCalculator
     private function calculateWeightSurcharge(array $items): float
     {
         $totalWeight = array_sum(array_map(
-            fn(array $item) => ($item['weight_kg'] ?? 0.5) * $item['qty'],
+            fn (array $item) => ($item['weight_kg'] ?? 0.5) * $item['qty'],
             $items,
         ));
 

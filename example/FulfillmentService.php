@@ -58,6 +58,6 @@ class FulfillmentService
 
     private function generateTrackingCode(): string
     {
-        return 'TRK-' . strtoupper(substr(md5(uniqid('', true)), 0, 10));
+        return 'TRK-'.strtoupper(substr(md5(uniqid('', true)), 0, 10));
     }
 }
