@@ -210,6 +210,17 @@
   .diff-table .diff-ln-add { background: #0a2e1a; }
   .diff-table .diff-ln-del { background: #30111a; }
   .diff-table .diff-ctx { color: #c9d1d9; }
+  .method-call-link { color: #58a6ff; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+  .method-call-link:hover { color: #79c0ff; text-decoration-style: solid; }
+  .caller-badge { margin-left: 12px; font-size: 10px; font-family: monospace; white-space: nowrap; vertical-align: middle; }
+  .caller-link { color: #58a6ff; cursor: pointer; }
+  .caller-link:hover { color: #79c0ff; text-decoration: underline; }
+  .callers-more-btn { cursor: pointer; }
+  .callers-more-btn:hover { color: #c9d1d9 !important; }
+  #caller-popup { display: none; position: fixed; z-index: 60; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 6px 10px; font-size: 12px; min-width: 160px; max-width: 280px; max-height: 240px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  #caller-popup .popup-title { color: #8b949e; font-size: 10px; margin-bottom: 4px; }
+  #caller-popup .caller-link { display: block; padding: 4px 0; border-bottom: 1px solid #21262d; color: #58a6ff; }
+  #caller-popup .caller-link:last-child { border-bottom: none; }
   /* Split view */
   .diff-table.split .diff-code { width: 45%; }
   .diff-table.split .diff-empty { opacity: 0.4; }
@@ -247,6 +258,7 @@
 <body>
 <canvas id="canvas"></canvas>
 <div class="diff-annotation-tip" id="diffTip"></div>
+<div id="caller-popup"></div>
 <div class="tooltip" id="tooltip"></div>
 
 <div class="title-bar">
@@ -386,6 +398,105 @@ const nodes = filesData.map((f, i) => {
 });
 
 const links = edgesData.map(([s, t, type, line]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use', callLine: line || null })).filter(l => l.source && l.target);
+
+// Build method name index for inline call linking – first match wins on ambiguity.
+// Source 1: method nodes (code:file – nodes have a .code property and .name).
+// Source 2: metricsData per-file method lists (code:analyze – links to the file node).
+var methodNameIndex = {};
+nodes.forEach(function(n) {
+  if (n.code !== undefined && n.name && !methodNameIndex[n.name]) methodNameIndex[n.name] = n.id;
+});
+(function() {
+  var pathToNodeId = {};
+  nodes.forEach(function(n) { if (n.path) pathToNodeId[n.path] = n.id; });
+  Object.keys(metricsData).forEach(function(path) {
+    var nodeId = pathToNodeId[path];
+    if (!nodeId) return;
+    var mm = metricsData[path] && metricsData[path].method_metrics;
+    if (!mm) return;
+    mm.forEach(function(m) { if (m.name && !methodNameIndex[m.name]) methodNameIndex[m.name] = nodeId; });
+  });
+}());
+
+// Build class name index: PHP UpperCamelCase file basename → node id.
+var classNameIndex = {};
+(function() {
+  nodes.forEach(function(n) {
+    if (!n.path || !n.path.endsWith('.php')) return;
+    var parts = n.path.split('/');
+    var basename = parts[parts.length - 1].replace(/\.php$/, '');
+    if (basename && /^[A-Z]/.test(basename) && !classNameIndex[basename]) {
+      classNameIndex[basename] = n.id;
+    }
+  });
+}());
+
+// Build reverse caller index: callersIndex["targetNodeId:methodName"] = [{node, line}, ...]
+// Uses type-hint resolution to map $this->prop->method() to the correct target class,
+// avoiding false positives when multiple classes share the same method name.
+var callersIndex = {};
+(function() {
+  // Matches "TypeName $varName" — captures type hints from constructor/param signatures
+  var typePat   = /([A-Z][a-zA-Z0-9_]*)\s+\$(\w+)/g;
+  // Matches "$this->prop->method(" or "$prop->method("
+  var chainPat  = /\$(?:this->)?(\w+)->([a-zA-Z_]\w*)\s*\(/g;
+  // Matches "ClassName::method(" for static calls
+  var staticPat = /([A-Z][a-zA-Z0-9_]*)::([a-zA-Z_]\w*)\s*\(/g;
+
+  nodes.forEach(function(n) {
+    // Only scan focal nodes (files present in the diff) — skip connected dependencies.
+    if (!n.path || !n.path.endsWith('.php') || !fileDiffs[n.path]) return;
+    var text = fileContents[n.path] || '';
+    var hasFullContent = !!text;
+    if (!hasFullContent) {
+      var rd = fileDiffs[n.path];
+      text = rd.split('\n').filter(function(l) { return l.length > 0 && l[0] !== '-' && l[0] !== '@'; }).map(function(l) { return l.substring(1); }).join('\n');
+    }
+
+    // Build property-name → class-node-id map from type hints in this file.
+    // e.g. "private readonly OrderRepository $orderRepository" → propToClass['orderRepository'] = nodeId
+    var propToClass = {};
+    typePat.lastIndex = 0;
+    var tm;
+    while ((tm = typePat.exec(text)) !== null) {
+      var typeName = tm[1], propName = tm[2];
+      if (classNameIndex[typeName] && !propToClass[propName]) {
+        propToClass[propName] = classNameIndex[typeName];
+      }
+    }
+
+    function addCaller(targetNodeId, methodName, lineNum) {
+      if (!targetNodeId || targetNodeId === n.id) return;
+      var key = targetNodeId + ':' + methodName;
+      if (!callersIndex[key]) callersIndex[key] = [];
+      if (!callersIndex[key].some(function(c) { return c.node.id === n.id; })) {
+        callersIndex[key].push({ node: n, line: lineNum });
+      }
+    }
+
+    // Scan line-by-line (O(n))
+    var lines = text.split('\n');
+    for (var li = 0; li < lines.length; li++) {
+      var lineText = lines[li];
+      var lineNum  = hasFullContent ? li + 1 : null;
+
+      // Static calls: always unambiguous
+      staticPat.lastIndex = 0;
+      var sm;
+      while ((sm = staticPat.exec(lineText)) !== null) {
+        addCaller(classNameIndex[sm[1]], sm[2], lineNum);
+      }
+
+      // Instance calls: only record when the receiver type is known
+      chainPat.lastIndex = 0;
+      var cm;
+      while ((cm = chainPat.exec(lineText)) !== null) {
+        var targetId = propToClass[cm[1]];
+        if (targetId) addCaller(targetId, cm[2], lineNum);
+      }
+    }
+  });
+}());
 
 // ── Circular dependency stats ─────────────────────────────────────────────────
 const cycleGroupCount = new Set(nodes.filter(n => n.cycleId != null).map(n => n.cycleId)).size;
@@ -540,7 +651,7 @@ function screenToWorld(sx, sy) { return [(sx - panX) / zoom, (sy - panY) / zoom]
 // ── Syntax highlighting ───────────────────────────────────────────────────────
 function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function highlightPHP(code) {
+function highlightPHP(code, linkMap, classMap) {
   var tokens = [];
   var i = 0, len = code.length;
   while (i < len) {
@@ -585,6 +696,41 @@ function highlightPHP(code) {
       var kwType = 'plain';
       if (/^(if|else|elseif|while|for|foreach|do|switch|case|break|continue|return|throw|try|catch|finally|new|class|interface|trait|enum|extends|implements|use|namespace|function|fn|match|yield|as|instanceof|static|self|parent|abstract|final|public|private|protected|readonly|const|var|global|echo|print|isset|unset|empty|array|list)$/.test(word)) kwType = 'keyword';
       else if (/^(string|int|float|bool|void|null|true|false|array|object|mixed|never|callable|iterable|self|static)$/i.test(word) && (code[j] === ' ' || code[j] === ',' || code[j] === ')' || code[j] === '|' || code[j] === '>' || j >= len)) kwType = 'type';
+      // Detect method call link: plain identifier followed by '(' that exists in linkMap,
+      // but NOT a method definition (i.e. not preceded by the 'function' keyword).
+      if (kwType === 'plain' && linkMap && linkMap[word]) {
+        var k = j;
+        while (k < len && (code[k] === ' ' || code[k] === '\t')) k++;
+        if (code[k] === '(') {
+          var pi = tokens.length - 1;
+          while (pi >= 0 && tokens[pi].type === 'plain') pi--;
+          var prevKeyword = pi >= 0 ? tokens[pi] : null;
+          var isDefinition = prevKeyword && prevKeyword.type === 'keyword' && prevKeyword.text === 'function';
+          if (!isDefinition) { tokens.push({type: 'method_link', text: word, targetId: linkMap[word]}); i = j; continue; }
+        }
+      }
+      // Detect class reference link: UpperCamelCase word in classMap used as a type hint,
+      // after `new`/`extends`/`implements`/`instanceof`, or before `::`.
+      // Excluded: the class declaration itself (preceded by class/interface/trait/enum).
+      if (kwType === 'plain' && classMap && classMap[word]) {
+        var pi = tokens.length - 1;
+        while (pi >= 0 && tokens[pi].type === 'plain') pi--;
+        var prevKw = pi >= 0 ? tokens[pi] : null;
+        var prevKwText = prevKw && prevKw.type === 'keyword' ? prevKw.text : '';
+        var isDeclaration = /^(class|interface|trait|enum)$/.test(prevKwText);
+        if (!isDeclaration) {
+          var isClassContext = /^(new|extends|implements|instanceof)$/.test(prevKwText);
+          if (!isClassContext) {
+            // Type hint: word followed by optional whitespace then '$'
+            var k = j;
+            while (k < len && (code[k] === ' ' || code[k] === '\t')) k++;
+            isClassContext = (code[k] === '$');
+            // Static access: word followed by '::'
+            if (!isClassContext) isClassContext = (code[j] === ':' && code[j+1] === ':');
+          }
+          if (isClassContext) { tokens.push({type: 'class_link', text: word, targetId: classMap[word]}); i = j; continue; }
+        }
+      }
       tokens.push({type: kwType, text: word});
       i = j; continue;
     }
@@ -596,13 +742,15 @@ function highlightPHP(code) {
   for (var t = 0; t < tokens.length; t++) {
     var tok = tokens[t], esc = escapeHtml(tok.text);
     switch(tok.type) {
-      case 'comment':  out += '<span style="color:#6e7681;font-style:italic">' + esc + '</span>'; break;
-      case 'string':   out += '<span style="color:#a5d6ff">' + esc + '</span>'; break;
-      case 'variable': out += '<span style="color:#ffa657">' + esc + '</span>'; break;
-      case 'keyword':  out += '<span style="color:#ff7b72">' + esc + '</span>'; break;
-      case 'type':     out += '<span style="color:#79c0ff">' + esc + '</span>'; break;
-      case 'number':   out += '<span style="color:#79c0ff">' + esc + '</span>'; break;
-      default:         out += esc; break;
+      case 'comment':     out += '<span style="color:#6e7681;font-style:italic">' + esc + '</span>'; break;
+      case 'string':      out += '<span style="color:#a5d6ff">' + esc + '</span>'; break;
+      case 'variable':    out += '<span style="color:#ffa657">' + esc + '</span>'; break;
+      case 'keyword':     out += '<span style="color:#ff7b72">' + esc + '</span>'; break;
+      case 'type':        out += '<span style="color:#79c0ff">' + esc + '</span>'; break;
+      case 'number':      out += '<span style="color:#79c0ff">' + esc + '</span>'; break;
+      case 'method_link': out += '<span class="method-call-link" data-node-id="' + escapeHtml(tok.targetId) + '" data-method-name="' + esc + '" title="Go to ' + esc + '">' + esc + '</span>'; break;
+      case 'class_link':  out += '<span class="method-call-link" data-node-id="' + escapeHtml(tok.targetId) + '" title="Go to ' + esc + '">' + esc + '</span>'; break;
+      default:            out += esc; break;
     }
   }
   return out;
@@ -641,7 +789,7 @@ function parseDiffLines(rawDiff) {
   return result;
 }
 
-function renderUnifiedDiff(parsed, isPHP) {
+function renderUnifiedDiff(parsed, isPHP, linkMap, classMap) {
   var html = '';
   var oldLn = 0, newLn = 0;
   for (var r = 0; r < parsed.length; r++) {
@@ -651,17 +799,17 @@ function renderUnifiedDiff(parsed, isPHP) {
       var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += '<tr><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-hunk">' + esc + '</td></tr>';
     } else if (row.type === 'ctx') {
-      var h = isPHP ? highlightPHP(row.text) : escapeHtml(row.text);
+      var h = isPHP ? highlightPHP(row.text, linkMap, classMap) : escapeHtml(row.text);
       html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '"><td class="diff-ln">' + oldLn + '</td><td class="diff-ln">' + newLn + '</td><td class="diff-ctx"> ' + h + '</td></tr>';
       oldLn++; newLn++;
     } else {
       for (var j = 0; j < row.dels.length; j++) {
-        var h = isPHP ? highlightPHP(row.dels[j]) : escapeHtml(row.dels[j]);
+        var h = isPHP ? highlightPHP(row.dels[j], linkMap, classMap) : escapeHtml(row.dels[j]);
         html += '<tr data-old-ln="' + oldLn + '"><td class="diff-ln diff-ln-del">' + oldLn + '</td><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + h + '</td></tr>';
         oldLn++;
       }
       for (var j = 0; j < row.adds.length; j++) {
-        var h = isPHP ? highlightPHP(row.adds[j]) : escapeHtml(row.adds[j]);
+        var h = isPHP ? highlightPHP(row.adds[j], linkMap, classMap) : escapeHtml(row.adds[j]);
         html += '<tr data-new-ln="' + newLn + '"><td class="diff-ln diff-ln-add"></td><td class="diff-ln diff-ln-add">' + newLn + '</td><td class="diff-add">+' + h + '</td></tr>';
         newLn++;
       }
@@ -670,7 +818,7 @@ function renderUnifiedDiff(parsed, isPHP) {
   return html;
 }
 
-function renderSplitDiff(parsed, isPHP) {
+function renderSplitDiff(parsed, isPHP, linkMap, classMap) {
   var html = '';
   var oldLn = 0, newLn = 0;
   for (var r = 0; r < parsed.length; r++) {
@@ -680,7 +828,7 @@ function renderSplitDiff(parsed, isPHP) {
       var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += '<tr><td colspan="4" class="diff-hunk">' + esc + '</td></tr>';
     } else if (row.type === 'ctx') {
-      var h = isPHP ? highlightPHP(row.text) : escapeHtml(row.text);
+      var h = isPHP ? highlightPHP(row.text, linkMap, classMap) : escapeHtml(row.text);
       html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '">' +
         '<td class="diff-ln">' + oldLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
         '<td class="diff-ln">' + newLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
@@ -695,13 +843,13 @@ function renderSplitDiff(parsed, isPHP) {
         var trAttrs = (hasDel ? ' data-old-ln="' + (bOld + j) + '"' : '') + (hasAdd ? ' data-new-ln="' + (bNew + j) + '"' : '');
         html += '<tr' + trAttrs + '>';
         if (hasDel) {
-          var dh = isPHP ? highlightPHP(dels[j]) : escapeHtml(dels[j]);
+          var dh = isPHP ? highlightPHP(dels[j], linkMap, classMap) : escapeHtml(dels[j]);
           html += '<td class="diff-ln diff-ln-del">' + (bOld + j) + '</td><td class="diff-del diff-code">-' + dh + '</td>';
         } else {
           html += '<td class="diff-ln diff-ln-del"></td><td class="diff-del diff-code diff-empty"></td>';
         }
         if (hasAdd) {
-          var ah = isPHP ? highlightPHP(adds[j]) : escapeHtml(adds[j]);
+          var ah = isPHP ? highlightPHP(adds[j], linkMap, classMap) : escapeHtml(adds[j]);
           html += '<td class="diff-ln diff-ln-add">' + (bNew + j) + '</td><td class="diff-add diff-code">+' + ah + '</td>';
         } else {
           html += '<td class="diff-ln diff-ln-add"></td><td class="diff-add diff-code diff-empty"></td>';
@@ -715,7 +863,7 @@ function renderSplitDiff(parsed, isPHP) {
   return html;
 }
 
-function renderFullFile(fileContent, parsedDiff, isPHP) {
+function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap) {
   // Build maps from parsedDiff: which new-file lines are added, and which deleted
   // lines appear before each new-file line.
   var addedLines = {};
@@ -748,10 +896,10 @@ function renderFullFile(fileContent, parsedDiff, isPHP) {
     var ln = i + 1;
     var dels = deletedBefore[ln] || [];
     for (var d = 0; d < dels.length; d++) {
-      var dh = isPHP ? highlightPHP(dels[d]) : escapeHtml(dels[d]);
+      var dh = isPHP ? highlightPHP(dels[d], linkMap, classMap) : escapeHtml(dels[d]);
       html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
     }
-    var h = isPHP ? highlightPHP(lines[i]) : escapeHtml(lines[i]);
+    var h = isPHP ? highlightPHP(lines[i], linkMap, classMap) : escapeHtml(lines[i]);
     var isAdded = !!addedLines[ln];
     html += '<tr data-new-ln="' + ln + '">' +
       '<td class="diff-ln' + (isAdded ? ' diff-ln-add' : '') + '">' + ln + '</td>' +
@@ -763,7 +911,7 @@ function renderFullFile(fileContent, parsedDiff, isPHP) {
   for (var ki = 0; ki < endKeys.length; ki++) {
     var eds = deletedBefore[endKeys[ki]];
     for (var d = 0; d < eds.length; d++) {
-      var dh = isPHP ? highlightPHP(eds[d]) : escapeHtml(eds[d]);
+      var dh = isPHP ? highlightPHP(eds[d], linkMap, classMap) : escapeHtml(eds[d]);
       html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
     }
   }
@@ -893,6 +1041,13 @@ function renderMethodPanel(n) {
     }
   });
 
+  // method name → node id for inline method-call-link highlighting
+  var methodLinkMap = {};
+  calleesLinks.forEach(function(l) {
+    var name = l.target.name || (l.target.id ? l.target.id.split('::').pop() : null);
+    if (name && !methodLinkMap[name]) methodLinkMap[name] = l.target.id;
+  });
+
   // Body
   var bodyHtml = '';
 
@@ -923,7 +1078,7 @@ function renderMethodPanel(n) {
           '</span>'
         : '';
       return '<tr' + rowAttrs + '><td class="diff-ln">' + ln + '</td>' +
-        '<td class="diff-code diff-ctx">' + highlightPHP(line) + indicator + '</td></tr>';
+        '<td class="diff-code diff-ctx">' + highlightPHP(line, methodLinkMap, classNameIndex) + indicator + '</td></tr>';
     }).join('');
     bodyHtml += '<div class="diff-section"><h4>Source</h4>' +
       '<table class="diff-table unified" style="font-size:12px">' + codeRows + '</table></div>';
@@ -1253,10 +1408,12 @@ function openPanel(n) {
     var isPHP = n.path.endsWith('.php');
     var parsedDiff = parseDiffLines(rawDiff);
     var fullContent = fileContents[n.path];
+    var diffLinkMap = isPHP ? methodNameIndex : null;
+    var diffClassMap = isPHP ? classNameIndex : null;
     var tableRows;
-    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP);
-    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, isPHP);
-    else tableRows = renderUnifiedDiff(parsedDiff, isPHP);
+    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap);
+    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, isPHP, diffLinkMap, diffClassMap);
+    else tableRows = renderUnifiedDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap);
     var activeMode = (diffViewMode === 'full' && !fullContent) ? 'unified' : diffViewMode;
     var fullBtn = fullContent
       ? '<button class="diff-view-btn' + (activeMode === 'full' ? ' active' : '') + '" data-view="full">Full file</button>'
@@ -1379,6 +1536,37 @@ function openPanel(n) {
   }
   placeAnnotationDots();
 
+  // Inject "← caller" indicators at method definition lines.
+  // Defined as a closure so the mode-switch handler can call it too.
+  var placeCallerBadges = function() {
+    if (!m || !m.method_metrics) return;
+    m.method_metrics.forEach(function(mth) {
+      if (!mth.line || !mth.name) return;
+      var callers = callersIndex[n.id + ':' + mth.name];
+      if (!callers || !callers.length) return;
+      var row = document.querySelector('.diff-table tr[data-new-ln="' + mth.line + '"]');
+      if (!row) return;
+      var cell = row.querySelector('td:last-child');
+      if (!cell || cell.querySelector('.caller-badge')) return;
+      var badge = document.createElement('span');
+      badge.className = 'caller-badge';
+      var MAX_INLINE = 2;
+      var shown = callers.slice(0, MAX_INLINE);
+      var rest = callers.slice(MAX_INLINE);
+      var linksHtml = shown.map(function(entry) {
+        var lineAttr = entry.line ? ' data-call-line="' + entry.line + '"' : '';
+        return '<span class="caller-link" data-node-id="' + escapeHtml(entry.node.id) + '"' + lineAttr + '>' + escapeHtml(entry.node.displayLabel || entry.node.id) + '</span>';
+      }).join(' <span style="color:#484f58">·</span> ');
+      var moreHtml = rest.length
+        ? ' <span style="color:#484f58">·</span> <span class="callers-more-btn" style="color:#8b949e">+' + rest.length + ' more</span>'
+        : '';
+      badge.innerHTML = '<span style="color:#8b949e">← </span>' + linksHtml + moreHtml;
+      badge.dataset.allCallers = JSON.stringify(callers.map(function(entry) { return { id: entry.node.id, label: entry.node.displayLabel || entry.node.id, line: entry.line }; }));
+      cell.appendChild(badge);
+    });
+  };
+  placeCallerBadges();
+
   // Wire diff view toggle
   document.querySelectorAll('.diff-view-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -1394,11 +1582,13 @@ function openPanel(n) {
       var isPHP = n.path.endsWith('.php');
       var parsed = parseDiffLines(rd);
       var rows;
-      if (mode === 'split') rows = renderSplitDiff(parsed, isPHP);
-      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP);
-      else rows = renderUnifiedDiff(parsed, isPHP);
+      var reLinkMap = isPHP ? methodNameIndex : null;
+      var reClassMap = isPHP ? classNameIndex : null;
+      if (mode === 'split') rows = renderSplitDiff(parsed, isPHP, reLinkMap, reClassMap);
+      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP, reLinkMap, reClassMap);
+      else rows = renderUnifiedDiff(parsed, isPHP, reLinkMap, reClassMap);
       var table = document.querySelector('.diff-table');
-      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); }
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); }
     });
   });
 
@@ -1842,6 +2032,69 @@ function draw() {
   requestAnimationFrame(draw);
 }
 draw();
+
+// Helper: scroll to a line in the diff, switching to full-file view first if needed.
+function scrollToDiffLine(line) {
+  if (!document.querySelector('.diff-table tr[data-new-ln="' + line + '"]')) {
+    var fullBtn = document.querySelector('.diff-view-btn[data-view="full"]');
+    if (fullBtn) fullBtn.click();
+  }
+  scrollToDiffRow(findDiffRowByLine(line));
+}
+
+// Global click delegation: inline method-call links, caller badges, and caller popup.
+document.addEventListener('click', function(e) {
+  var popup = document.getElementById('caller-popup');
+
+  // "+N more" button: show popup listing all callers
+  var moreBtn = e.target.closest('.callers-more-btn');
+  if (moreBtn) {
+    var badge = moreBtn.closest('.caller-badge');
+    var all = badge ? JSON.parse(badge.dataset.allCallers || '[]') : [];
+    if (popup && all.length) {
+      popup.innerHTML = '<div class="popup-title">Called by</div>' +
+        all.map(function(c) {
+          var lineAttr = c.line ? ' data-call-line="' + c.line + '"' : '';
+          return '<span class="caller-link" data-node-id="' + escapeHtml(c.id) + '"' + lineAttr + '>' + escapeHtml(c.label) + '</span>';
+        }).join('');
+      var rect = moreBtn.getBoundingClientRect();
+      popup.style.top = (rect.bottom + 4) + 'px';
+      popup.style.left = rect.left + 'px';
+      popup.style.display = 'block';
+    }
+    e.stopPropagation();
+    return;
+  }
+
+  // Close popup when clicking outside it
+  if (popup && popup.style.display === 'block' && !e.target.closest('#caller-popup')) {
+    popup.style.display = 'none';
+  }
+
+  var link = e.target.closest('.method-call-link, .caller-link');
+  if (!link) return;
+  e.stopPropagation();
+  if (popup) popup.style.display = 'none';
+
+  var nodeId = link.getAttribute('data-node-id');
+  var nd = nodeMap[nodeId];
+  if (!nd) return;
+
+  // Same-file method call → scroll to that method's definition in the current view
+  if (link.classList.contains('method-call-link') && selectedNode && nodeId === selectedNode.id) {
+    var methodName = link.getAttribute('data-method-name') || link.textContent.trim();
+    var mm = metricsData[selectedNode.path] && metricsData[selectedNode.path].method_metrics;
+    if (mm) {
+      var mth = mm.find(function(x) { return x.name === methodName; });
+      if (mth && mth.line) { scrollToDiffLine(mth.line); return; }
+    }
+  }
+
+  // Cross-file link → open the target panel, then scroll to the call line if known
+  var callLine = link.getAttribute('data-call-line');
+  openPanel(nd);
+  if (callLine) scrollToDiffLine(parseInt(callLine, 10));
+});
 
 var openedFromFiles = false;
 
