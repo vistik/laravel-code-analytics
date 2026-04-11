@@ -42,7 +42,8 @@
     "autoload-dev": {
         "psr-4": {
             "Vistik\\LaravelCodeAnalytics\\Tests\\": "tests/",
-            "Workbench\\App\\": "workbench/app/"
+            "Workbench\\App\\": "workbench/app/",
+            "Example\\": "example/"
         }
     },
     "scripts": {
