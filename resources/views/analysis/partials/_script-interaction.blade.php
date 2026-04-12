@@ -124,8 +124,10 @@ canvas.addEventListener('mouseup', e => {
     } else {
       clearPathfinding();
       clearNavStack();
-      openPanel(dragNode);
-      if (canPin) dragNode.pinned = true;
+      var _dn = dragNode;
+      dragNode = null;
+      openPanel(_dn);
+      if (canPin) _dn.pinned = true;
     }
   } else if (dragNode && didDrag && canPin) { dragNode.pinned = true; }
   else if (isPanning && !didDrag) { closeLegend(); closePanel(); clearPathfinding(); }
