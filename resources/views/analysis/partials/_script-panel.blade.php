@@ -358,8 +358,14 @@ function openPanel(n) {
         var color = bad ? '#f85149' : '#3fb950';
         return '<span style="color:' + color + ';font-size:10.5px;margin-left:3px">' + sign + diff + '</span>';
       }
+      var methodStatuses = methodsSorted.map(function(mth) { return methodDiffStatus(mth); });
+      var modifiedMethodCount = methodStatuses.filter(function(s) { return s !== null; }).length;
+      var unmodifiedMethodCount = methodsSorted.length - modifiedMethodCount;
       bodyHtml += '<div id="methods-by-complexity" style="margin-top:10px">' +
-        '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Methods by Complexity</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+        '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px">Methods by Complexity</div>' +
+        (modifiedMethodCount > 0 ? '<button id="methods-filter-btn" style="font-size:11px;color:#8b949e;background:none;border:1px solid #30363d;border-radius:4px;padding:2px 7px;cursor:pointer;line-height:1.5">Modified only</button>' : '') +
+        '</div>' +
         '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
         '<thead><tr>' +
         '<th style="text-align:left;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Method</th>' +
@@ -372,7 +378,7 @@ function openPanel(n) {
         var bm = beforeMethodMap[mth.name] || null;
         var ccColor = mth.cc > 10 ? '#f85149' : mth.cc > 5 ? '#d29922' : '#3fb950';
         var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
-        var status = methodDiffStatus(mth);
+        var status = methodStatuses[mi2];
         var statusBadge = status === 'new'
           ? '<span style="color:#3fb950;font-size:10.5px;font-weight:500;margin-left:5px">new</span>'
           : status === 'modified'
@@ -381,14 +387,16 @@ function openPanel(n) {
         var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
         var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
         var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
-        bodyHtml += '<tr' + hasLine + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
+        bodyHtml += '<tr' + hasLine + ' data-method-status="' + (status || 'unmodified') + '"' + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
           '<td style="padding:4px 8px 4px 0;color:#c9d1d9;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
           '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
           '<td style="padding:4px 8px 4px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
           '<td style="padding:4px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
           '</tr>';
       }
-      bodyHtml += '</tbody></table></div>';
+      bodyHtml += '</tbody></table>' +
+        (unmodifiedMethodCount > 0 ? '<div id="methods-filter-hint" style="display:none;font-size:11.5px;color:#6e7681;margin-top:6px;cursor:pointer">+' + unmodifiedMethodCount + ' unedited method' + (unmodifiedMethodCount !== 1 ? 's' : '') + '</div>' : '') +
+        '</div>';
     }
     bodyHtml += '</div>';
   }
@@ -572,6 +580,29 @@ function openPanel(n) {
       row.style.opacity = '0.5';
     }
   });
+
+  // Wire up methods filter button
+  var methodsFilterBtn = document.getElementById('methods-filter-btn');
+  if (methodsFilterBtn) {
+    function applyMethodFilter(active) {
+      var hint = document.getElementById('methods-filter-hint');
+      document.querySelectorAll('tr[data-method-status="unmodified"]').forEach(function(r) {
+        r.style.display = active ? 'none' : '';
+      });
+      if (hint) hint.style.display = active ? 'block' : 'none';
+      methodsFilterBtn.textContent = active ? 'All methods' : 'Modified only';
+      methodsFilterBtn.style.color = active ? '#58a6ff' : '#8b949e';
+      methodsFilterBtn.style.borderColor = active ? '#58a6ff' : '#30363d';
+      methodsFilterBtn.dataset.active = active ? '1' : '0';
+    }
+    methodsFilterBtn.addEventListener('click', function() {
+      applyMethodFilter(this.dataset.active !== '1');
+    });
+    var methodsFilterHint = document.getElementById('methods-filter-hint');
+    if (methodsFilterHint) {
+      methodsFilterHint.addEventListener('click', function() { applyMethodFilter(false); });
+    }
+  }
 
   // Wire up analysis toggle
   var toggleBtn = document.getElementById('analysisToggle');
