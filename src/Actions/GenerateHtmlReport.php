@@ -116,16 +116,16 @@ class GenerateHtmlReport implements ReportGenerator
         ], JSON_HEX_TAG);
 
         $parsedDiffsJson = json_encode(
-            (new DiffParser)->parseAll($fileDiffs),
+            (new DiffParser)->parseAll($payload->fileDiffs),
             JSON_UNESCAPED_SLASHES | JSON_HEX_TAG,
         );
 
         $graphIndex = (new GraphIndexBuilder)->build(
-            nodes: $nodes,
-            edges: $edges,
-            metricsData: $metricsData,
-            fileDiffs: $fileDiffs,
-            fileContents: $fileContents,
+            nodes: $payload->nodes,
+            edges: $payload->edges,
+            metricsData: $payload->metricsData,
+            fileDiffs: $payload->fileDiffs,
+            fileContents: $payload->fileContents,
         );
         $graphIndexJson = json_encode($graphIndex, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
