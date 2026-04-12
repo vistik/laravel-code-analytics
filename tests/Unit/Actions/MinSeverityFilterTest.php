@@ -136,6 +136,48 @@ it('filters analysisData findings but keeps all files in the result', function (
         ->and($result['analysisData']['app/Low.php'])->toHaveCount(0);
 });
 
+// ── Node severity recalculation ───────────────────────────────────────────────
+
+it('sets node severity to null when all reports are filtered out', function () {
+    $nodes = [makeNode('app/Info.php', 'info')];
+    $analysisData = [
+        'app/Info.php' => [makeSeverityReport('info')],
+    ];
+
+    $result = applyFilter($nodes, $analysisData, Severity::MEDIUM);
+
+    expect($result['nodes'][0]['severity'])->toBeNull();
+});
+
+it('updates node severity to reflect remaining reports after filtering', function () {
+    $nodes = [makeNode('app/Foo.php', 'high')];
+    $analysisData = [
+        'app/Foo.php' => [
+            makeSeverityReport('high'),
+            makeSeverityReport('medium'),
+            makeSeverityReport('low'),
+        ],
+    ];
+
+    $result = applyFilter($nodes, $analysisData, Severity::HIGH);
+
+    expect($result['nodes'][0]['severity'])->toBe('high');
+});
+
+it('downgrades node severity when the highest-severity reports are filtered out', function () {
+    $nodes = [makeNode('app/Foo.php', 'very_high')];
+    $analysisData = [
+        'app/Foo.php' => [
+            makeSeverityReport('very_high'),
+            makeSeverityReport('medium'),
+        ],
+    ];
+
+    $result = applyFilter($nodes, $analysisData, Severity::VERY_HIGH);
+
+    expect($result['nodes'][0]['severity'])->toBe('very_high');
+});
+
 it('preserves metricsData and fileDiffs for all files', function () {
     $nodes = [makeNode('app/Low.php', 'low')];
     $filter = new MinSeverityFilter;

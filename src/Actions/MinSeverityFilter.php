@@ -37,6 +37,18 @@ class MinSeverityFilter
             $node['mediumCount'] = count(array_filter($reports, fn ($r) => $r['severity'] === Severity::MEDIUM->value));
             $node['lowCount'] = count(array_filter($reports, fn ($r) => $r['severity'] === Severity::LOW->value));
             $node['infoCount'] = count(array_filter($reports, fn ($r) => $r['severity'] === Severity::INFO->value));
+
+            if (empty($reports)) {
+                $node['severity'] = null;
+            } else {
+                $maxScore = max(array_map(fn ($r) => Severity::from($r['severity'])->score(), $reports));
+                foreach (Severity::cases() as $severity) {
+                    if ($severity->score() === $maxScore) {
+                        $node['severity'] = $severity->value;
+                        break;
+                    }
+                }
+            }
         }
         unset($node);
 
