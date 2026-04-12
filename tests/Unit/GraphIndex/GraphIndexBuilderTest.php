@@ -102,7 +102,7 @@ test('detects static call and records caller', function () {
         makeGraphNode('app/PaymentGateway.php', 'PaymentGateway'),
     ];
     $classNameIndex = ['PaymentGateway' => 'PaymentGateway'];
-    $fileDiffs = ['app/OrderService.php' => "+ PaymentGateway::charge(\$amount);"];
+    $fileDiffs = ['app/OrderService.php' => '+ PaymentGateway::charge($amount);'];
 
     $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs);
 
@@ -117,8 +117,8 @@ test('detects instance call via type-hint resolution', function () {
     ];
     $classNameIndex = ['PaymentGateway' => 'PaymentGateway'];
     $diff = implode("\n", [
-        "+ private PaymentGateway \$gateway;",
-        "+ \$this->gateway->charge(\$amount);",
+        '+ private PaymentGateway $gateway;',
+        '+ $this->gateway->charge($amount);',
     ]);
     $fileDiffs = ['app/OrderService.php' => $diff];
 
@@ -131,7 +131,7 @@ test('detects instance call via type-hint resolution', function () {
 test('does not record self-calls', function () {
     $nodes = [makeGraphNode('app/OrderService.php', 'OrderService')];
     $classNameIndex = ['OrderService' => 'OrderService'];
-    $fileDiffs = ['app/OrderService.php' => "+ OrderService::staticHelper();"];
+    $fileDiffs = ['app/OrderService.php' => '+ OrderService::staticHelper();'];
 
     $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs);
 
@@ -145,8 +145,8 @@ test('deduplicates when same caller appears multiple times', function () {
     ];
     $classNameIndex = ['PaymentGateway' => 'PaymentGateway'];
     $diff = implode("\n", [
-        "+ PaymentGateway::charge(\$a);",
-        "+ PaymentGateway::charge(\$b);",
+        '+ PaymentGateway::charge($a);',
+        '+ PaymentGateway::charge($b);',
     ]);
     $fileDiffs = ['app/OrderService.php' => $diff];
 
@@ -188,7 +188,7 @@ test('line number is null when reconstructed from diff', function () {
         makeGraphNode('app/PaymentGateway.php', 'PaymentGateway'),
     ];
     $classNameIndex = ['PaymentGateway' => 'PaymentGateway'];
-    $fileDiffs = ['app/OrderService.php' => "+ PaymentGateway::charge();"];
+    $fileDiffs = ['app/OrderService.php' => '+ PaymentGateway::charge();'];
 
     $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs);
 

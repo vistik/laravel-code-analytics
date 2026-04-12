@@ -131,8 +131,8 @@ test('parses a realistic unified diff end-to-end', function () {
 
 test('parseAll parses each diff by path', function () {
     $diffs = [
-        'app/Foo.php' => "+new line",
-        'app/Bar.php' => "-old line",
+        'app/Foo.php' => '+new line',
+        'app/Bar.php' => '-old line',
     ];
 
     $result = (new DiffParser)->parseAll($diffs);

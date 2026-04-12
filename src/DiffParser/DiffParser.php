@@ -30,8 +30,8 @@ class DiffParser
             if (str_starts_with($line, '@@')) {
                 preg_match('/@@ -(\d+)(?:,\d+)? \+(\d+)/', $line, $hm);
                 $result[] = [
-                    'type'     => 'hunk',
-                    'raw'      => $line,
+                    'type' => 'hunk',
+                    'raw' => $line,
                     'oldStart' => isset($hm[1]) ? (int) $hm[1] : 1,
                     'newStart' => isset($hm[2]) ? (int) $hm[2] : 1,
                 ];
@@ -48,6 +48,7 @@ class DiffParser
                 while ($i < $total) {
                     if (str_starts_with($lines[$i], '\\')) {
                         $i++;
+
                         continue;
                     }
                     if (str_starts_with($lines[$i], '-')) {
