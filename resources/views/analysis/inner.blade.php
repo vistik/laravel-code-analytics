@@ -219,12 +219,12 @@ tailwind.config = {
   .change-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: #21262d; }
   .change-bar .add-seg { background: #3fb950; }
   .change-bar .del-seg { background: #f85149; }
-  .change-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: #6e7681; margin-top: 5px; }
+  .change-bar-label { display: flex; justify-content: space-between; font-size: 12.5px; color: #6e7681; margin-top: 5px; }
 
   /* ── Dependency section (JS-generated) ── */
   .deps-section { padding: 16px 24px; }
   .deps-section h4 {
-    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
     color: #6e7681; margin-bottom: 10px;
   }
   .dep-item {
@@ -247,11 +247,11 @@ tailwind.config = {
   .analysis-row.clickable .analysis-location { color: #58a6ff; }
   .analysis-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
   .analysis-label { flex: 1; min-width: 0; }
-  .analysis-desc { display: block; font-size: 11.5px; color: #6e7681; line-height: 1.5; margin-top: 2px; }
-  .analysis-location { color: #6e7681; font-size: 11px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+  .analysis-desc { display: block; font-size: 13px; color: #6e7681; line-height: 1.5; margin-top: 2px; }
+  .analysis-location { color: #6e7681; font-size: 12.5px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
   .analysis-toggle {
     background: transparent; border: 1px solid #30363d; color: #58a6ff;
-    padding: 3px 11px; border-radius: 6px; font-size: 11.5px; cursor: pointer;
+    padding: 3px 11px; border-radius: 6px; font-size: 13px; cursor: pointer;
     margin-top: 8px; font-family: inherit; transition: background 0.15s;
   }
   .analysis-toggle:hover { background: #1c2128; }
@@ -259,7 +259,7 @@ tailwind.config = {
   /* ── Diff viewer (JS-generated) ── */
   .diff-section { border-top: 1px solid #21262d; }
   .diff-section h4 {
-    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
     color: #6e7681; padding: 12px 24px 8px;
     position: sticky; top: 0; background: #161b22; z-index: 1;
     display: flex; align-items: center;
@@ -267,7 +267,7 @@ tailwind.config = {
   .diff-view-controls { margin-left: auto; display: flex; gap: 4px; }
   .diff-view-btn {
     background: none; border: 1px solid #30363d; color: #6e7681;
-    padding: 2px 8px; border-radius: 5px; font-size: 11px; cursor: pointer;
+    padding: 2px 8px; border-radius: 5px; font-size: 12px; cursor: pointer;
     font-family: inherit; transition: all 0.15s; letter-spacing: normal; text-transform: none;
   }
   .diff-view-btn:hover { background: #21262d; color: #c9d1d9; }
@@ -1365,10 +1365,10 @@ function openPanel(n) {
         var deltaDisplay = Math.abs(delta) >= 0.0005
           ? arrow + (absDelta < 1 ? absDelta.toFixed(2).replace(/\.?0+$/, '') : Math.round(absDelta)) + (pct != null ? ' (' + pct + '%)' : '')
           : arrow;
-        deltaHtml = '<span style="font-size:10px;color:' + deltaColor + '">' + deltaDisplay + '</span>';
+        deltaHtml = '<span style="font-size:11.5px;color:' + deltaColor + '">' + deltaDisplay + '</span>';
       }
       return '<div style="background:#21262d;border-radius:6px;padding:8px 10px">' +
-        '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">' + label + '</div>' +
+        '<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">' + label + '</div>' +
         '<div style="font-size:20px;font-weight:700;color:' + color + ';line-height:1;display:flex;align-items:baseline;gap:4px">' + display + deltaHtml + '</div>' +
         '</div>';
     }
@@ -1422,16 +1422,16 @@ function openPanel(n) {
         var sign = diff > 0 ? '+' : '';
         var bad = higherIsBad ? diff > 0 : diff < 0;
         var color = bad ? '#f85149' : '#3fb950';
-        return '<span style="color:' + color + ';font-size:9px;margin-left:3px">' + sign + diff + '</span>';
+        return '<span style="color:' + color + ';font-size:10.5px;margin-left:3px">' + sign + diff + '</span>';
       }
       bodyHtml += '<div id="methods-by-complexity" style="margin-top:10px">' +
-        '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Methods by Complexity</div>' +
-        '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+        '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Methods by Complexity</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
         '<thead><tr>' +
-        '<th style="text-align:left;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">Method</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">CC</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">Lines</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 0 4px 0">Params</th>' +
+        '<th style="text-align:left;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Method</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">CC</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Lines</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 0 6px 0">Params</th>' +
         '</tr></thead><tbody>';
       for (var mi2 = 0; mi2 < methodsSorted.length; mi2++) {
         var mth = methodsSorted[mi2];
@@ -1440,18 +1440,18 @@ function openPanel(n) {
         var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
         var status = methodDiffStatus(mth);
         var statusBadge = status === 'new'
-          ? '<span style="color:#3fb950;font-size:9px;font-weight:500;margin-left:5px">new</span>'
+          ? '<span style="color:#3fb950;font-size:10.5px;font-weight:500;margin-left:5px">new</span>'
           : status === 'modified'
-          ? '<span style="color:#d29922;font-size:9px;font-weight:500;margin-left:5px">mod</span>'
+          ? '<span style="color:#d29922;font-size:10.5px;font-weight:500;margin-left:5px">mod</span>'
           : '';
         var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
         var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
         var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
         bodyHtml += '<tr' + hasLine + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
-          '<td style="padding:2px 8px 2px 0;color:#c9d1d9;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
-          '<td style="padding:2px 8px 2px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
-          '<td style="padding:2px 8px 2px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
-          '<td style="padding:2px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
+          '<td style="padding:4px 8px 4px 0;color:#c9d1d9;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
+          '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
+          '<td style="padding:4px 8px 4px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
+          '<td style="padding:4px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
           '</tr>';
       }
       bodyHtml += '</tbody></table></div>';
