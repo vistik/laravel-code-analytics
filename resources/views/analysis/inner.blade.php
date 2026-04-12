@@ -165,6 +165,19 @@
   .panel-back:hover { color: #58a6ff; }
   .panel-back.visible { display: inline-flex; }
 
+  #panel-breadcrumbs {
+    display: none; padding: 6px 24px 4px; border-bottom: 1px solid #21262d;
+    flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px;
+  }
+  .bc-item {
+    color: #58a6ff; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+    white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bc-item:hover { background: #21262d; }
+  .bc-current { color: #8b949e; cursor: default; }
+  .bc-current:hover { background: none; }
+  .bc-sep { color: #484f58; padding: 0 1px; font-size: 11px; }
+
   .panel-body::-webkit-scrollbar { width: 6px; }
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
@@ -335,6 +348,7 @@
   <div id="panel-resize"></div>
   <button class="panel-back" id="panelBack" onclick="if(window.parent!==window)window.parent.postMessage({type:'backToFiles'},'*')">&#8592; Files</button>
   <button class="panel-close" onclick="closePanel()">&times;</button>
+  <div id="panel-breadcrumbs"></div>
   <div class="panel-header" id="panel-header"></div>
   <div class="panel-actions" id="panel-actions"></div>
   <div class="change-bar-wrap" id="panel-bar"></div>
@@ -498,6 +512,26 @@ var callersIndex = {};
   });
 }());
 
+// Build implementors index: implementorsIndex[interfaceNodeId] = [{node}, ...]
+// Build implementee index: implementeeIndex[concreteNodeId] = [interfaceNode, ...]
+// Together these power the implementation-picker popup shown when clicking a method link
+// whose target is either an interface or a concrete class that implements one.
+var implementorsIndex = {};
+var implementeeIndex = {};
+(function() {
+  links.forEach(function(l) {
+    if (l.depType !== 'implements' || !l.source || !l.target) return;
+    if (!implementorsIndex[l.target.id]) implementorsIndex[l.target.id] = [];
+    if (!implementorsIndex[l.target.id].some(function(e) { return e.node.id === l.source.id; })) {
+      implementorsIndex[l.target.id].push({ node: l.source });
+    }
+    if (!implementeeIndex[l.source.id]) implementeeIndex[l.source.id] = [];
+    if (!implementeeIndex[l.source.id].some(function(iface) { return iface.id === l.target.id; })) {
+      implementeeIndex[l.source.id].push(l.target);
+    }
+  });
+}());
+
 // ── Circular dependency stats ─────────────────────────────────────────────────
 const cycleGroupCount = new Set(nodes.filter(n => n.cycleId != null).map(n => n.cycleId)).size;
 
@@ -651,7 +685,7 @@ function screenToWorld(sx, sy) { return [(sx - panX) / zoom, (sy - panY) / zoom]
 // ── Syntax highlighting ───────────────────────────────────────────────────────
 function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function highlightPHP(code, linkMap, classMap) {
+function highlightPHP(code, linkMap, classMap, ifaceIndex) {
   var tokens = [];
   var i = 0, len = code.length;
   while (i < len) {
@@ -709,27 +743,30 @@ function highlightPHP(code, linkMap, classMap) {
           if (!isDefinition) { tokens.push({type: 'method_link', text: word, targetId: linkMap[word]}); i = j; continue; }
         }
       }
-      // Detect class reference link: UpperCamelCase word in classMap used as a type hint,
-      // after `new`/`extends`/`implements`/`instanceof`, or before `::`.
-      // Excluded: the class declaration itself (preceded by class/interface/trait/enum).
+      // Detect class reference link: UpperCamelCase word in classMap.
+      // Covers type hints, `new`/`extends`/`implements`/`instanceof`, `::`, and
+      // the class/interface declaration itself (so `interface LoggerInterface` is
+      // clickable and can show the implementations picker).
       if (kwType === 'plain' && classMap && classMap[word]) {
         var pi = tokens.length - 1;
         while (pi >= 0 && tokens[pi].type === 'plain') pi--;
         var prevKw = pi >= 0 ? tokens[pi] : null;
         var prevKwText = prevKw && prevKw.type === 'keyword' ? prevKw.text : '';
         var isDeclaration = /^(class|interface|trait|enum)$/.test(prevKwText);
-        if (!isDeclaration) {
-          var isClassContext = /^(new|extends|implements|instanceof)$/.test(prevKwText);
-          if (!isClassContext) {
-            // Type hint: word followed by optional whitespace then '$'
-            var k = j;
-            while (k < len && (code[k] === ' ' || code[k] === '\t')) k++;
-            isClassContext = (code[k] === '$');
-            // Static access: word followed by '::'
-            if (!isClassContext) isClassContext = (code[j] === ':' && code[j+1] === ':');
-          }
-          if (isClassContext) { tokens.push({type: 'class_link', text: word, targetId: classMap[word]}); i = j; continue; }
+        // Allow declaration names to be links only when they're an interface that has
+        // known implementations — so `interface LoggerInterface` is clickable but
+        // `class OrderService` in its own definition is not.
+        var declClickable = isDeclaration && ifaceIndex && ifaceIndex[classMap[word]];
+        var isClassContext = declClickable || /^(new|extends|implements|instanceof)$/.test(prevKwText);
+        if (!isClassContext) {
+          // Type hint: word followed by optional whitespace then '$'
+          var k = j;
+          while (k < len && (code[k] === ' ' || code[k] === '\t')) k++;
+          isClassContext = (code[k] === '$');
+          // Static access: word followed by '::'
+          if (!isClassContext) isClassContext = (code[j] === ':' && code[j+1] === ':');
         }
+        if (isClassContext) { tokens.push({type: 'class_link', text: word, targetId: classMap[word]}); i = j; continue; }
       }
       tokens.push({type: kwType, text: word});
       i = j; continue;
@@ -789,7 +826,7 @@ function parseDiffLines(rawDiff) {
   return result;
 }
 
-function renderUnifiedDiff(parsed, isPHP, linkMap, classMap) {
+function renderUnifiedDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
   var html = '';
   var oldLn = 0, newLn = 0;
   for (var r = 0; r < parsed.length; r++) {
@@ -799,17 +836,17 @@ function renderUnifiedDiff(parsed, isPHP, linkMap, classMap) {
       var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += '<tr><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-hunk">' + esc + '</td></tr>';
     } else if (row.type === 'ctx') {
-      var h = isPHP ? highlightPHP(row.text, linkMap, classMap) : escapeHtml(row.text);
+      var h = isPHP ? highlightPHP(row.text, linkMap, classMap, ifaceIndex) : escapeHtml(row.text);
       html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '"><td class="diff-ln">' + oldLn + '</td><td class="diff-ln">' + newLn + '</td><td class="diff-ctx"> ' + h + '</td></tr>';
       oldLn++; newLn++;
     } else {
       for (var j = 0; j < row.dels.length; j++) {
-        var h = isPHP ? highlightPHP(row.dels[j], linkMap, classMap) : escapeHtml(row.dels[j]);
+        var h = isPHP ? highlightPHP(row.dels[j], linkMap, classMap, ifaceIndex) : escapeHtml(row.dels[j]);
         html += '<tr data-old-ln="' + oldLn + '"><td class="diff-ln diff-ln-del">' + oldLn + '</td><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + h + '</td></tr>';
         oldLn++;
       }
       for (var j = 0; j < row.adds.length; j++) {
-        var h = isPHP ? highlightPHP(row.adds[j], linkMap, classMap) : escapeHtml(row.adds[j]);
+        var h = isPHP ? highlightPHP(row.adds[j], linkMap, classMap, ifaceIndex) : escapeHtml(row.adds[j]);
         html += '<tr data-new-ln="' + newLn + '"><td class="diff-ln diff-ln-add"></td><td class="diff-ln diff-ln-add">' + newLn + '</td><td class="diff-add">+' + h + '</td></tr>';
         newLn++;
       }
@@ -818,7 +855,7 @@ function renderUnifiedDiff(parsed, isPHP, linkMap, classMap) {
   return html;
 }
 
-function renderSplitDiff(parsed, isPHP, linkMap, classMap) {
+function renderSplitDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
   var html = '';
   var oldLn = 0, newLn = 0;
   for (var r = 0; r < parsed.length; r++) {
@@ -828,7 +865,7 @@ function renderSplitDiff(parsed, isPHP, linkMap, classMap) {
       var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += '<tr><td colspan="4" class="diff-hunk">' + esc + '</td></tr>';
     } else if (row.type === 'ctx') {
-      var h = isPHP ? highlightPHP(row.text, linkMap, classMap) : escapeHtml(row.text);
+      var h = isPHP ? highlightPHP(row.text, linkMap, classMap, ifaceIndex) : escapeHtml(row.text);
       html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '">' +
         '<td class="diff-ln">' + oldLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
         '<td class="diff-ln">' + newLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
@@ -843,13 +880,13 @@ function renderSplitDiff(parsed, isPHP, linkMap, classMap) {
         var trAttrs = (hasDel ? ' data-old-ln="' + (bOld + j) + '"' : '') + (hasAdd ? ' data-new-ln="' + (bNew + j) + '"' : '');
         html += '<tr' + trAttrs + '>';
         if (hasDel) {
-          var dh = isPHP ? highlightPHP(dels[j], linkMap, classMap) : escapeHtml(dels[j]);
+          var dh = isPHP ? highlightPHP(dels[j], linkMap, classMap, ifaceIndex) : escapeHtml(dels[j]);
           html += '<td class="diff-ln diff-ln-del">' + (bOld + j) + '</td><td class="diff-del diff-code">-' + dh + '</td>';
         } else {
           html += '<td class="diff-ln diff-ln-del"></td><td class="diff-del diff-code diff-empty"></td>';
         }
         if (hasAdd) {
-          var ah = isPHP ? highlightPHP(adds[j], linkMap, classMap) : escapeHtml(adds[j]);
+          var ah = isPHP ? highlightPHP(adds[j], linkMap, classMap, ifaceIndex) : escapeHtml(adds[j]);
           html += '<td class="diff-ln diff-ln-add">' + (bNew + j) + '</td><td class="diff-add diff-code">+' + ah + '</td>';
         } else {
           html += '<td class="diff-ln diff-ln-add"></td><td class="diff-add diff-code diff-empty"></td>';
@@ -863,7 +900,7 @@ function renderSplitDiff(parsed, isPHP, linkMap, classMap) {
   return html;
 }
 
-function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap) {
+function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap, ifaceIndex) {
   // Build maps from parsedDiff: which new-file lines are added, and which deleted
   // lines appear before each new-file line.
   var addedLines = {};
@@ -896,10 +933,10 @@ function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap) {
     var ln = i + 1;
     var dels = deletedBefore[ln] || [];
     for (var d = 0; d < dels.length; d++) {
-      var dh = isPHP ? highlightPHP(dels[d], linkMap, classMap) : escapeHtml(dels[d]);
+      var dh = isPHP ? highlightPHP(dels[d], linkMap, classMap, ifaceIndex) : escapeHtml(dels[d]);
       html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
     }
-    var h = isPHP ? highlightPHP(lines[i], linkMap, classMap) : escapeHtml(lines[i]);
+    var h = isPHP ? highlightPHP(lines[i], linkMap, classMap, ifaceIndex) : escapeHtml(lines[i]);
     var isAdded = !!addedLines[ln];
     html += '<tr data-new-ln="' + ln + '">' +
       '<td class="diff-ln' + (isAdded ? ' diff-ln-add' : '') + '">' + ln + '</td>' +
@@ -911,7 +948,7 @@ function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap) {
   for (var ki = 0; ki < endKeys.length; ki++) {
     var eds = deletedBefore[endKeys[ki]];
     for (var d = 0; d < eds.length; d++) {
-      var dh = isPHP ? highlightPHP(eds[d], linkMap, classMap) : escapeHtml(eds[d]);
+      var dh = isPHP ? highlightPHP(eds[d], linkMap, classMap, ifaceIndex) : escapeHtml(eds[d]);
       html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
     }
   }
@@ -1128,7 +1165,49 @@ function renderMethodPanel(n) {
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
+// Returns a method-name → nodeId link map for a given file node.
+// Starts from the global methodNameIndex but overrides with methods defined in
+// this file, so $this->ownMethod() always resolves to the file itself even when
+// another class registered the same name first in the global index.
+function buildFileLinkMap(node) {
+  var ownMM = metricsData[node.path] && metricsData[node.path].method_metrics;
+  if (!ownMM || !ownMM.length) return methodNameIndex;
+  var map = Object.assign({}, methodNameIndex);
+  ownMM.forEach(function(m) { if (m.name) map[m.name] = node.id; });
+  return map;
+}
+
+// ── Panel navigation breadcrumbs ──────────────────────────────────────────────
+var navStack = [];      // [{node}] — history of panels opened via link-clicks
+var navSkipPush = false; // set true when re-opening a node via breadcrumb click
+
+function clearNavStack() {
+  navStack = [];
+  renderBreadcrumbs();
+}
+
+function renderBreadcrumbs() {
+  var el = document.getElementById('panel-breadcrumbs');
+  if (!el) return;
+  if (navStack.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = navStack.map(function(entry, i) {
+    var label = entry.node.displayLabel || entry.node.name || entry.node.id;
+    var isLast = i === navStack.length - 1;
+    var sep = i < navStack.length - 1 ? '<span class="bc-sep">&rsaquo;</span>' : '';
+    var cls = 'bc-item' + (isLast ? ' bc-current' : '');
+    var attr = isLast ? '' : ' data-bc-index="' + i + '"';
+    return '<span class="' + cls + '"' + attr + ' title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</span>' + sep;
+  }).join('');
+}
+
 function openPanel(n) {
+  if (!navSkipPush) {
+    if (navStack.length === 0 || navStack[navStack.length - 1].node !== n) {
+      navStack.push({ node: n });
+      renderBreadcrumbs();
+    }
+  }
   if (n.code !== undefined) { renderMethodPanel(n); return; }
   selectedNode = n;
   const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
@@ -1408,12 +1487,15 @@ function openPanel(n) {
     var isPHP = n.path.endsWith('.php');
     var parsedDiff = parseDiffLines(rawDiff);
     var fullContent = fileContents[n.path];
-    var diffLinkMap = isPHP ? methodNameIndex : null;
+    // Build a link map that lets $this->ownMethod() resolve to the current file.
+    // The global methodNameIndex uses first-match, so a private/protected method
+    // in this file may have lost to another class. Override with this file's own methods.
+    var diffLinkMap = isPHP ? buildFileLinkMap(n) : null;
     var diffClassMap = isPHP ? classNameIndex : null;
     var tableRows;
-    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap);
-    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, isPHP, diffLinkMap, diffClassMap);
-    else tableRows = renderUnifiedDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap);
+    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap, implementorsIndex);
+    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, isPHP, diffLinkMap, diffClassMap, implementorsIndex);
+    else tableRows = renderUnifiedDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap, implementorsIndex);
     var activeMode = (diffViewMode === 'full' && !fullContent) ? 'unified' : diffViewMode;
     var fullBtn = fullContent
       ? '<button class="diff-view-btn' + (activeMode === 'full' ? ' active' : '') + '" data-view="full">Full file</button>'
@@ -1582,11 +1664,11 @@ function openPanel(n) {
       var isPHP = n.path.endsWith('.php');
       var parsed = parseDiffLines(rd);
       var rows;
-      var reLinkMap = isPHP ? methodNameIndex : null;
+      var reLinkMap = isPHP ? buildFileLinkMap(n) : null;
       var reClassMap = isPHP ? classNameIndex : null;
-      if (mode === 'split') rows = renderSplitDiff(parsed, isPHP, reLinkMap, reClassMap);
-      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP, reLinkMap, reClassMap);
-      else rows = renderUnifiedDiff(parsed, isPHP, reLinkMap, reClassMap);
+      if (mode === 'split') rows = renderSplitDiff(parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
+      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
+      else rows = renderUnifiedDiff(parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
       if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); }
     });
@@ -1598,7 +1680,7 @@ function openPanel(n) {
 }
 
 function closePanel() {
-  panel.classList.remove('open'); selectedNode = null;
+  panel.classList.remove('open'); selectedNode = null; clearNavStack();
   if (openedFromFiles && window.parent !== window) {
     openedFromFiles = false;
     window.parent.postMessage({ type: 'panelClosed' }, '*');
@@ -1815,6 +1897,7 @@ canvas.addEventListener('mouseup', e => {
       computePathfinding();
     } else {
       clearPathfinding();
+      clearNavStack();
       openPanel(dragNode);
       if (canPin) dragNode.pinned = true;
     }
@@ -2043,6 +2126,19 @@ function scrollToDiffLine(line) {
   scrollToDiffRow(findDiffRowByLine(line));
 }
 
+// Breadcrumb click: navigate back to a prior node in the stack.
+document.getElementById('panel-breadcrumbs').addEventListener('click', function(e) {
+  var item = e.target.closest('.bc-item:not(.bc-current)');
+  if (!item) return;
+  var idx = parseInt(item.getAttribute('data-bc-index'), 10);
+  if (isNaN(idx) || idx < 0 || idx >= navStack.length) return;
+  navStack = navStack.slice(0, idx + 1);
+  navSkipPush = true;
+  openPanel(navStack[idx].node);
+  navSkipPush = false;
+  renderBreadcrumbs();
+});
+
 // Global click delegation: inline method-call links, caller badges, and caller popup.
 document.addEventListener('click', function(e) {
   var popup = document.getElementById('caller-popup');
@@ -2081,13 +2177,50 @@ document.addEventListener('click', function(e) {
   var nd = nodeMap[nodeId];
   if (!nd) return;
 
-  // Same-file method call → scroll to that method's definition in the current view
+  // Helper: show the implementations picker popup anchored to a clicked element.
+  function showImplsPopup(impls, anchor) {
+    if (!popup) return;
+    popup.innerHTML = '<div class="popup-title">Implementations</div>' +
+      impls.map(function(impl) {
+        return '<span class="caller-link" data-node-id="' + escapeHtml(impl.node.id) + '">' + escapeHtml(impl.node.displayLabel || impl.node.id) + '</span>';
+      }).join('');
+    var rect = anchor.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 4) + 'px';
+    popup.style.left = rect.left + 'px';
+    popup.style.display = 'block';
+  }
+
+  // Same-file click → either scroll to a method definition or (for an interface
+  // declaration) fall through to the implementorsIndex picker below.
+  // Must come before the interface picker so $this->ownMethod() never opens it.
   if (link.classList.contains('method-call-link') && selectedNode && nodeId === selectedNode.id) {
     var methodName = link.getAttribute('data-method-name') || link.textContent.trim();
     var mm = metricsData[selectedNode.path] && metricsData[selectedNode.path].method_metrics;
     if (mm) {
       var mth = mm.find(function(x) { return x.name === methodName; });
       if (mth && mth.line) { scrollToDiffLine(mth.line); return; }
+    }
+    // Not a scrollable method — only continue if it's an interface with implementations
+    // (handled by implementorsIndex below). Otherwise bail to avoid a pointless re-render.
+    if (!implementorsIndex[nodeId]) return;
+  }
+
+  // Link points directly to an interface → show picker (or navigate if only 1 impl).
+  var impls = implementorsIndex[nodeId];
+  if (impls && impls.length > 1) { showImplsPopup(impls, link); return; }
+  if (impls && impls.length === 1) { openPanel(impls[0].node); return; }
+
+  // Link points to a concrete class via a method call: if that class implements an
+  // interface that has multiple implementations, show the picker instead of jumping straight in.
+  // Scoped to method calls only (data-method-name present) — class references like type hints
+  // and `new Foo()` should navigate directly to the clicked class, not open a picker.
+  if (link.classList.contains('method-call-link') && link.hasAttribute('data-method-name')) {
+    var implementedIfaces = implementeeIndex[nodeId];
+    if (implementedIfaces) {
+      for (var ii = 0; ii < implementedIfaces.length; ii++) {
+        var ifaceImpls = implementorsIndex[implementedIfaces[ii].id];
+        if (ifaceImpls && ifaceImpls.length > 1) { showImplsPopup(ifaceImpls, link); return; }
+      }
     }
   }
 
@@ -2105,6 +2238,7 @@ window.addEventListener('message', function(e) {
     var n = nodeMap[e.data.nodeId];
     if (!n) return;
     openedFromFiles = !!e.data.fromFiles;
+    clearNavStack();
     openPanel(n);
   }
   if (e.data.type === 'closePanel') {
