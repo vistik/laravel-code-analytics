@@ -50,12 +50,14 @@ jobs:
             . 2>&1 || true
 
       - name: Generate HTML report
+        env:
+          REPORT_TITLE: "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
         run: |
           ./testbench code:analyze \
             --base=${{ steps.merge_base.outputs.sha }} \
             --full-files \
             --format=html \
-            --title="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
+            --title="$REPORT_TITLE" \
             --no-ansi \
             . report.html
 
