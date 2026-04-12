@@ -1570,10 +1570,6 @@ function openPanel(n) {
     bodyHtml += '</div>';
   }
 
-  if (n.desc) {
-    bodyHtml += '<div class="deps-section"><h4>Summary</h4><p style="font-size:13px;color:#c9d1d9;line-height:1.6">' + n.desc + '</p></div>';
-  }
-
   var depTypeLabel = { constructor_injection: 'injected', method_injection: 'method param', new_instance: 'new', container_resolved: 'app()', static_call: 'static', extends: 'extends', implements: 'implements', property_type: 'property', return_type: 'return type', use: 'use' };
   var depTypeBadgeColor = { constructor_injection: '#1f6feb', method_injection: '#388bfd', new_instance: '#d29922', container_resolved: '#8957e5', static_call: '#6e7681', extends: '#f78166', implements: '#ffa657', property_type: '#3fb950', return_type: '#79c0ff', use: '#30363d' };
 
