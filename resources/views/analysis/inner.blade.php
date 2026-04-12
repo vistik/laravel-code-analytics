@@ -4,76 +4,148 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PR #{{ $prNumber }} — {{ $prTitle }}</title>
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&family=jetbrains-mono:400,500,600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        canvas: '#0d1117',
+        surface: '#161b22',
+        overlay: '#1c2128',
+        'border-default': '#30363d',
+        'border-subtle': '#21262d',
+        fg: '#e6edf3',
+        'fg-muted': '#8b949e',
+        'fg-subtle': '#6e7681',
+        accent: '#58a6ff',
+        success: '#3fb950',
+        danger: '#f85149',
+        attention: '#d29922',
+        severe: '#f0883e',
+      },
+      fontFamily: {
+        sans: ['"Instrument Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
+    },
+  },
+}
+</script>
 <style>
+  /* ── Reset & base ── */
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; overflow: hidden; }
+  body {
+    background: #0d1117; color: #e6edf3;
+    font-family: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
   #canvas { width: 100vw; height: 100vh; cursor: grab; }
   #canvas.grabbing { cursor: grabbing; }
 
+  /* ── Scrollbars ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  /* ── Hover tooltip (JS-positioned) ── */
   .tooltip {
-    position: absolute; pointer-events: none; background: #161b22; border: 1px solid #30363d;
-    border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
-    box-shadow: 0 8px 24px rgba(0,0,0,.4); max-width: 380px; display: none; z-index: 10;
+    position: absolute; pointer-events: none;
+    background: #1c2128; border: 1px solid rgba(48,54,61,0.8);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; line-height: 1.6;
+    box-shadow: 0 8px 32px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04) inset;
+    max-width: 380px; display: none; z-index: 10;
   }
   .tooltip .path { color: #58a6ff; font-weight: 600; }
   .tooltip .stat { color: #8b949e; }
   .tooltip .added { color: #3fb950; }
   .tooltip .removed { color: #f85149; }
-  .tooltip .hint { color: #6e7681; font-size: 11px; margin-top: 4px; }
+  .tooltip .hint { color: #6e7681; font-size: 11px; margin-top: 6px; }
 
-  .legend {
-    position: fixed; bottom: 20px; left: 20px; background: #161b22; border: 1px solid #30363d;
-    border-radius: 10px; padding: 10px 14px; font-size: 12px; line-height: 1.8; z-index: 5;
-    max-height: calc(100vh - 140px); max-width: 220px; overflow-y: auto;
-  }
-  .legend::-webkit-scrollbar { width: 5px; }
-  .legend::-webkit-scrollbar-track { background: transparent; }
-  .legend::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-  .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
-  .legend-header { display: flex; align-items: center; justify-content: space-between; }
-  .legend-chevron { background: none; border: none; padding: 2px; cursor: pointer; color: #6e7681; display: flex; align-items: center; transition: color 0.15s; }
-  .legend-chevron:hover { color: #c9d1d9; }
-  .legend-chevron svg { transition: transform 0.2s; }
-  .legend-chevron.collapsed svg { transform: rotate(-90deg); }
-  .legend-body { margin-top: 6px; }
-
-  .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid #30363d; }
-  .toggle-label { font-size: 12px; color: #8b949e; cursor: pointer; user-select: none; }
-  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer; }
+  /* ── Toggle switches ── */
+  .toggle { position: relative; width: 34px; height: 18px; flex-shrink: 0; cursor: pointer; }
   .toggle input { opacity: 0; width: 0; height: 0; }
   .toggle .slider {
-    position: absolute; inset: 0; background: #30363d; border-radius: 10px; transition: background 0.2s;
+    position: absolute; inset: 0;
+    background: #2d333b; border-radius: 9px;
+    border: 1px solid #3d444d;
+    transition: background 0.2s ease, border-color 0.2s ease;
   }
   .toggle .slider::before {
-    content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px;
-    background: #c9d1d9; border-radius: 50%; transition: transform 0.2s;
+    content: ''; position: absolute;
+    width: 12px; height: 12px; left: 2px; top: 2px;
+    background: #8b949e; border-radius: 50%;
+    transition: transform 0.2s ease, background 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
   }
-  .toggle input:checked + .slider { background: #58a6ff; }
-  .toggle input:checked + .slider::before { transform: translateX(16px); }
+  .toggle input:checked + .slider { background: #1f6feb; border-color: #388bfd; }
+  .toggle input:checked + .slider::before { background: #fff; transform: translateX(16px); }
 
-  .title-bar {
-    position: fixed; top: 20px; left: 20px; background: #161b22; border: 1px solid #30363d;
-    border-radius: 10px; padding: 14px 20px; font-size: 14px; max-width: 560px; z-index: 5;
-  }
-  .title-bar h2 { font-size: 16px; color: #58a6ff; margin-bottom: 4px; }
-  .title-bar h2 a { color: #58a6ff; text-decoration: none; }
-  .title-bar h2 a:hover { text-decoration: underline; }
-  .title-bar p { color: #8b949e; font-size: 12px; }
-  .layout-switcher { display: flex; gap: 4px; margin-top: 8px; }
+  /* ── Legend chevron ── */
+  .legend-chevron svg { transition: transform 0.25s ease; }
+  .legend-chevron.collapsed svg { transform: rotate(-90deg); }
+
+  /* ── Layout switcher buttons (PHP-generated) ── */
   .layout-btn {
-    padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 500;
-    text-decoration: none; cursor: pointer; border: 1px solid #30363d;
-    color: #8b949e; background: #21262d; transition: all 0.15s;
+    padding: 3px 11px; border-radius: 6px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+    text-decoration: none; cursor: pointer; font-family: inherit;
+    border: 1px solid #30363d; color: #8b949e; background: #21262d;
+    transition: all 0.15s ease; display: inline-block;
   }
-  .layout-btn:hover { background: #30363d; color: #c9d1d9; }
-  .layout-btn.active { background: #58a6ff; color: #fff; border-color: #58a6ff; cursor: default; }
+  .layout-btn:hover { background: #2d333b; color: #c9d1d9; border-color: #484f58; }
+  .layout-btn.active { background: #1f6feb; color: #fff; border-color: #388bfd; cursor: default; }
 
+  /* ── Toggle rows (PHP-generated HTML) ── */
+  .toggle-row { display: flex; align-items: center; gap: 9px; margin-top: 3px; }
+  .toggle-label { font-size: 12px; color: #8b949e; cursor: pointer; user-select: none; line-height: 1.4; }
+  .legend-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Badges (PHP-generated) ── */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 9px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .badge-new { background: rgba(13,53,32,0.85); color: #3fb950; border: 1px solid rgba(35,134,54,0.5); }
+  .badge-mod { background: rgba(45,28,0,0.85); color: #d29922; border: 1px solid rgba(158,106,3,0.5); }
+  .badge-deleted { background: rgba(61,18,20,0.85); color: #f85149; border: 1px solid rgba(218,54,51,0.5); }
+  .badge-renamed { background: rgba(28,29,78,0.85); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5); }
+  .badge-conn { background: rgba(22,27,34,0.85); color: #484f58; border: 1px dashed #30363d; }
+  .badge-add { color: #3fb950; }
+  .badge-del { color: #f85149; }
+
+  /* ── Buttons (JS-generated) ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 14px; border-radius: 8px;
+    font-size: 12.5px; font-weight: 500; font-family: inherit;
+    text-decoration: none; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.15s ease;
+    letter-spacing: 0.01em;
+  }
+  .btn-primary { background: #238636; color: #fff; border-color: #2ea043; }
+  .btn-primary:hover { background: #2ea043; border-color: #3fb950; }
+  .btn-secondary { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  .btn-secondary:hover { background: #2d333b; border-color: #484f58; }
+  .btn-review { background: transparent; color: #8b949e; border-color: #30363d; }
+  .btn-review:hover { background: rgba(13,53,32,0.4); color: #3fb950; border-color: rgba(35,134,54,0.6); }
+  .btn-reviewed { background: rgba(13,53,32,0.6); color: #3fb950; border-color: rgba(35,134,54,0.7); }
+  .btn-reviewed:hover { background: transparent; color: #8b949e; border-color: #30363d; }
+
+  /* ── Panel structure ── */
   #panel {
-    position: fixed; top: 0; right: 0; height: 100vh;
-    background: #161b22; border-left: 1px solid #30363d; z-index: 20;
+    position: fixed; top: 0; right: 0; height: 100dvh;
+    background: #161b22; border-left: 1px solid #21262d; z-index: 20;
     display: flex; flex-direction: column;
-    box-shadow: -4px 0 24px rgba(0,0,0,.5);
-    transform: translateX(100%); transition: transform 0.25s ease;
+    box-shadow: -8px 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03) inset;
+    transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.22,1,0.36,1);
   }
   #panel.open { transform: translateX(0); }
 
@@ -83,86 +155,50 @@
   }
   #panel-resize::after {
     content: ''; position: absolute; top: 0; left: 3px; width: 2px; height: 100%;
-    background: transparent; transition: background 0.15s;
+    background: transparent; transition: background 0.2s;
   }
-  #panel-resize:hover::after, #panel-resize.active::after { background: #58a6ff; }
+  #panel-resize:hover::after, #panel-resize.active::after { background: #388bfd; }
 
+  /* ── Panel header (JS-generated innerHTML) ── */
   .panel-header {
-    padding: 20px 24px 16px; border-bottom: 1px solid #30363d; flex-shrink: 0;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(28,33,40,0.8) 0%, rgba(22,27,34,0) 100%);
   }
-  .panel-header .file-name { font-size: 15px; font-weight: 600; color: #e6edf3; word-break: break-all; }
-  .panel-header .file-path { font-size: 12px; color: #8b949e; margin-top: 4px; word-break: break-all; }
+  .panel-header .file-name {
+    font-size: 14.5px; font-weight: 600; color: #e6edf3;
+    word-break: break-all; line-height: 1.4; letter-spacing: -0.01em;
+  }
+  .panel-header .file-path { font-size: 11.5px; color: #6e7681; margin-top: 4px; word-break: break-all; }
   .panel-header .badge-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
-  .badge {
-    display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500;
-  }
-  .badge-new { background: #0d3520; color: #3fb950; border: 1px solid #238636; }
-  .badge-mod { background: #2d1c00; color: #d29922; border: 1px solid #9e6a03; }
-  .badge-deleted { background: #3d1214; color: #f85149; border: 1px solid #da3633; }
-  .badge-renamed { background: #1c1d4e; color: #a5b4fc; border: 1px solid #6366f1; }
-  .badge-conn { background: #1c2128; color: #6e7681; border: 1px dashed #484f58; }
-  .badge-add { color: #3fb950; background: none; }
-  .badge-del { color: #f85149; background: none; }
 
+  /* ── Panel actions (JS-generated) ── */
   .panel-actions {
-    padding: 12px 24px; border-bottom: 1px solid #30363d; flex-shrink: 0; display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 10px 24px; border-bottom: 1px solid #21262d;
+    flex-shrink: 0; display: flex; gap: 8px; flex-wrap: wrap;
   }
-  .btn {
-    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px;
-    font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; border: 1px solid #30363d;
-    transition: background 0.15s;
-  }
-  .btn-primary { background: #238636; color: #fff; border-color: #238636; }
-  .btn-primary:hover { background: #2ea043; }
-  .btn-secondary { background: #21262d; color: #c9d1d9; }
-  .btn-secondary:hover { background: #30363d; }
-  .btn-review { background: #21262d; color: #8b949e; }
-  .btn-review:hover { background: #1a3a2a; color: #3fb950; border-color: #238636; }
-  .btn-reviewed { background: #0d3520; color: #3fb950; border-color: #238636; }
-  .btn-reviewed:hover { background: #21262d; color: #8b949e; border-color: #30363d; }
 
+  /* ── Panel body ── */
   .panel-body { flex: 1; overflow-y: auto; padding: 0; }
+  .panel-body::-webkit-scrollbar { width: 5px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: #2d333b; border-radius: 10px; }
 
-  .deps-section { padding: 16px 24px; }
-  .deps-section h4 { font-size: 12px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px; margin-bottom: 8px; }
-  .dep-item {
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px;
-    font-size: 13px; color: #c9d1d9; cursor: pointer; transition: background 0.15s;
-  }
-  .dep-item:hover { background: #21262d; }
-  .dep-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-
-  .analysis-row { display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; font-size: 13px; color: #c9d1d9; border-radius: 4px; margin: 0 -6px; }
-  .analysis-row.clickable { cursor: pointer; }
-  .analysis-row.clickable:hover { background: #21262d; }
-  .analysis-row.clickable .analysis-location { color: #58a6ff; }
-  .analysis-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-  .analysis-label { flex: 1; min-width: 0; }
-  .analysis-desc { display: block; font-size: 11px; color: #6e7681; line-height: 1.4; margin-top: 1px; }
-  .analysis-location { color: #6e7681; font-size: 11px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
-  .diff-table tr.diff-highlight td { outline: 2px solid #58a6ff; outline-offset: -2px; }
-  .diff-table tr.diff-highlight td.diff-ln { background: #1f3a5f; }
-  .diff-table tr.diff-highlight td:not(.diff-ln) { background: #1f3a5f; color: #e6edf3; }
-  .analysis-toggle { background: none; border: 1px solid #30363d; color: #58a6ff; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 8px; }
-  .analysis-toggle:hover { background: #21262d; }
-
-  .change-bar-wrap { padding: 16px 24px; border-bottom: 1px solid #30363d; }
-  .change-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #21262d; }
-  .change-bar .add-seg { background: #3fb950; }
-  .change-bar .del-seg { background: #f85149; }
-  .change-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: #8b949e; margin-top: 4px; }
-
+  /* ── Panel close/back ── */
   .panel-close {
-    position: absolute; top: 16px; right: 16px; background: none; border: none;
-    color: #8b949e; font-size: 20px; cursor: pointer; line-height: 1; padding: 4px;
+    position: absolute; top: 14px; right: 14px; background: none; border: none;
+    color: #6e7681; font-size: 18px; cursor: pointer; line-height: 1; padding: 4px;
+    border-radius: 6px; transition: color 0.15s, background 0.15s;
   }
-  .panel-close:hover { color: #e6edf3; }
+  .panel-close:hover { color: #e6edf3; background: #21262d; }
   .panel-back {
-    position: absolute; top: 16px; right: 44px; background: none; border: none;
-    color: #8b949e; font-size: 12px; cursor: pointer; padding: 4px 8px;
-    display: none; align-items: center; gap: 4px;
+    position: absolute; top: 14px; right: 44px; background: none; border: none;
+    color: #6e7681; font-size: 12px; cursor: pointer; padding: 4px 8px;
+    display: none; align-items: center; gap: 4px; border-radius: 6px;
+    transition: color 0.15s, background 0.15s; font-family: inherit;
   }
-  .panel-back:hover { color: #58a6ff; }
+  .panel-back:hover { color: #58a6ff; background: #21262d; }
   .panel-back.visible { display: inline-flex; }
 
   #panel-breadcrumbs {
@@ -182,47 +218,102 @@
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 
+  /* ── Complexity scroll button ── */
   #complexity-scroll-btn {
     position: absolute; bottom: 20px; right: 20px; z-index: 30;
-    background: #21262d; color: #8b949e; border: 1px solid #30363d;
-    border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+    background: #1c2128; color: #8b949e; border: 1px solid #30363d;
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
     display: none; align-items: center; gap: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.4); transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap; font-family: inherit;
   }
-  #complexity-scroll-btn:hover { background: #30363d; color: #c9d1d9; border-color: #484f58; }
+  #complexity-scroll-btn:hover { background: #2d333b; color: #c9d1d9; border-color: #484f58; }
   #complexity-scroll-btn.visible { display: inline-flex; }
 
-  /* ── Diff viewer ── */
-  .diff-section { border-top: 1px solid #30363d; }
+  /* ── Change bar (JS-generated) ── */
+  .change-bar-wrap { padding: 12px 24px; border-bottom: 1px solid #21262d; }
+  .change-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: #21262d; }
+  .change-bar .add-seg { background: #3fb950; }
+  .change-bar .del-seg { background: #f85149; }
+  .change-bar-label { display: flex; justify-content: space-between; font-size: 12.5px; color: #6e7681; margin-top: 5px; }
+
+  /* ── Dependency section (JS-generated) ── */
+  .deps-section { padding: 16px 24px; }
+  .deps-section h4 {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
+    color: #6e7681; margin-bottom: 10px;
+  }
+  .dep-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 10px; border-radius: 7px;
+    font-size: 13px; color: #c9d1d9; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .dep-item:hover { background: #1c2128; }
+  .dep-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Analysis rows (JS-generated) ── */
+  .analysis-row {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 5px 6px; font-size: 13px; color: #c9d1d9;
+    border-radius: 6px; margin: 0 -6px;
+  }
+  .analysis-row.clickable { cursor: pointer; }
+  .analysis-row.clickable:hover { background: #1c2128; }
+  .analysis-row.clickable .analysis-location { color: #58a6ff; }
+  .analysis-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .analysis-label { flex: 1; min-width: 0; }
+  .analysis-desc { display: block; font-size: 13px; color: #6e7681; line-height: 1.5; margin-top: 2px; }
+  .analysis-location { color: #6e7681; font-size: 12.5px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+  .analysis-toggle {
+    background: transparent; border: 1px solid #30363d; color: #58a6ff;
+    padding: 3px 11px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    margin-top: 8px; font-family: inherit; transition: background 0.15s;
+  }
+  .analysis-toggle:hover { background: #1c2128; }
+
+  /* ── Diff viewer (JS-generated) ── */
+  .diff-section { border-top: 1px solid #21262d; }
   .diff-section h4 {
-    font-size: 12px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px;
-    padding: 12px 24px 8px; position: sticky; top: 0; background: #161b22; z-index: 1;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
+    color: #6e7681; padding: 12px 24px 8px;
+    position: sticky; top: 0; background: #161b22; z-index: 1;
     display: flex; align-items: center;
   }
   .diff-view-controls { margin-left: auto; display: flex; gap: 4px; }
   .diff-view-btn {
-    background: none; border: 1px solid #30363d; color: #6e7681; padding: 2px 8px;
-    border-radius: 4px; font-size: 11px; cursor: pointer; text-transform: none;
-    letter-spacing: normal; font-family: inherit;
+    background: none; border: 1px solid #30363d; color: #6e7681;
+    padding: 2px 8px; border-radius: 5px; font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: all 0.15s; letter-spacing: normal; text-transform: none;
   }
   .diff-view-btn:hover { background: #21262d; color: #c9d1d9; }
-  .diff-view-btn.active { border-color: #58a6ff; color: #58a6ff; }
+  .diff-view-btn.active { border-color: #388bfd; color: #58a6ff; background: rgba(31,111,235,0.08); }
   .diff-table {
-    width: 100%; border-collapse: collapse; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
-    font-size: 12px; line-height: 1.5;
+    width: 100%; border-collapse: collapse;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.6;
   }
   .diff-table td { padding: 0 12px; white-space: pre-wrap; word-break: break-all; vertical-align: top; }
   .diff-table .diff-ln {
-    position: relative; width: 1px; min-width: 52px; color: #484f58; text-align: right; padding-right: 8px;
+    position: relative; width: 1px; min-width: 52px;
+    color: #484f58; text-align: right; padding-right: 8px;
     user-select: none; font-size: 11px;
   }
-  .diff-table .diff-add { background: #0d3520; color: #aff5b4; }
-  .diff-table .diff-del { background: #3d1117; color: #ffa198; }
-  .diff-table .diff-hunk { background: #161b2299; color: #58a6ff; font-style: italic; padding: 4px 12px; }
-  .diff-table .diff-ln-add { background: #0a2e1a; }
-  .diff-table .diff-ln-del { background: #30111a; }
+  .diff-table .diff-add { background: rgba(13,53,32,0.5); color: #7ee787; }
+  .diff-table .diff-del { background: rgba(61,17,23,0.5); color: #ffa198; }
+  .diff-table .diff-hunk { background: rgba(22,27,34,0.85); color: #58a6ff; font-style: italic; padding: 4px 12px; }
+  .diff-table .diff-ln-add { background: rgba(10,46,26,0.6); }
+  .diff-table .diff-ln-del { background: rgba(48,17,26,0.6); }
   .diff-table .diff-ctx { color: #c9d1d9; }
+  .diff-table tr.diff-highlight td { outline: 2px solid #388bfd; outline-offset: -2px; }
+  .diff-table tr.diff-highlight td.diff-ln { background: rgba(31,111,235,0.18); }
+  .diff-table tr.diff-highlight td:not(.diff-ln) { background: rgba(31,111,235,0.14); color: #e6edf3; }
+  /* Split view */
+  .diff-table.split .diff-code { width: 45%; }
+  .diff-table.split .diff-empty { opacity: 0.4; }
+
+  /* ── Method call links (JS-generated) ── */
   .method-call-link { color: #58a6ff; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
   .method-call-link:hover { color: #79c0ff; text-decoration-style: solid; }
   .caller-badge { margin-left: 12px; font-size: 10px; font-family: monospace; white-space: nowrap; vertical-align: middle; }
@@ -230,42 +321,67 @@
   .caller-link:hover { color: #79c0ff; text-decoration: underline; }
   .callers-more-btn { cursor: pointer; }
   .callers-more-btn:hover { color: #c9d1d9 !important; }
-  #caller-popup { display: none; position: fixed; z-index: 60; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 6px 10px; font-size: 12px; min-width: 160px; max-width: 280px; max-height: 240px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
-  #caller-popup .popup-title { color: #8b949e; font-size: 10px; margin-bottom: 4px; }
+
+  /* ── Caller popup (JS-generated) ── */
+  #caller-popup {
+    display: none; position: fixed; z-index: 60;
+    background: #1c2128; border: 1px solid #30363d; border-radius: 10px;
+    padding: 8px 12px; font-size: 12px;
+    min-width: 160px; max-width: 280px; max-height: 240px; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04) inset;
+  }
+  #caller-popup .popup-title { color: #6e7681; font-size: 10px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
   #caller-popup .caller-link { display: block; padding: 4px 0; border-bottom: 1px solid #21262d; color: #58a6ff; }
   #caller-popup .caller-link:last-child { border-bottom: none; }
-  /* Split view */
-  .diff-table.split .diff-code { width: 45%; }
-  .diff-table.split .diff-empty { opacity: 0.4; }
+
+  /* ── Diff annotation (JS-generated) ── */
   .diff-annotation {
     position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
     width: 7px; height: 7px; border-radius: 50%; cursor: pointer; z-index: 2;
   }
   .diff-annotation-tip {
     display: none; position: fixed;
-    background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
-    padding: 8px 12px; font-size: 12px; color: #c9d1d9; line-height: 1.5;
+    background: #1c2128; border: 1px solid #30363d; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #c9d1d9; line-height: 1.5;
     white-space: normal; width: 300px; z-index: 50;
-    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    box-shadow: 0 8px 32px rgba(0,0,0,.55);
   }
-  .diff-annotation-tip .tip-entry { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
+  .diff-annotation-tip .tip-entry { display: flex; align-items: flex-start; gap: 6px; padding: 4px 0; }
   .diff-annotation-tip .tip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
   .diff-annotation-tip .tip-sev { font-size: 10px; text-transform: uppercase; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
   .diff-annotation-tip .tip-entry + .tip-entry { border-top: 1px solid #21262d; }
 
-  .pathfind-bar {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-    background: #161b22; border: 1px solid #f78166; border-radius: 10px;
-    padding: 10px 20px; font-size: 13px; z-index: 15;
-    display: none; align-items: center; gap: 12px;
-    box-shadow: 0 4px 16px rgba(247,129,102,0.2);
+  /* ── Metrics badge/tooltip (PHP-generated) ── */
+  .metrics-badge { display: flex; align-items: center; gap: 8px; cursor: pointer; position: relative; padding: 8px 0; }
+  .metrics-tooltip {
+    display: none; position: absolute; top: 100%; left: 0; z-index: 30;
+    background: #1c2128; border: 1px solid #30363d; border-radius: 10px;
+    padding: 14px 16px; margin-top: 6px; min-width: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
   }
-  .pathfind-bar.active { display: flex; }
-  .pathfind-bar .clear-btn {
-    background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
-    border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 12px;
+  .metrics-badge:hover .metrics-tooltip { display: block; }
+
+  /* ── Risk badge (PHP-generated) ── */
+  .risk-badge {
+    display: flex; align-items: baseline; gap: 6px;
+    padding: 8px 0; margin-bottom: 8px; position: relative; cursor: default;
   }
-  .pathfind-bar .clear-btn:hover { background: #30363d; }
+  .risk-score-num { font-size: 28px; font-weight: 700; line-height: 1; letter-spacing: -0.03em; }
+  .risk-score-denom { font-size: 12px; color: #6e7681; }
+  .risk-label {
+    font-size: 10.5px; padding: 2px 8px; border-radius: 20px;
+    border: 1px solid; margin-left: 2px; font-weight: 500;
+  }
+  .risk-tooltip {
+    display: none; position: absolute; top: 100%; left: 0; z-index: 30;
+    background: #1c2128; border: 1px solid #30363d; border-radius: 10px;
+    padding: 14px 16px; margin-top: 4px; min-width: 220px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  }
+  .risk-badge:hover .risk-tooltip { display: block; }
+
+  /* ── Pathfind bar (active state toggled by JS) ── */
+  #pathfindBar.active { display: flex !important; }
 </style>
 </head>
 <body>
@@ -274,76 +390,112 @@
 <div id="caller-popup"></div>
 <div class="tooltip" id="tooltip"></div>
 
-<div class="title-bar">
-  <h2>@if($prUrl)<a href="{{ $prUrl }}" target="_blank" rel="noopener">PR #{{ $prNumber }}</a> —@endif {{ $prTitle }}</h2>
-  <p>{{ $fileCount }} files changed &middot; +{{ $prAdditions }} &minus;{{ $prDeletions }} &middot; <span id="reviewedCount" style="color:#3fb950"></span> <span id="cycleCount" style="color:#f0883e"></span></p>
-  <div class="layout-switcher">{!! $layoutSwitcher !!}</div>
+<!-- ── Title bar ── -->
+<div id="titleCard" class="fixed top-4 left-4 z-[5] max-w-[580px] bg-surface/95 border border-border-default/60 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,.5),0_0_0_1px_rgba(255,255,255,.04)_inset] backdrop-blur-sm" style="font-size:14px">
+  <div class="px-5 pt-4 pb-3">
+    <div class="flex items-start gap-2.5 mb-1.5">
+      @if($prUrl)
+      <a href="{{ $prUrl }}" target="_blank" rel="noopener" class="flex-shrink-0 inline-flex items-center gap-1 bg-accent/10 text-accent border border-accent/25 rounded-lg px-2.5 py-0.5 text-xs font-semibold hover:bg-accent/15 transition-colors no-underline" style="letter-spacing:0.02em">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.8"><path d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM3.75 12a.75.75 0 100 1.5.75.75 0 000-1.5z"/></svg>
+        PR #{{ $prNumber }}
+      </a>
+      @endif
+      <h2 class="text-fg font-semibold leading-snug" style="font-size:14.5px;letter-spacing:-0.01em">{{ $prTitle }}</h2>
+    </div>
+    <p class="text-fg-muted flex items-center flex-wrap gap-x-3 gap-y-0.5" style="font-size:12px">
+      <span class="flex items-center gap-1">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6"><path d="M1.5 2.75a.75.75 0 01.75-.75h11.5a.75.75 0 010 1.5H2.25a.75.75 0 01-.75-.75zM1.5 8a.75.75 0 01.75-.75h11.5a.75.75 0 010 1.5H2.25A.75.75 0 011.5 8zm0 5.25a.75.75 0 01.75-.75h11.5a.75.75 0 010 1.5H2.25a.75.75 0 01-.75-.75z"/></svg>
+        {{ $fileCount }} files
+      </span>
+      <span class="text-success">+{{ $prAdditions }}</span>
+      <span class="text-danger">&minus;{{ $prDeletions }}</span>
+      <span id="reviewedCount" class="text-success font-medium"></span>
+      <span id="cycleCount" class="text-severe"></span>
+    </p>
+  </div>
+  @if($layoutSwitcher)
+  <div class="px-5 pb-3 flex gap-1.5 layout-switcher">{!! $layoutSwitcher !!}</div>
+  @endif
 </div>
 
-<div class="legend">
-  <div class="legend-header" onclick="toggleLegend()" style="cursor:pointer">
-    <span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Filters</span>
-    <button class="legend-chevron collapsed" id="legendChevron">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<!-- ── Filters legend ── -->
+<div class="legend fixed bottom-4 left-4 z-[5] bg-surface/95 border border-border-default/60 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,.45),0_0_0_1px_rgba(255,255,255,.04)_inset] backdrop-blur-sm overflow-hidden" style="max-height:calc(100dvh - 120px);max-width:228px;font-size:12px">
+  <div class="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none" onclick="toggleLegend()">
+    <span class="text-fg-subtle font-semibold tracking-widest" style="font-size:10px;text-transform:uppercase">Filters</span>
+    <button class="legend-chevron collapsed bg-transparent border-0 p-0.5 cursor-pointer text-fg-subtle flex items-center transition-colors hover:text-fg" id="legendChevron">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
   </div>
-  <div class="legend-body" id="legendBody" style="display:none">
-  {!! $riskPanel !!}
-  <span style="font-size:11px;color:#8b949e">
-    <span style="border-bottom:2px dashed #3fb950">Dashed border</span> = new file &middot;
-    <span style="border-bottom:2px dashed #6e7681">Gray dashed</span> = connected file<br>
-    <span style="border-bottom:2px solid #f0883e">Orange ring</span> = circular dependency<br>
-    Circle size = lines changed &middot; Scroll to zoom &middot; Click for details &middot; Shift+click to find paths
-  </span>
-  <div class="toggle-row">
-    <label class="toggle"><input type="checkbox" id="toggleReviewed"><span class="slider"></span></label>
-    <label class="toggle-label" for="toggleReviewed">Show reviewed <span id="reviewedToggleCount" style="color:#484f58">(0)</span></label>
-  </div>
-  <div class="toggle-row">
-    <label class="toggle"><input type="checkbox" id="toggleConnected"><span class="slider"></span></label>
-    <label class="toggle-label" for="toggleConnected">Show connected <span style="color:#484f58">({{ $connectedCount }})</span></label>
-  </div>
-  <div style="margin-top:4px;padding-top:8px;border-top:1px solid #30363d">
-    <span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Severity</span>
-  </div>
-  {!! $severityTogglesHtml !!}
-  <div style="margin-top:4px;padding-top:8px;border-top:1px solid #30363d">
-    <span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">File types</span>
-  </div>
-  {!! $extTogglesHtml !!}
-  <div style="margin-top:4px;padding-top:8px;border-top:1px solid #30363d">
-    <span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Domains</span>
-  </div>
-  {!! $folderTogglesHtml !!}
-  <div style="margin-top:4px;padding-top:8px;border-top:1px solid #30363d">
-    <span style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px">Changes</span>
-  </div>
-  <div class="toggle-row">
-    <span class="legend-dot" style="background:#3fb950"></span>
-    <label class="toggle"><input type="checkbox" class="change-type-toggle" data-change-type="added" checked><span class="slider"></span></label>
-    <label class="toggle-label">New</label>
-  </div>
-  <div class="toggle-row">
-    <span class="legend-dot" style="background:#d29922"></span>
-    <label class="toggle"><input type="checkbox" class="change-type-toggle" data-change-type="modified" checked><span class="slider"></span></label>
-    <label class="toggle-label">Modified</label>
-  </div>
-  <div class="toggle-row">
-    <span class="legend-dot" style="background:#f85149"></span>
-    <label class="toggle"><input type="checkbox" class="change-type-toggle" data-change-type="deleted" checked><span class="slider"></span></label>
-    <label class="toggle-label">Deleted</label>
-  </div>
+  <div class="legend-body overflow-y-auto" id="legendBody" style="display:none;max-height:calc(100dvh - 178px)">
+    <div class="px-4 pb-4 flex flex-col gap-0">
+      {!! $riskPanel !!}
+      <p class="text-fg-muted leading-relaxed mb-3" style="font-size:11px">
+        <span class="border-b-2 border-dashed border-success">Dashed border</span> = new &middot;
+        <span class="border-b-2 border-dashed border-fg-subtle">Gray dashed</span> = connected<br>
+        <span class="border-b-2 border-solid border-severe">Orange ring</span> = circular dep<br>
+        Size = lines changed &middot; Scroll to zoom
+      </p>
+
+      <div class="flex flex-col gap-0.5">
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="toggleReviewed"><span class="slider"></span></label>
+          <label class="toggle-label" for="toggleReviewed">Show reviewed <span id="reviewedToggleCount" style="color:#484f58">(0)</span></label>
+        </div>
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="toggleConnected"><span class="slider"></span></label>
+          <label class="toggle-label" for="toggleConnected">Show connected <span style="color:#484f58">({{ $connectedCount }})</span></label>
+        </div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-border-subtle">
+        <p class="text-fg-subtle font-semibold tracking-widest mb-2" style="font-size:10px;text-transform:uppercase">Severity</p>
+        <div class="flex flex-col gap-0.5">{!! $severityTogglesHtml !!}</div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-border-subtle">
+        <p class="text-fg-subtle font-semibold tracking-widest mb-2" style="font-size:10px;text-transform:uppercase">File types</p>
+        <div class="flex flex-col gap-0.5">{!! $extTogglesHtml !!}</div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-border-subtle">
+        <p class="text-fg-subtle font-semibold tracking-widest mb-2" style="font-size:10px;text-transform:uppercase">Domains</p>
+        <div class="flex flex-col gap-0.5">{!! $folderTogglesHtml !!}</div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-border-subtle">
+        <p class="text-fg-subtle font-semibold tracking-widest mb-2" style="font-size:10px;text-transform:uppercase">Changes</p>
+        <div class="flex flex-col gap-0.5">
+          <div class="toggle-row">
+            <span class="legend-dot" style="background:#3fb950"></span>
+            <label class="toggle"><input type="checkbox" class="change-type-toggle" data-change-type="added" checked><span class="slider"></span></label>
+            <label class="toggle-label">New</label>
+          </div>
+          <div class="toggle-row">
+            <span class="legend-dot" style="background:#d29922"></span>
+            <label class="toggle"><input type="checkbox" class="change-type-toggle" data-change-type="modified" checked><span class="slider"></span></label>
+            <label class="toggle-label">Modified</label>
+          </div>
+          <div class="toggle-row">
+            <span class="legend-dot" style="background:#f85149"></span>
+            <label class="toggle"><input type="checkbox" class="change-type-toggle" data-change-type="deleted" checked><span class="slider"></span></label>
+            <label class="toggle-label">Deleted</label>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="pathfind-bar" id="pathfindBar">
+<!-- ── Path-finding bar ── -->
+<div class="pathfind-bar fixed bottom-5 z-[15] bg-surface border rounded-xl px-5 py-2.5 text-sm items-center gap-3 shadow-[0_4px_20px_rgba(247,129,102,.2)]" style="left:50%;transform:translateX(-50%);border-color:rgba(247,129,102,0.5);display:none" id="pathfindBar">
   <span style="color:#f78166">&#9670;</span>
-  <span id="pathfindInfo" style="color:#c9d1d9"></span>
-  <button class="clear-btn" onclick="clearPathfinding()">Clear</button>
+  <span id="pathfindInfo" class="text-fg"></span>
+  <button class="bg-overlay border border-border-default text-fg rounded-lg px-3 py-1 cursor-pointer transition-colors hover:bg-[#2d333b] font-sans" style="font-size:12px" onclick="clearPathfinding()">Clear</button>
 </div>
 
+<!-- ── Detail panel ── -->
 <div id="panel">
   <div id="panel-resize"></div>
   <button class="panel-back" id="panelBack" onclick="if(window.parent!==window)window.parent.postMessage({type:'backToFiles'},'*')">&#8592; Files</button>
@@ -1160,10 +1312,10 @@ function openPanel(n) {
         var deltaDisplay = Math.abs(delta) >= 0.0005
           ? arrow + (absDelta < 1 ? absDelta.toFixed(2).replace(/\.?0+$/, '') : Math.round(absDelta)) + (pct != null ? ' (' + pct + '%)' : '')
           : arrow;
-        deltaHtml = '<span style="font-size:10px;color:' + deltaColor + '">' + deltaDisplay + '</span>';
+        deltaHtml = '<span style="font-size:11.5px;color:' + deltaColor + '">' + deltaDisplay + '</span>';
       }
       return '<div style="background:#21262d;border-radius:6px;padding:8px 10px">' +
-        '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">' + label + '</div>' +
+        '<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">' + label + '</div>' +
         '<div style="font-size:20px;font-weight:700;color:' + color + ';line-height:1;display:flex;align-items:baseline;gap:4px">' + display + deltaHtml + '</div>' +
         '</div>';
     }
@@ -1217,16 +1369,16 @@ function openPanel(n) {
         var sign = diff > 0 ? '+' : '';
         var bad = higherIsBad ? diff > 0 : diff < 0;
         var color = bad ? '#f85149' : '#3fb950';
-        return '<span style="color:' + color + ';font-size:9px;margin-left:3px">' + sign + diff + '</span>';
+        return '<span style="color:' + color + ';font-size:10.5px;margin-left:3px">' + sign + diff + '</span>';
       }
       bodyHtml += '<div id="methods-by-complexity" style="margin-top:10px">' +
-        '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Methods by Complexity</div>' +
-        '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+        '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Methods by Complexity</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
         '<thead><tr>' +
-        '<th style="text-align:left;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">Method</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">CC</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 8px 4px 0">Lines</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:2px 0 4px 0">Params</th>' +
+        '<th style="text-align:left;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Method</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">CC</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Lines</th>' +
+        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 0 6px 0">Params</th>' +
         '</tr></thead><tbody>';
       for (var mi2 = 0; mi2 < methodsSorted.length; mi2++) {
         var mth = methodsSorted[mi2];
@@ -1235,18 +1387,18 @@ function openPanel(n) {
         var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
         var status = methodDiffStatus(mth);
         var statusBadge = status === 'new'
-          ? '<span style="color:#3fb950;font-size:9px;font-weight:500;margin-left:5px">new</span>'
+          ? '<span style="color:#3fb950;font-size:10.5px;font-weight:500;margin-left:5px">new</span>'
           : status === 'modified'
-          ? '<span style="color:#d29922;font-size:9px;font-weight:500;margin-left:5px">mod</span>'
+          ? '<span style="color:#d29922;font-size:10.5px;font-weight:500;margin-left:5px">mod</span>'
           : '';
         var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
         var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
         var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
         bodyHtml += '<tr' + hasLine + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
-          '<td style="padding:2px 8px 2px 0;color:#c9d1d9;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
-          '<td style="padding:2px 8px 2px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
-          '<td style="padding:2px 8px 2px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
-          '<td style="padding:2px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
+          '<td style="padding:4px 8px 4px 0;color:#c9d1d9;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
+          '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
+          '<td style="padding:4px 8px 4px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
+          '<td style="padding:4px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
           '</tr>';
       }
       bodyHtml += '</tbody></table></div>';
