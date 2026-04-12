@@ -24,7 +24,7 @@ it('detects class constant value changed', function () {
 
     expect($constChanges)->toHaveCount(1)
         ->and($constChanges[0]->category)->toBe(ChangeCategory::VALUES)
-        ->and($constChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($constChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($constChanges[0]->description)->toContain('Foo::MAX')
         ->and($constChanges[0]->description)->toContain('10')
         ->and($constChanges[0]->description)->toContain('20');

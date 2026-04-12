@@ -90,7 +90,7 @@ class MethodSignatureRule implements Rule
             $action = $isStatic ? 'made static' : 'made non-static';
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::METHOD_SIGNATURE,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Method {$action}: {$key}",
                 location: $key,
                 line: $new->getStartLine(),
@@ -118,7 +118,7 @@ class MethodSignatureRule implements Rule
             $action = $isAbstract ? 'made abstract' : 'abstract removed';
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::METHOD_SIGNATURE,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Method {$action}: {$key}",
                 location: $key,
                 line: $new->getStartLine(),
@@ -137,7 +137,7 @@ class MethodSignatureRule implements Rule
         if ($oldType !== $newType) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::METHOD_SIGNATURE,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Return type changed on {$key}: {$oldType} -> {$newType}",
                 location: $key,
                 line: $new->getStartLine(),
@@ -178,7 +178,7 @@ class MethodSignatureRule implements Rule
         foreach ($removed as $name) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::METHOD_SIGNATURE,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Parameter removed from {$key}: \${$name}",
                 location: $key,
                 line: $new->getStartLine(),
@@ -192,7 +192,7 @@ class MethodSignatureRule implements Rule
         if ($commonOld !== $commonNew && count($commonOld) > 1) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::METHOD_SIGNATURE,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Parameters reordered in {$key}",
                 location: $key,
                 line: $new->getStartLine(),
@@ -214,7 +214,7 @@ class MethodSignatureRule implements Rule
                 $action = $newParam->variadic ? 'made variadic' : 'variadic removed';
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::METHOD_SIGNATURE,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Parameter \${$name} {$action} in {$key}",
                     location: $key,
                     line: $newParam->getStartLine(),
@@ -225,7 +225,7 @@ class MethodSignatureRule implements Rule
                 $action = $newParam->byRef ? 'made pass-by-reference' : 'pass-by-reference removed';
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::METHOD_SIGNATURE,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Parameter \${$name} {$action} in {$key}",
                     location: $key,
                     line: $newParam->getStartLine(),
@@ -257,7 +257,7 @@ class MethodSignatureRule implements Rule
 
         // Narrowing visibility is a breaking change
         if ($order[$new] < $order[$old]) {
-            return Severity::VERY_HIGH;
+            return Severity::HIGH;
         }
 
         // Widening is usually safe but notable

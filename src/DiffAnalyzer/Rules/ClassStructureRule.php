@@ -37,7 +37,7 @@ class ClassStructureRule implements Rule
             if ($pair['old'] !== null && $pair['new'] === null) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::CLASS_STRUCTURE,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Property removed: {$key}",
                     location: $key,
                 );
@@ -145,7 +145,7 @@ class ClassStructureRule implements Rule
             if ($oldExtends !== $newExtends) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::CLASS_STRUCTURE,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Parent class changed on {$name}: ".($oldExtends ?? 'none').' -> '.($newExtends ?? 'none'),
                     location: $name,
                     line: $new->getStartLine(),
@@ -177,7 +177,7 @@ class ClassStructureRule implements Rule
             foreach ($removed as $impl) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::CLASS_STRUCTURE,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Interface removed from {$name}: {$impl}",
                     location: $name,
                     line: $new->getStartLine(),

@@ -35,7 +35,7 @@ it('detects strict_types removed', function () {
 
     expect($changes)->toHaveCount(1)
         ->and($changes[0]->category)->toBe(ChangeCategory::TYPE_SYSTEM)
-        ->and($changes[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($changes[0]->severity)->toBe(Severity::MEDIUM)
         ->and($changes[0]->description)->toContain('removed');
 });
 
