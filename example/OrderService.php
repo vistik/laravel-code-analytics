@@ -14,7 +14,7 @@ class OrderService
         private readonly CouponValidator $couponValidator,
         private readonly OrderValidator $orderValidator,
         private readonly FulfillmentService $fulfillmentService,
-        private readonly AuditLogger $auditLogger,
+        private readonly LoggerInterface $auditLogger,
     ) {}
 
     public function placeOrder(

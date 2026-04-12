@@ -165,6 +165,19 @@
   .panel-back:hover { color: #58a6ff; }
   .panel-back.visible { display: inline-flex; }
 
+  #panel-breadcrumbs {
+    display: none; padding: 6px 24px 4px; border-bottom: 1px solid #21262d;
+    flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px;
+  }
+  .bc-item {
+    color: #58a6ff; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+    white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bc-item:hover { background: #21262d; }
+  .bc-current { color: #8b949e; cursor: default; }
+  .bc-current:hover { background: none; }
+  .bc-sep { color: #484f58; padding: 0 1px; font-size: 11px; }
+
   .panel-body::-webkit-scrollbar { width: 6px; }
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
@@ -335,6 +348,7 @@
   <div id="panel-resize"></div>
   <button class="panel-back" id="panelBack" onclick="if(window.parent!==window)window.parent.postMessage({type:'backToFiles'},'*')">&#8592; Files</button>
   <button class="panel-close" onclick="closePanel()">&times;</button>
+  <div id="panel-breadcrumbs"></div>
   <div class="panel-header" id="panel-header"></div>
   <div class="panel-actions" id="panel-actions"></div>
   <div class="change-bar-wrap" id="panel-bar"></div>
@@ -494,6 +508,26 @@ var callersIndex = {};
         var targetId = propToClass[cm[1]];
         if (targetId) addCaller(targetId, cm[2], lineNum);
       }
+    }
+  });
+}());
+
+// Build implementors index: implementorsIndex[interfaceNodeId] = [{node}, ...]
+// Build implementee index: implementeeIndex[concreteNodeId] = [interfaceNode, ...]
+// Together these power the implementation-picker popup shown when clicking a method link
+// whose target is either an interface or a concrete class that implements one.
+var implementorsIndex = {};
+var implementeeIndex = {};
+(function() {
+  links.forEach(function(l) {
+    if (l.depType !== 'implements' || !l.source || !l.target) return;
+    if (!implementorsIndex[l.target.id]) implementorsIndex[l.target.id] = [];
+    if (!implementorsIndex[l.target.id].some(function(e) { return e.node.id === l.source.id; })) {
+      implementorsIndex[l.target.id].push({ node: l.source });
+    }
+    if (!implementeeIndex[l.source.id]) implementeeIndex[l.source.id] = [];
+    if (!implementeeIndex[l.source.id].some(function(iface) { return iface.id === l.target.id; })) {
+      implementeeIndex[l.source.id].push(l.target);
     }
   });
 }());
@@ -1128,7 +1162,49 @@ function renderMethodPanel(n) {
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
+// Returns a method-name → nodeId link map for a given file node.
+// Starts from the global methodNameIndex but overrides with methods defined in
+// this file, so $this->ownMethod() always resolves to the file itself even when
+// another class registered the same name first in the global index.
+function buildFileLinkMap(node) {
+  var ownMM = metricsData[node.path] && metricsData[node.path].method_metrics;
+  if (!ownMM || !ownMM.length) return methodNameIndex;
+  var map = Object.assign({}, methodNameIndex);
+  ownMM.forEach(function(m) { if (m.name) map[m.name] = node.id; });
+  return map;
+}
+
+// ── Panel navigation breadcrumbs ──────────────────────────────────────────────
+var navStack = [];      // [{node}] — history of panels opened via link-clicks
+var navSkipPush = false; // set true when re-opening a node via breadcrumb click
+
+function clearNavStack() {
+  navStack = [];
+  renderBreadcrumbs();
+}
+
+function renderBreadcrumbs() {
+  var el = document.getElementById('panel-breadcrumbs');
+  if (!el) return;
+  if (navStack.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = navStack.map(function(entry, i) {
+    var label = entry.node.displayLabel || entry.node.name || entry.node.id;
+    var isLast = i === navStack.length - 1;
+    var sep = i < navStack.length - 1 ? '<span class="bc-sep">&rsaquo;</span>' : '';
+    var cls = 'bc-item' + (isLast ? ' bc-current' : '');
+    var attr = isLast ? '' : ' data-bc-index="' + i + '"';
+    return '<span class="' + cls + '"' + attr + ' title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</span>' + sep;
+  }).join('');
+}
+
 function openPanel(n) {
+  if (!navSkipPush) {
+    if (navStack.length === 0 || navStack[navStack.length - 1].node !== n) {
+      navStack.push({ node: n });
+      renderBreadcrumbs();
+    }
+  }
   if (n.code !== undefined) { renderMethodPanel(n); return; }
   selectedNode = n;
   const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
@@ -1408,7 +1484,10 @@ function openPanel(n) {
     var isPHP = n.path.endsWith('.php');
     var parsedDiff = parseDiffLines(rawDiff);
     var fullContent = fileContents[n.path];
-    var diffLinkMap = isPHP ? methodNameIndex : null;
+    // Build a link map that lets $this->ownMethod() resolve to the current file.
+    // The global methodNameIndex uses first-match, so a private/protected method
+    // in this file may have lost to another class. Override with this file's own methods.
+    var diffLinkMap = isPHP ? buildFileLinkMap(n) : null;
     var diffClassMap = isPHP ? classNameIndex : null;
     var tableRows;
     if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap);
@@ -1582,7 +1661,7 @@ function openPanel(n) {
       var isPHP = n.path.endsWith('.php');
       var parsed = parseDiffLines(rd);
       var rows;
-      var reLinkMap = isPHP ? methodNameIndex : null;
+      var reLinkMap = isPHP ? buildFileLinkMap(n) : null;
       var reClassMap = isPHP ? classNameIndex : null;
       if (mode === 'split') rows = renderSplitDiff(parsed, isPHP, reLinkMap, reClassMap);
       else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP, reLinkMap, reClassMap);
@@ -1598,7 +1677,7 @@ function openPanel(n) {
 }
 
 function closePanel() {
-  panel.classList.remove('open'); selectedNode = null;
+  panel.classList.remove('open'); selectedNode = null; clearNavStack();
   if (openedFromFiles && window.parent !== window) {
     openedFromFiles = false;
     window.parent.postMessage({ type: 'panelClosed' }, '*');
@@ -1814,6 +1893,7 @@ canvas.addEventListener('mouseup', e => {
       computePathfinding();
     } else {
       clearPathfinding();
+      clearNavStack();
       openPanel(dragNode);
       if (canPin) dragNode.pinned = true;
     }
@@ -2042,6 +2122,19 @@ function scrollToDiffLine(line) {
   scrollToDiffRow(findDiffRowByLine(line));
 }
 
+// Breadcrumb click: navigate back to a prior node in the stack.
+document.getElementById('panel-breadcrumbs').addEventListener('click', function(e) {
+  var item = e.target.closest('.bc-item:not(.bc-current)');
+  if (!item) return;
+  var idx = parseInt(item.getAttribute('data-bc-index'), 10);
+  if (isNaN(idx) || idx < 0 || idx >= navStack.length) return;
+  navStack = navStack.slice(0, idx + 1);
+  navSkipPush = true;
+  openPanel(navStack[idx].node);
+  navSkipPush = false;
+  renderBreadcrumbs();
+});
+
 // Global click delegation: inline method-call links, caller badges, and caller popup.
 document.addEventListener('click', function(e) {
   var popup = document.getElementById('caller-popup');
@@ -2080,13 +2173,47 @@ document.addEventListener('click', function(e) {
   var nd = nodeMap[nodeId];
   if (!nd) return;
 
-  // Same-file method call → scroll to that method's definition in the current view
+  // Helper: show the implementations picker popup anchored to a clicked element.
+  function showImplsPopup(impls, anchor) {
+    if (!popup) return;
+    popup.innerHTML = '<div class="popup-title">Implementations</div>' +
+      impls.map(function(impl) {
+        return '<span class="caller-link" data-node-id="' + escapeHtml(impl.node.id) + '">' + escapeHtml(impl.node.displayLabel || impl.node.id) + '</span>';
+      }).join('');
+    var rect = anchor.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 4) + 'px';
+    popup.style.left = rect.left + 'px';
+    popup.style.display = 'block';
+  }
+
+  // Same-file method call → scroll to the definition within the current view.
+  // This must come before the interface picker so $this->ownMethod() never triggers
+  // the picker just because the current class happens to implement an interface.
   if (link.classList.contains('method-call-link') && selectedNode && nodeId === selectedNode.id) {
     var methodName = link.getAttribute('data-method-name') || link.textContent.trim();
     var mm = metricsData[selectedNode.path] && metricsData[selectedNode.path].method_metrics;
     if (mm) {
       var mth = mm.find(function(x) { return x.name === methodName; });
       if (mth && mth.line) { scrollToDiffLine(mth.line); return; }
+    }
+  }
+
+  // Link points directly to an interface → show picker (or navigate if only 1 impl).
+  var impls = implementorsIndex[nodeId];
+  if (impls && impls.length > 1) { showImplsPopup(impls, link); return; }
+  if (impls && impls.length === 1) { openPanel(impls[0].node); return; }
+
+  // Link points to a concrete class via a method call: if that class implements an
+  // interface that has multiple implementations, show the picker instead of jumping straight in.
+  // Scoped to method calls only (data-method-name present) — class references like type hints
+  // and `new Foo()` should navigate directly to the clicked class, not open a picker.
+  if (link.classList.contains('method-call-link') && link.hasAttribute('data-method-name')) {
+    var implementedIfaces = implementeeIndex[nodeId];
+    if (implementedIfaces) {
+      for (var ii = 0; ii < implementedIfaces.length; ii++) {
+        var ifaceImpls = implementorsIndex[implementedIfaces[ii].id];
+        if (ifaceImpls && ifaceImpls.length > 1) { showImplsPopup(ifaceImpls, link); return; }
+      }
     }
   }
 
@@ -2104,6 +2231,7 @@ window.addEventListener('message', function(e) {
     var n = nodeMap[e.data.nodeId];
     if (!n) return;
     openedFromFiles = !!e.data.fromFiles;
+    clearNavStack();
     openPanel(n);
   }
   if (e.data.type === 'closePanel') {
