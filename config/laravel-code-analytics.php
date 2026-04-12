@@ -81,6 +81,10 @@ return [
             'base' => 100,
             'signal_pct' => 0.20,
         ],
+        'lloc' => [
+            'cutoff' => 200,
+            'multiplier' => 0.5,
+        ],
     ],
 
     /*
