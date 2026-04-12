@@ -5,7 +5,7 @@ namespace Example;
 class PaymentProcessor
 {
     public function __construct(
-        private readonly AuditLogger $auditLogger,
+        private readonly LoggerInterface $auditLogger,
     ) {}
 
     public function charge(string $customerId, float $amount): bool

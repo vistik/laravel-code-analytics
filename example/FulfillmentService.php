@@ -8,7 +8,7 @@ class FulfillmentService
         private readonly OrderRepository $orderRepository,
         private readonly PriceCalculator $priceCalculator,
         private readonly NotificationSender $notificationSender,
-        private readonly AuditLogger $auditLogger,
+        private readonly LoggerInterface $auditLogger,
     ) {}
 
     public function scheduleShipment(
