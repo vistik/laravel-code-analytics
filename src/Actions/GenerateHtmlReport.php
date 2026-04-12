@@ -4,7 +4,9 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\DiffParser\DiffParser;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\GraphIndex\GraphIndexBuilder;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\FileMetrics;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\HotspotRatioBadgeDecider;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\MetricTrend;
@@ -218,6 +220,20 @@ class GenerateHtmlReport implements ReportGenerator
         ];
         $filterDefaultsJson = json_encode($resolvedDefaults, JSON_HEX_TAG);
 
+        $parsedDiffsJson = json_encode(
+            (new DiffParser)->parseAll($fileDiffs),
+            JSON_UNESCAPED_SLASHES | JSON_HEX_TAG,
+        );
+
+        $graphIndex = (new GraphIndexBuilder)->build(
+            nodes: $nodes,
+            edges: $edges,
+            metricsData: $metricsData,
+            fileDiffs: $fileDiffs,
+            fileContents: $fileContents,
+        );
+        $graphIndexJson = json_encode($graphIndex, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+
         return view()->file(__DIR__.'/../../resources/views/analysis/inner.blade.php', [
             'prNumber' => $prNumber,
             'prTitle' => $prTitle,
@@ -245,6 +261,8 @@ class GenerateHtmlReport implements ReportGenerator
             'riskPanel' => $this->buildRiskPanel($riskScore),
             'layoutSwitcher' => $layoutSwitcher,
             'filterDefaultsJson' => $filterDefaultsJson,
+            'graphIndexJson' => $graphIndexJson,
+            'parsedDiffsJson' => $parsedDiffsJson,
         ])->render();
     }
 

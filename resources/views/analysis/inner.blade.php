@@ -380,6 +380,7 @@ const groupLabel = {
 const filesData = {!! $nodesJson !!};
 const edgesData = {!! $edgesJson !!};
 const fileDiffs = {!! $diffsJson !!};
+const parsedDiffs = {!! $parsedDiffsJson !!};
 const fileContents = {!! $fileContentsJson !!};
 const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
@@ -413,124 +414,16 @@ const nodes = filesData.map((f, i) => {
 
 const links = edgesData.map(([s, t, type, line]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use', callLine: line || null })).filter(l => l.source && l.target);
 
-// Build method name index for inline call linking – first match wins on ambiguity.
-// Source 1: method nodes (code:file – nodes have a .code property and .name).
-// Source 2: metricsData per-file method lists (code:analyze – links to the file node).
-var methodNameIndex = {};
-nodes.forEach(function(n) {
-  if (n.code !== undefined && n.name && !methodNameIndex[n.name]) methodNameIndex[n.name] = n.id;
-});
-(function() {
-  var pathToNodeId = {};
-  nodes.forEach(function(n) { if (n.path) pathToNodeId[n.path] = n.id; });
-  Object.keys(metricsData).forEach(function(path) {
-    var nodeId = pathToNodeId[path];
-    if (!nodeId) return;
-    var mm = metricsData[path] && metricsData[path].method_metrics;
-    if (!mm) return;
-    mm.forEach(function(m) { if (m.name && !methodNameIndex[m.name]) methodNameIndex[m.name] = nodeId; });
-  });
-}());
-
-// Build class name index: PHP UpperCamelCase file basename → node id.
-var classNameIndex = {};
-(function() {
-  nodes.forEach(function(n) {
-    if (!n.path || !n.path.endsWith('.php')) return;
-    var parts = n.path.split('/');
-    var basename = parts[parts.length - 1].replace(/\.php$/, '');
-    if (basename && /^[A-Z]/.test(basename) && !classNameIndex[basename]) {
-      classNameIndex[basename] = n.id;
-    }
-  });
-}());
-
-// Build reverse caller index: callersIndex["targetNodeId:methodName"] = [{node, line}, ...]
-// Uses type-hint resolution to map $this->prop->method() to the correct target class,
-// avoiding false positives when multiple classes share the same method name.
-var callersIndex = {};
-(function() {
-  // Matches "TypeName $varName" — captures type hints from constructor/param signatures
-  var typePat   = /([A-Z][a-zA-Z0-9_]*)\s+\$(\w+)/g;
-  // Matches "$this->prop->method(" or "$prop->method("
-  var chainPat  = /\$(?:this->)?(\w+)->([a-zA-Z_]\w*)\s*\(/g;
-  // Matches "ClassName::method(" for static calls
-  var staticPat = /([A-Z][a-zA-Z0-9_]*)::([a-zA-Z_]\w*)\s*\(/g;
-
-  nodes.forEach(function(n) {
-    // Only scan focal nodes (files present in the diff) — skip connected dependencies.
-    if (!n.path || !n.path.endsWith('.php') || !fileDiffs[n.path]) return;
-    var text = fileContents[n.path] || '';
-    var hasFullContent = !!text;
-    if (!hasFullContent) {
-      var rd = fileDiffs[n.path];
-      text = rd.split('\n').filter(function(l) { return l.length > 0 && l[0] !== '-' && l[0] !== '@'; }).map(function(l) { return l.substring(1); }).join('\n');
-    }
-
-    // Build property-name → class-node-id map from type hints in this file.
-    // e.g. "private readonly OrderRepository $orderRepository" → propToClass['orderRepository'] = nodeId
-    var propToClass = {};
-    typePat.lastIndex = 0;
-    var tm;
-    while ((tm = typePat.exec(text)) !== null) {
-      var typeName = tm[1], propName = tm[2];
-      if (classNameIndex[typeName] && !propToClass[propName]) {
-        propToClass[propName] = classNameIndex[typeName];
-      }
-    }
-
-    function addCaller(targetNodeId, methodName, lineNum) {
-      if (!targetNodeId || targetNodeId === n.id) return;
-      var key = targetNodeId + ':' + methodName;
-      if (!callersIndex[key]) callersIndex[key] = [];
-      if (!callersIndex[key].some(function(c) { return c.node.id === n.id; })) {
-        callersIndex[key].push({ node: n, line: lineNum });
-      }
-    }
-
-    // Scan line-by-line (O(n))
-    var lines = text.split('\n');
-    for (var li = 0; li < lines.length; li++) {
-      var lineText = lines[li];
-      var lineNum  = hasFullContent ? li + 1 : null;
-
-      // Static calls: always unambiguous
-      staticPat.lastIndex = 0;
-      var sm;
-      while ((sm = staticPat.exec(lineText)) !== null) {
-        addCaller(classNameIndex[sm[1]], sm[2], lineNum);
-      }
-
-      // Instance calls: only record when the receiver type is known
-      chainPat.lastIndex = 0;
-      var cm;
-      while ((cm = chainPat.exec(lineText)) !== null) {
-        var targetId = propToClass[cm[1]];
-        if (targetId) addCaller(targetId, cm[2], lineNum);
-      }
-    }
-  });
-}());
-
-// Build implementors index: implementorsIndex[interfaceNodeId] = [{node}, ...]
-// Build implementee index: implementeeIndex[concreteNodeId] = [interfaceNode, ...]
-// Together these power the implementation-picker popup shown when clicking a method link
-// whose target is either an interface or a concrete class that implements one.
-var implementorsIndex = {};
-var implementeeIndex = {};
-(function() {
-  links.forEach(function(l) {
-    if (l.depType !== 'implements' || !l.source || !l.target) return;
-    if (!implementorsIndex[l.target.id]) implementorsIndex[l.target.id] = [];
-    if (!implementorsIndex[l.target.id].some(function(e) { return e.node.id === l.source.id; })) {
-      implementorsIndex[l.target.id].push({ node: l.source });
-    }
-    if (!implementeeIndex[l.source.id]) implementeeIndex[l.source.id] = [];
-    if (!implementeeIndex[l.source.id].some(function(iface) { return iface.id === l.target.id; })) {
-      implementeeIndex[l.source.id].push(l.target);
-    }
-  });
-}());
+// Navigation indices pre-computed server-side by GraphIndexBuilder.
+// callersIndex entries: {nodeId, line}  (resolve full node via nodeMap[entry.nodeId])
+// implementorsIndex entries: {nodeId}   (resolve full node via nodeMap[entry.nodeId])
+// implementeeIndex values: string[]     (interface node ids)
+const graphIndex = {!! $graphIndexJson !!};
+var methodNameIndex   = graphIndex.methodNameIndex;
+var classNameIndex    = graphIndex.classNameIndex;
+var callersIndex      = graphIndex.callersIndex;
+var implementorsIndex = graphIndex.implementorsIndex;
+var implementeeIndex  = graphIndex.implementeeIndex;
 
 // ── Circular dependency stats ─────────────────────────────────────────────────
 const cycleGroupCount = new Set(nodes.filter(n => n.cycleId != null).map(n => n.cycleId)).size;
@@ -796,35 +689,6 @@ function highlightPHP(code, linkMap, classMap, ifaceIndex) {
 // ── Diff view ─────────────────────────────────────────────────────────────────
 var diffViewMode = localStorage.getItem('diffViewMode') || 'unified';
 var diffAnnotationsData = [];
-
-function parseDiffLines(rawDiff) {
-  var lines = rawDiff.split('\n');
-  var result = [];
-  var i = 0;
-  while (i < lines.length) {
-    var line = lines[i];
-    if (line.startsWith('@@')) {
-      var hm = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/);
-      result.push({ type: 'hunk', raw: line, oldStart: hm ? parseInt(hm[1]) : 1, newStart: hm ? parseInt(hm[2]) : 1 });
-      i++;
-    } else if (line.startsWith('\\')) {
-      i++;
-    } else if (line.startsWith('-') || line.startsWith('+')) {
-      var dels = [], adds = [];
-      while (i < lines.length) {
-        if (lines[i].startsWith('\\')) { i++; continue; }
-        if (lines[i].startsWith('-')) { dels.push(lines[i].substring(1)); i++; }
-        else if (lines[i].startsWith('+')) { adds.push(lines[i].substring(1)); i++; }
-        else break;
-      }
-      result.push({ type: 'change', dels: dels, adds: adds });
-    } else {
-      result.push({ type: 'ctx', text: line.length > 0 ? line.substring(1) : '' });
-      i++;
-    }
-  }
-  return result;
-}
 
 function renderUnifiedDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
   var html = '';
@@ -1482,10 +1346,9 @@ function openPanel(n) {
   }
 
   // Render diff
-  var rawDiff = fileDiffs[n.path];
-  if (rawDiff) {
+  var parsedDiff = parsedDiffs[n.path];
+  if (parsedDiff) {
     var isPHP = n.path.endsWith('.php');
-    var parsedDiff = parseDiffLines(rawDiff);
     var fullContent = fileContents[n.path];
     // Build a link map that lets $this->ownMethod() resolve to the current file.
     // The global methodNameIndex uses first-match, so a private/protected method
@@ -1636,14 +1499,15 @@ function openPanel(n) {
       var shown = callers.slice(0, MAX_INLINE);
       var rest = callers.slice(MAX_INLINE);
       var linksHtml = shown.map(function(entry) {
+        var nd = nodeMap[entry.nodeId];
         var lineAttr = entry.line ? ' data-call-line="' + entry.line + '"' : '';
-        return '<span class="caller-link" data-node-id="' + escapeHtml(entry.node.id) + '"' + lineAttr + '>' + escapeHtml(entry.node.displayLabel || entry.node.id) + '</span>';
+        return '<span class="caller-link" data-node-id="' + escapeHtml(entry.nodeId) + '"' + lineAttr + '>' + escapeHtml((nd && nd.displayLabel) || entry.nodeId) + '</span>';
       }).join(' <span style="color:#484f58">·</span> ');
       var moreHtml = rest.length
         ? ' <span style="color:#484f58">·</span> <span class="callers-more-btn" style="color:#8b949e">+' + rest.length + ' more</span>'
         : '';
       badge.innerHTML = '<span style="color:#8b949e">← </span>' + linksHtml + moreHtml;
-      badge.dataset.allCallers = JSON.stringify(callers.map(function(entry) { return { id: entry.node.id, label: entry.node.displayLabel || entry.node.id, line: entry.line }; }));
+      badge.dataset.allCallers = JSON.stringify(callers.map(function(entry) { var nd = nodeMap[entry.nodeId]; return { id: entry.nodeId, label: (nd && nd.displayLabel) || entry.nodeId, line: entry.line }; }));
       cell.appendChild(badge);
     });
   };
@@ -1659,10 +1523,9 @@ function openPanel(n) {
       document.querySelectorAll('.diff-view-btn').forEach(function(b) {
         b.classList.toggle('active', b.getAttribute('data-view') === mode);
       });
-      var rd = fileDiffs[n.path];
-      if (!rd) return;
+      var parsed = parsedDiffs[n.path];
+      if (!parsed) return;
       var isPHP = n.path.endsWith('.php');
-      var parsed = parseDiffLines(rd);
       var rows;
       var reLinkMap = isPHP ? buildFileLinkMap(n) : null;
       var reClassMap = isPHP ? classNameIndex : null;
@@ -2182,7 +2045,8 @@ document.addEventListener('click', function(e) {
     if (!popup) return;
     popup.innerHTML = '<div class="popup-title">Implementations</div>' +
       impls.map(function(impl) {
-        return '<span class="caller-link" data-node-id="' + escapeHtml(impl.node.id) + '">' + escapeHtml(impl.node.displayLabel || impl.node.id) + '</span>';
+        var implNode = nodeMap[impl.nodeId];
+        return '<span class="caller-link" data-node-id="' + escapeHtml(impl.nodeId) + '">' + escapeHtml((implNode && implNode.displayLabel) || impl.nodeId) + '</span>';
       }).join('');
     var rect = anchor.getBoundingClientRect();
     popup.style.top = (rect.bottom + 4) + 'px';
@@ -2208,7 +2072,7 @@ document.addEventListener('click', function(e) {
   // Link points directly to an interface → show picker (or navigate if only 1 impl).
   var impls = implementorsIndex[nodeId];
   if (impls && impls.length > 1) { showImplsPopup(impls, link); return; }
-  if (impls && impls.length === 1) { openPanel(impls[0].node); return; }
+  if (impls && impls.length === 1) { openPanel(nodeMap[impls[0].nodeId]); return; }
 
   // Link points to a concrete class via a method call: if that class implements an
   // interface that has multiple implementations, show the picker instead of jumping straight in.
@@ -2218,7 +2082,7 @@ document.addEventListener('click', function(e) {
     var implementedIfaces = implementeeIndex[nodeId];
     if (implementedIfaces) {
       for (var ii = 0; ii < implementedIfaces.length; ii++) {
-        var ifaceImpls = implementorsIndex[implementedIfaces[ii].id];
+        var ifaceImpls = implementorsIndex[implementedIfaces[ii]];
         if (ifaceImpls && ifaceImpls.length > 1) { showImplsPopup(ifaceImpls, link); return; }
       }
     }
