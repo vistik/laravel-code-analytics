@@ -1807,6 +1807,7 @@ canvas.addEventListener('mouseup', e => {
   canvas.classList.remove('grabbing');
   var canPin = typeof nodeDraggingDisabled === 'undefined' || !nodeDraggingDisabled;
   if (dragNode && !didDrag) {
+    closeLegend();
     if (e.shiftKey) {
       if (pathfindNodes.has(dragNode.id)) pathfindNodes.delete(dragNode.id);
       else pathfindNodes.add(dragNode.id);
@@ -1818,7 +1819,7 @@ canvas.addEventListener('mouseup', e => {
       if (canPin) dragNode.pinned = true;
     }
   } else if (dragNode && didDrag && canPin) { dragNode.pinned = true; }
-  else if (isPanning && !didDrag) { closePanel(); clearPathfinding(); }
+  else if (isPanning && !didDrag) { closeLegend(); closePanel(); clearPathfinding(); }
   dragNode = null; isPanning = false;
 });
 
@@ -2132,6 +2133,14 @@ document.getElementById('panel-header').addEventListener('click', function(e) {
   }
 });
 
+function closeLegend() {
+  var body = document.getElementById('legendBody');
+  var chevron = document.getElementById('legendChevron');
+  if (body.style.display !== 'none') {
+    body.style.display = 'none';
+    chevron.classList.add('collapsed');
+  }
+}
 function toggleLegend() {
   var body = document.getElementById('legendBody');
   var chevron = document.getElementById('legendChevron');
