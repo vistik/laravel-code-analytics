@@ -63,12 +63,12 @@ tailwind.config = {
   .risk-score-denom { font-size: 11px; color: #6e7681; }
   .risk-label { font-size: 10.5px; padding: 2px 8px; border-radius: 20px; border: 1px solid; font-weight: 500; }
   .risk-tooltip, .metrics-tooltip {
-    display: none; position: absolute; top: calc(100% + 10px); right: 0;
+    display: none; position: absolute; top: 0; left: calc(100% + 12px);
     background: #1c2128; border: 1px solid #30363d; border-radius: 10px;
     padding: 12px 14px; box-shadow: 0 8px 32px rgba(0,0,0,.6); z-index: 100;
   }
   .risk-tooltip::before, .metrics-tooltip::before {
-    content: ''; position: absolute; top: -12px; left: 0; right: 0; height: 12px;
+    content: ''; position: absolute; top: 0; left: -12px; width: 12px; height: 100%;
   }
   .risk-tooltip { min-width: 210px; }
   .metrics-tooltip { white-space: nowrap; }
