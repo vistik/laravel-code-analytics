@@ -25,6 +25,11 @@ class CalculateFileSignal implements FileSignalScoring
             if (isset($metrics['mi']) && $metrics['mi'] < 65) {
                 $score += (65 - $metrics['mi']) * 0.5;
             }
+            $llocCutoff = config('laravel-code-analytics.file_signal.lloc.cutoff', 200);
+            $llocMultiplier = config('laravel-code-analytics.file_signal.lloc.multiplier', 0.5);
+            if (($metrics['lloc'] ?? 0) > $llocCutoff) {
+                $score += sqrt($metrics['lloc'] - $llocCutoff) * $llocMultiplier;
+            }
         }
 
         return (int) round($score);
