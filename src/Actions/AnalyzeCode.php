@@ -15,7 +15,6 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
-use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
@@ -1601,7 +1600,6 @@ class AnalyzeCode
         $group = $this->groupResolver->resolve($path);
         $label = $this->generateLabel($path);
         $hash = hash('sha256', $path);
-        $desc = $this->generateDescription($path, $group, $status, $add, $del);
         $ext = pathinfo($path, PATHINFO_EXTENSION) ?: basename($path);
         $folder = dirname($path);
         $folder = preg_replace('#^app/#', '', $folder);
@@ -1620,7 +1618,6 @@ class AnalyzeCode
             'status' => $status->value,
             'group' => $group->value,
             'hash' => $hash,
-            'desc' => $desc,
             'ext' => $ext,
             'folder' => $folder,
             'domain' => $domain,
@@ -1654,18 +1651,6 @@ class AnalyzeCode
         $base = basename($path);
 
         return strlen($base) > 30 ? '...'.substr($base, -27) : $base;
-    }
-
-    private function generateDescription(string $path, FileGroup $group, FileStatus $status, int $add, int $del): string
-    {
-        $action = match ($status) {
-            FileStatus::ADDED => 'New',
-            FileStatus::DELETED => 'Deleted',
-            FileStatus::RENAMED => 'Renamed',
-            FileStatus::MODIFIED => 'Modified',
-        };
-
-        return $group->description($action, basename($path));
     }
 
     /**
