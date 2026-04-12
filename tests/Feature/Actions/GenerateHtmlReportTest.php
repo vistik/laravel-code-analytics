@@ -59,7 +59,7 @@ test('sevOrder assigns info the highest index', function () {
 });
 
 test('blade view contains severity data variable injection', function () {
-    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/partials/_script-init.blade.php');
     expect(file_get_contents($viewPath))->toContain('{!! $severityDataJs !!}');
 });
 
@@ -138,17 +138,17 @@ test('rendered html embeds provided file contents', function () {
 });
 
 test('blade view injects fileContentsJson variable', function () {
-    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/partials/_script-init.blade.php');
     expect(file_get_contents($viewPath))->toContain('{!! $fileContentsJson !!}');
 });
 
 test('blade view contains renderFullFile function', function () {
-    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/partials/_script-diff.blade.php');
     expect(file_get_contents($viewPath))->toContain('function renderFullFile(');
 });
 
 test('blade view contains Full file button', function () {
-    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/inner.blade.php');
+    $viewPath = realpath(__DIR__.'/../../../resources/views/analysis/partials/_script-panel.blade.php');
     expect(file_get_contents($viewPath))->toContain('Full file');
 });
 
