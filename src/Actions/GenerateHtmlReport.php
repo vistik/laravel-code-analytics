@@ -290,11 +290,11 @@ class GenerateHtmlReport implements ReportGenerator
     private function qualityDotColor(string $key, mixed $val): ?string
     {
         return match ($key) {
-            'cc'       => $this->ccDotColor($val),
-            'mi'       => $this->miDotColor($val),
-            'bugs'     => $this->bugsDotColor($val),
+            'cc' => $this->ccDotColor($val),
+            'mi' => $this->miDotColor($val),
+            'bugs' => $this->bugsDotColor($val),
             'coupling' => $this->couplingDotColor($val),
-            default    => null,
+            default => null,
         };
     }
 
@@ -302,26 +302,26 @@ class GenerateHtmlReport implements ReportGenerator
     {
         return match (true) {
             $val > 10 => '#f85149',
-            $val > 5  => '#d29922',
-            default   => '#3fb950',
+            $val > 5 => '#d29922',
+            default => '#3fb950',
         };
     }
 
     private function miDotColor(mixed $val): string
     {
         return match (true) {
-            $val < 85  => '#f85149',
+            $val < 85 => '#f85149',
             $val < 100 => '#d29922',
-            default    => '#3fb950',
+            default => '#3fb950',
         };
     }
 
     private function bugsDotColor(mixed $val): string
     {
         return match (true) {
-            $val > 0.1  => '#f85149',
+            $val > 0.1 => '#f85149',
             $val > 0.05 => '#d29922',
-            default     => '#3fb950',
+            default => '#3fb950',
         };
     }
 
@@ -329,8 +329,8 @@ class GenerateHtmlReport implements ReportGenerator
     {
         return match (true) {
             $val > 15 => '#f85149',
-            $val > 8  => '#d29922',
-            default   => '#3fb950',
+            $val > 8 => '#d29922',
+            default => '#3fb950',
         };
     }
 
