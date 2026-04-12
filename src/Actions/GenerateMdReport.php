@@ -5,33 +5,27 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 class GenerateMdReport implements ReportGenerator
 {
     public function generate(
-        array $nodes,
-        array $edges,
-        array $fileDiffs,
-        array $analysisData,
-        string $title,
-        string $repo,
-        string $headCommit,
-        int $prAdditions,
-        int $prDeletions,
-        int $fileCount,
-        string $prUrl = '',
-        ?RiskScore $riskScore = null,
-        array $metricsData = [],
-        array $fileContents = [],
-        array $filterDefaults = [],
+        GraphPayload $payload,
+        PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
     ): string {
+        $nodes = $payload->nodes;
+        $edges = $payload->edges;
+        $analysisData = $payload->analysisData;
+        $metricsData = $payload->metricsData;
+        $riskScore = $payload->riskScore;
+
         $lines = [];
 
-        $lines[] = "# {$title}";
+        $lines[] = "# {$pr->prTitle}";
         $lines[] = '';
-        $lines[] = "**Repo:** {$repo} | **HEAD:** ".substr($headCommit, 0, 7)." | **Files:** {$fileCount} | **+{$prAdditions} -{$prDeletions}**";
+        $lines[] = "**Repo:** {$pr->repo} | **HEAD:** ".substr($pr->headCommit, 0, 7)." | **Files:** {$pr->fileCount} | **+{$pr->prAdditions} -{$pr->prDeletions}**";
         $lines[] = '';
 
         // ── Risk Score ──────────────────────────────────────────────────────

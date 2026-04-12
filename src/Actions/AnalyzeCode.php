@@ -19,6 +19,8 @@ use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
 use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
@@ -179,21 +181,25 @@ class AnalyzeCode
 
         $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
         $content = $reportGenerator->generate(
-            nodes: $nodes,
-            edges: $this->edges,
-            fileDiffs: $fileDiffs,
-            analysisData: $analysisData,
-            title: $prTitle,
-            repo: $repoName,
-            headCommit: $this->headCommit,
-            prAdditions: $totalAdditions,
-            prDeletions: $totalDeletions,
-            fileCount: $fileCount,
-            prUrl: $prLinkUrl,
-            riskScore: $riskResult,
-            metricsData: $metricsData,
-            fileContents: $fileContents,
-            filterDefaults: $this->resolveFilterDefaults($filterDefaults),
+            payload: new GraphPayload(
+                nodes: $nodes,
+                edges: $this->edges,
+                fileDiffs: $fileDiffs,
+                analysisData: $analysisData,
+                metricsData: $metricsData,
+                fileContents: $fileContents,
+                filterDefaults: $this->resolveFilterDefaults($filterDefaults),
+                riskScore: $riskResult,
+            ),
+            pr: new PullRequestContext(
+                prTitle: $prTitle,
+                repo: $repoName,
+                headCommit: $this->headCommit,
+                prAdditions: $totalAdditions,
+                prDeletions: $totalDeletions,
+                fileCount: $fileCount,
+                prUrl: $prLinkUrl,
+            ),
         );
 
         if ($raw) {

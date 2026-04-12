@@ -4,28 +4,21 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 
 class GenerateMetricsReport implements ReportGenerator
 {
     public function generate(
-        array $nodes,
-        array $edges,
-        array $fileDiffs,
-        array $analysisData,
-        string $title,
-        string $repo,
-        string $headCommit,
-        int $prAdditions,
-        int $prDeletions,
-        int $fileCount,
-        string $prUrl = '',
-        ?RiskScore $riskScore = null,
-        array $metricsData = [],
-        array $fileContents = [],
-        array $filterDefaults = [],
+        GraphPayload $payload,
+        PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
     ): string {
+        $nodes = $payload->nodes;
+        $metricsData = $payload->metricsData;
+        $riskScore = $payload->riskScore;
+
         $severityCounts = ['very_high' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'info' => 0];
         $totalFindings = 0;
         $maxSeverity = null;
@@ -58,13 +51,13 @@ class GenerateMetricsReport implements ReportGenerator
 
         $lines = [];
 
-        if ($title) {
-            $lines[] = $title;
-            $lines[] = str_repeat('─', min(strlen($title), 60));
+        if ($pr->prTitle) {
+            $lines[] = $pr->prTitle;
+            $lines[] = str_repeat('─', min(strlen($pr->prTitle), 60));
         }
 
         $lines[] = sprintf('Risk Score:   %d / 100', $riskScore instanceof RiskScore ? $riskScore->score : 0);
-        $lines[] = sprintf('Files:        %d  (+%d / -%d lines)', $fileCount, $prAdditions, $prDeletions);
+        $lines[] = sprintf('Files:        %d  (+%d / -%d lines)', $pr->fileCount, $pr->prAdditions, $pr->prDeletions);
         $lines[] = sprintf('Findings:     %d  (max severity: %s)', $totalFindings, $maxSeverity ?? 'none');
         if ($cycleFileCount > 0) {
             $lines[] = sprintf('Circular deps: %d cycle(s)  %d file(s)', count($cycleIds), $cycleFileCount);

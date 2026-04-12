@@ -4,30 +4,22 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 class GenerateGithubAnnotationsReport implements ReportGenerator
 {
     public function __construct(private bool $includeMetrics = false) {}
 
     public function generate(
-        array $nodes,
-        array $edges,
-        array $fileDiffs,
-        array $analysisData,
-        string $title,
-        string $repo,
-        string $headCommit,
-        int $prAdditions,
-        int $prDeletions,
-        int $fileCount,
-        string $prUrl = '',
-        ?RiskScore $riskScore = null,
-        array $metricsData = [],
-        array $fileContents = [],
-        array $filterDefaults = [],
+        GraphPayload $payload,
+        PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
     ): string {
+        $analysisData = $payload->analysisData;
+        $metricsData = $payload->metricsData;
+        $riskScore = $payload->riskScore;
+
         $lines = [];
 
         foreach ($analysisData as $filePath => $findings) {

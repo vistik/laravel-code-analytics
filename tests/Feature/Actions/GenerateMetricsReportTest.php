@@ -2,6 +2,8 @@
 
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsDetailsReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 function metricsNode(string $path, ?int $cycleId = null): array
 {
@@ -22,32 +24,16 @@ function metricsNode(string $path, ?int $cycleId = null): array
 function generateMetrics(array $nodes = []): string
 {
     return (new GenerateMetricsReport)->generate(
-        nodes: $nodes,
-        edges: [],
-        fileDiffs: [],
-        analysisData: [],
-        title: '',
-        repo: 'test/repo',
-        headCommit: 'abc1234',
-        prAdditions: 0,
-        prDeletions: 0,
-        fileCount: count($nodes),
+        payload: new GraphPayload(nodes: $nodes, edges: [], fileDiffs: [], analysisData: []),
+        pr: new PullRequestContext(prTitle: '', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
     );
 }
 
 function generateMetricsDetails(array $nodes = []): string
 {
     return (new GenerateMetricsDetailsReport)->generate(
-        nodes: $nodes,
-        edges: [],
-        fileDiffs: [],
-        analysisData: [],
-        title: '',
-        repo: 'test/repo',
-        headCommit: 'abc1234',
-        prAdditions: 0,
-        prDeletions: 0,
-        fileCount: count($nodes),
+        payload: new GraphPayload(nodes: $nodes, edges: [], fileDiffs: [], analysisData: []),
+        pr: new PullRequestContext(prTitle: '', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
     );
 }
 

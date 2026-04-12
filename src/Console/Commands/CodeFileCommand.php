@@ -7,6 +7,9 @@ use RuntimeException;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
+use Vistik\LaravelCodeAnalytics\Reports\FilterTogglesHtml;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 use Vistik\LaravelCodeAnalytics\Support\MethodCallGraphExtractor;
 
 class CodeFileCommand extends Command
@@ -65,28 +68,13 @@ class CodeFileCommand extends Command
             // Single-file mode: visibility rings; multi-file: architectural layers
             $layerStack = $depth === 0 ? LayerStack::forMethodGraph() : LayerStack::default();
 
+            $payload = new GraphPayload(nodes: $nodes, edges: $edges, fileDiffs: [], analysisData: [], filterDefaults: $filterDefaults);
+            $pr = new PullRequestContext(prTitle: $title, repo: $repoRoot, headCommit: '', prAdditions: 0, prDeletions: 0, fileCount: $focalCount, prNumber: $prNumber, connectedCount: $externalCount);
+            $toggles = new FilterTogglesHtml(ext: '', folder: '');
+
             if ($outputArg !== null) {
                 // Single output path: one layout file, no switcher needed
-                $html = $generator->execute(
-                    nodes: $nodes,
-                    edges: $edges,
-                    fileDiffs: [],
-                    analysisData: [],
-                    prNumber: $prNumber,
-                    prTitle: $title,
-                    prUrl: '',
-                    prAdditions: 0,
-                    prDeletions: 0,
-                    repo: $repoRoot,
-                    headCommit: '',
-                    fileCount: $focalCount,
-                    connectedCount: $externalCount,
-                    extTogglesHtml: '',
-                    folderTogglesHtml: '',
-                    layout: $view,
-                    layerStack: $layerStack,
-                    filterDefaults: $filterDefaults,
-                );
+                $html = $generator->execute($payload, $pr, $toggles, $view, $layerStack);
 
                 file_put_contents($outputArg, $html);
                 $this->info("Written: {$outputArg}");
@@ -104,28 +92,7 @@ class CodeFileCommand extends Command
                 mkdir($outputDir, 0755, true);
             }
 
-            $files = $generator->writeFiles(
-                nodes: $nodes,
-                edges: $edges,
-                fileDiffs: [],
-                analysisData: [],
-                prNumber: $prNumber,
-                prTitle: $title,
-                prUrl: '',
-                prAdditions: 0,
-                prDeletions: 0,
-                repo: $repoRoot,
-                headCommit: '',
-                fileCount: $focalCount,
-                connectedCount: $externalCount,
-                extTogglesHtml: '',
-                folderTogglesHtml: '',
-                severityTogglesHtml: '',
-                outputDir: $outputDir,
-                layerStack: $layerStack,
-                filterDefaults: $filterDefaults,
-                onlyLayouts: ['force', 'tree', 'grouped'],
-            );
+            $files = $generator->writeFiles($payload, $pr, $toggles, $outputDir, layerStack: $layerStack, onlyLayouts: ['force', 'tree', 'grouped']);
 
             foreach ($files as $layout => $file) {
                 $this->line("  <comment>{$layout}</comment>: {$file}");
