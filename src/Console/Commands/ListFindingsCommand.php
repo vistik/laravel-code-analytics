@@ -3,8 +3,8 @@
 namespace Vistik\LaravelCodeAnalytics\Console\Commands;
 
 use Illuminate\Console\Command;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\FindingsCatalog;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\FindingsCatalog;
 
 use function Laravel\Prompts\select;
 
@@ -18,18 +18,18 @@ class ListFindingsCommand extends Command
 
     private const SEVERITY_COLORS = [
         'very_high' => '<fg=red;options=bold>',
-        'high'      => '<fg=red>',
-        'medium'    => '<fg=yellow>',
-        'low'       => '<fg=blue>',
-        'info'      => '<fg=gray>',
+        'high' => '<fg=red>',
+        'medium' => '<fg=yellow>',
+        'low' => '<fg=blue>',
+        'info' => '<fg=gray>',
     ];
 
     private const SEVERITY_ORDER = [
         'very_high' => 0,
-        'high'      => 1,
-        'medium'    => 2,
-        'low'       => 3,
-        'info'      => 4,
+        'high' => 1,
+        'medium' => 2,
+        'low' => 3,
+        'info' => 4,
     ];
 
     public function handle(): int
@@ -105,7 +105,7 @@ class ListFindingsCommand extends Command
     }
 
     /**
-     * @param array{rule: string, severity: Severity, title: string, description: string, before: string, after: string} $finding
+     * @param  array{rule: string, severity: Severity, title: string, description: string, before: string, after: string}  $finding
      */
     private function renderFinding(array $finding, int $current, int $total): void
     {
@@ -162,7 +162,7 @@ class ListFindingsCommand extends Command
     }
 
     /**
-     * @param list<array{rule: string, severity: Severity, title: string, description: string, before: string, after: string}> $findings
+     * @param  list<array{rule: string, severity: Severity, title: string, description: string, before: string, after: string}>  $findings
      */
     private function jumpToFinding(array $findings): int
     {
@@ -180,7 +180,7 @@ class ListFindingsCommand extends Command
     }
 
     /**
-     * @param list<array{rule: string, severity: Severity, title: string, description: string, before: string, after: string}> $findings
+     * @param  list<array{rule: string, severity: Severity, title: string, description: string, before: string, after: string}>  $findings
      */
     private function countSummary(array $findings): string
     {
