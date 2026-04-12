@@ -728,7 +728,7 @@ canvas.addEventListener('wheel', e => {
 function screenToWorld(sx, sy) { return [(sx - panX) / zoom, (sy - panY) / zoom]; }
 
 // ── Syntax highlighting ───────────────────────────────────────────────────────
-function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeHtml(s) { s = (s == null) ? '' : String(s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function highlightPHP(code, linkMap, classMap, ifaceIndex) {
   var tokens = [];
@@ -777,7 +777,7 @@ function highlightPHP(code, linkMap, classMap, ifaceIndex) {
       else if (/^(string|int|float|bool|void|null|true|false|array|object|mixed|never|callable|iterable|self|static)$/i.test(word) && (code[j] === ' ' || code[j] === ',' || code[j] === ')' || code[j] === '|' || code[j] === '>' || j >= len)) kwType = 'type';
       // Detect method call link: plain identifier followed by '(' that exists in linkMap,
       // but NOT a method definition (i.e. not preceded by the 'function' keyword).
-      if (kwType === 'plain' && linkMap && linkMap[word]) {
+      if (kwType === 'plain' && linkMap && Object.prototype.hasOwnProperty.call(linkMap, word)) {
         var k = j;
         while (k < len && (code[k] === ' ' || code[k] === '\t')) k++;
         if (code[k] === '(') {
@@ -792,7 +792,7 @@ function highlightPHP(code, linkMap, classMap, ifaceIndex) {
       // Covers type hints, `new`/`extends`/`implements`/`instanceof`, `::`, and
       // the class/interface declaration itself (so `interface LoggerInterface` is
       // clickable and can show the implementations picker).
-      if (kwType === 'plain' && classMap && classMap[word]) {
+      if (kwType === 'plain' && classMap && Object.prototype.hasOwnProperty.call(classMap, word)) {
         var pi = tokens.length - 1;
         while (pi >= 0 && tokens[pi].type === 'plain') pi--;
         var prevKw = pi >= 0 ? tokens[pi] : null;
@@ -1909,8 +1909,10 @@ canvas.addEventListener('mouseup', e => {
     } else {
       clearPathfinding();
       clearNavStack();
-      openPanel(dragNode);
-      if (canPin) dragNode.pinned = true;
+      var _dn = dragNode;
+      dragNode = null;
+      openPanel(_dn);
+      if (canPin) _dn.pinned = true;
     }
   } else if (dragNode && didDrag && canPin) { dragNode.pinned = true; }
   else if (isPanning && !didDrag) { closeLegend(); closePanel(); clearPathfinding(); }
