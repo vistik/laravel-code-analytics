@@ -14,8 +14,6 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      pull-requests: write
 
     outputs:
       metrics: ${{ steps.metrics.outputs.summary }}
@@ -84,6 +82,38 @@ jobs:
           name: pr-report-${{ github.event.pull_request.number }}
           path: _site/
 
+  deploy:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Download report artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-report-${{ github.event.pull_request.number }}
+          path: _site/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          keep_files: true
+
+  notify:
+    needs: [analyze, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
@@ -94,7 +124,7 @@ jobs:
             const prNumber = context.issue.number;
             const reportUrl = `https://${owner}.github.io/${repo}/pr-${prNumber}.html`;
             const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
-            const metrics = `${{ steps.metrics.outputs.summary }}`;
+            const metrics = `${{ needs.analyze.outputs.metrics }}`;
 
             const body = [
               marker,
@@ -148,27 +178,3 @@ jobs:
             await github.rest.pulls.update({
               owner, repo, pull_number: prNumber, body: description,
             });
-
-  deploy:
-    needs: analyze
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    concurrency:
-      group: gh-pages-deploy
-      cancel-in-progress: false
-
-    steps:
-      - name: Download report artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: pr-report-${{ github.event.pull_request.number }}
-          path: _site/
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _site
-          keep_files: true
