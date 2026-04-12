@@ -1,6 +1,8 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null): array
 {
@@ -21,16 +23,8 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
 function generateJson(array $nodes = [], array $edges = []): array
 {
     $json = (new GenerateJsonReport)->generate(
-        nodes: $nodes,
-        edges: $edges,
-        fileDiffs: [],
-        analysisData: [],
-        title: 'Test PR',
-        repo: 'test/repo',
-        headCommit: 'abc1234',
-        prAdditions: 0,
-        prDeletions: 0,
-        fileCount: count($nodes),
+        payload: new GraphPayload(nodes: $nodes, edges: $edges, fileDiffs: [], analysisData: []),
+        pr: new PullRequestContext(prTitle: 'Test PR', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
     );
 
     return json_decode($json, true);

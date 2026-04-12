@@ -1,6 +1,8 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\GenerateGithubAnnotationsReport;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 function githubNode(string $path, ?int $cycleId = null): array
 {
@@ -21,16 +23,8 @@ function githubNode(string $path, ?int $cycleId = null): array
 function generateGithub(array $analysisData = [], array $nodes = []): string
 {
     return (new GenerateGithubAnnotationsReport)->generate(
-        nodes: $nodes,
-        edges: [],
-        fileDiffs: [],
-        analysisData: $analysisData,
-        title: 'Test',
-        repo: 'test/repo',
-        headCommit: 'abc1234',
-        prAdditions: 0,
-        prDeletions: 0,
-        fileCount: count($nodes),
+        payload: new GraphPayload(nodes: $nodes, edges: [], fileDiffs: [], analysisData: $analysisData),
+        pr: new PullRequestContext(prTitle: 'Test', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
     );
 }
 

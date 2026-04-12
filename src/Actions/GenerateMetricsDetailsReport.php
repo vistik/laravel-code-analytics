@@ -4,34 +4,18 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 class GenerateMetricsDetailsReport extends GenerateMetricsReport implements ReportGenerator
 {
     public function generate(
-        array $nodes,
-        array $edges,
-        array $fileDiffs,
-        array $analysisData,
-        string $title,
-        string $repo,
-        string $headCommit,
-        int $prAdditions,
-        int $prDeletions,
-        int $fileCount,
-        string $prUrl = '',
-        ?RiskScore $riskScore = null,
-        array $metricsData = [],
-        array $fileContents = [],
-        array $filterDefaults = [],
+        GraphPayload $payload,
+        PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
     ): string {
-        $output = parent::generate(
-            $nodes, $edges, $fileDiffs, $analysisData,
-            $title, $repo, $headCommit,
-            $prAdditions, $prDeletions, $fileCount,
-            $prUrl, $riskScore, $metricsData,
-        );
+        $output = parent::generate($payload, $pr, $defaultView);
+        $metricsData = $payload->metricsData;
 
         if (empty($metricsData)) {
             return $output;

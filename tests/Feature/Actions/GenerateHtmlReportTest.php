@@ -3,25 +3,16 @@
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\Reports\FilterTogglesHtml;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 function makeHtml(): string
 {
     return (new GenerateHtmlReport)->execute(
-        nodes: [],
-        edges: [],
-        fileDiffs: [],
-        analysisData: [],
-        prNumber: '1',
-        prTitle: 'Test PR',
-        prUrl: 'https://github.com/test/repo/pull/1',
-        prAdditions: 0,
-        prDeletions: 0,
-        repo: 'test/repo',
-        headCommit: 'abc1234',
-        fileCount: 0,
-        connectedCount: 0,
-        extTogglesHtml: '',
-        folderTogglesHtml: '',
+        payload: new GraphPayload(nodes: [], edges: [], fileDiffs: [], analysisData: []),
+        pr: new PullRequestContext(prTitle: 'Test PR', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: 0, prNumber: '1', prUrl: 'https://github.com/test/repo/pull/1'),
+        toggles: new FilterTogglesHtml(ext: '', folder: ''),
     );
 }
 
@@ -125,11 +116,9 @@ test('rendered html contains empty fileContents object when none provided', func
 
 test('rendered html embeds provided file contents', function () {
     $html = (new GenerateHtmlReport)->execute(
-        nodes: [], edges: [], fileDiffs: [], analysisData: [],
-        prNumber: '1', prTitle: 'Test', prUrl: '',
-        prAdditions: 0, prDeletions: 0, repo: 'test', headCommit: 'abc1234',
-        fileCount: 0, connectedCount: 0, extTogglesHtml: '', folderTogglesHtml: '',
-        fileContents: ['app/Foo.php' => "<?php\necho 'hello';\n"],
+        payload: new GraphPayload(nodes: [], edges: [], fileDiffs: [], analysisData: [], fileContents: ['app/Foo.php' => "<?php\necho 'hello';\n"]),
+        pr: new PullRequestContext(prTitle: 'Test', repo: 'test', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: 0, prNumber: '1'),
+        toggles: new FilterTogglesHtml(ext: '', folder: ''),
     );
 
     expect($html)
@@ -156,9 +145,8 @@ test('blade view contains Full file button', function () {
 
 test('generate uses force as default view when no defaultView is specified', function () {
     $html = (new GenerateHtmlReport)->generate(
-        nodes: [], edges: [], fileDiffs: [], analysisData: [],
-        title: 'Test', repo: 'test/repo', headCommit: 'abc1234',
-        prAdditions: 0, prDeletions: 0, fileCount: 0,
+        payload: new GraphPayload(nodes: [], edges: [], fileDiffs: [], analysisData: []),
+        pr: new PullRequestContext(prTitle: 'Test', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: 0),
     );
 
     expect($html)->toContain("show('force')");
@@ -166,9 +154,8 @@ test('generate uses force as default view when no defaultView is specified', fun
 
 test('generate uses specified defaultView', function () {
     $html = (new GenerateHtmlReport)->generate(
-        nodes: [], edges: [], fileDiffs: [], analysisData: [],
-        title: 'Test', repo: 'test/repo', headCommit: 'abc1234',
-        prAdditions: 0, prDeletions: 0, fileCount: 0,
+        payload: new GraphPayload(nodes: [], edges: [], fileDiffs: [], analysisData: []),
+        pr: new PullRequestContext(prTitle: 'Test', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: 0),
         defaultView: GraphLayout::Tree,
     );
 
