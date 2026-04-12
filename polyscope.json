@@ -14,12 +14,12 @@
                 "command": "./testbench code:analyze --format=html --open --full-files --min-severity=medium"
             },
             {
-                "label": "Analyze code (--format=html --all)",
-                "command": "./testbench code:analyze --format=html --open --all"
+                "label": "Analyze code (--format=html --full)",
+                "command": "./testbench code:analyze --format=html --open --full"
             },
             {
-                "label": "Analyze code (--format=html --full-files --all)",
-                "command": "./testbench code:analyze --format=html --open --full-files --all"
+                "label": "Analyze code (--format=html --full-files --full)",
+                "command": "./testbench code:analyze --format=html --open --full-files --full"
             },
             {
                 "label": "Analyze code (--format=md)",
@@ -38,12 +38,12 @@
                 "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html --full-files"
             },
             {
-                "label": "Analyze code [Big PR] (--format=html --all)",
-                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html --all"
+                "label": "Analyze code [Big PR] (--format=html --full)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html --full"
             },
             {
-                "label": "Analyze code [Big PR] (--format=html --full-files --all)",
-                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html --full-files --all"
+                "label": "Analyze code [Big PR] (--format=html --full-files --full)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4604 --format=html --full-files --full"
             },
             {
                 "label": "Analyze code [Big PR] (--format=json)",
