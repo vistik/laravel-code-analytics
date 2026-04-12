@@ -40,7 +40,7 @@ it('detects enum case removed', function () {
 
     expect($removed)->toHaveCount(1)
         ->and($removed[0]->category)->toBe(ChangeCategory::CLASS_STRUCTURE)
-        ->and($removed[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($removed[0]->severity)->toBe(Severity::HIGH)
         ->and($removed[0]->description)->toContain('Pending')
         ->and($removed[0]->location)->toBe('Status');
 });

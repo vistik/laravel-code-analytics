@@ -89,7 +89,7 @@ class EnumRule implements Rule
         foreach ($removed as $caseName => $value) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::CLASS_STRUCTURE,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Enum case removed: {$name}::{$caseName} — may break code referencing this case",
                 location: $name,
             );
