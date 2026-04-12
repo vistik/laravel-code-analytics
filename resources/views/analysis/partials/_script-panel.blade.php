@@ -268,6 +268,24 @@ function openPanel(n) {
         '</div>';
     }
     var b = m.before || {};
+    var maxCc = null, avgCc = null, medianCc = null;
+    var bMaxCc = null, bAvgCc = null, bMedianCc = null;
+    if (m.method_metrics && m.method_metrics.length > 0) {
+      var mmCcVals = m.method_metrics.map(function(mm) { return mm.cc; });
+      maxCc = Math.max.apply(null, mmCcVals);
+      avgCc = parseFloat((mmCcVals.reduce(function(a, c) { return a + c; }, 0) / mmCcVals.length).toFixed(1));
+      var mmSorted = mmCcVals.slice().sort(function(a, c) { return a - c; });
+      var mmMid = Math.floor(mmSorted.length / 2);
+      medianCc = mmSorted.length % 2 !== 0 ? mmSorted[mmMid] : parseFloat(((mmSorted[mmMid - 1] + mmSorted[mmMid]) / 2).toFixed(1));
+    }
+    if (m.before_method_metrics && m.before_method_metrics.length > 0) {
+      var bmCcVals = m.before_method_metrics.map(function(mm) { return mm.cc; });
+      bMaxCc = Math.max.apply(null, bmCcVals);
+      bAvgCc = parseFloat((bmCcVals.reduce(function(a, c) { return a + c; }, 0) / bmCcVals.length).toFixed(1));
+      var bmSorted = bmCcVals.slice().sort(function(a, c) { return a - c; });
+      var bmMid = Math.floor(bmSorted.length / 2);
+      bMedianCc = bmSorted.length % 2 !== 0 ? bmSorted[bmMid] : parseFloat(((bmSorted[bmMid - 1] + bmSorted[bmMid]) / 2).toFixed(1));
+    }
     var metricsLabel = /\.(js|ts|jsx|tsx|vue|mjs|cjs)$/.test(n.path) ? 'JS Metrics' : 'PHP Metrics';
     bodyHtml += '<div class="deps-section"><h4>' + metricsLabel + '</h4>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">' +
@@ -277,6 +295,27 @@ function openPanel(n) {
       metricCard('Coupling (Ce)', m.coupling, '', 10, 20, false, b.coupling) +
       (m.lloc != null ? metricCard('Lines of Code', m.lloc, '', 200, 500, false, b.lloc) : '') +
       (m.methods != null ? metricCard('Methods', m.methods, '', 10, 20, false, b.methods) : '') +
+      (maxCc != null ? metricCard('Max CC / Method', maxCc, '', 10, 20, false, bMaxCc) : '') +
+      (avgCc != null && medianCc != null ? (function() {
+        var avgColor = metricColor(avgCc, 10, 20);
+        var medColor = metricColor(medianCc, 10, 20);
+        var avgDelta = bAvgCc != null ? (function() {
+          var d = avgCc - bAvgCc; if (d === 0) return '';
+          return '<span style="color:' + (d > 0 ? '#f85149' : '#3fb950') + ';font-size:11.5px">' + (d > 0 ? '\u2191' : '\u2193') + Math.abs(d).toFixed(1).replace(/\.?0+$/, '') + '</span>';
+        })() : '';
+        var medDelta = bMedianCc != null ? (function() {
+          var d = medianCc - bMedianCc; if (d === 0) return '';
+          return '<span style="color:' + (d > 0 ? '#f85149' : '#3fb950') + ';font-size:11.5px">' + (d > 0 ? '\u2191' : '\u2193') + Math.abs(d).toFixed(1).replace(/\.?0+$/, '') + '</span>';
+        })() : '';
+        return '<div style="background:#21262d;border-radius:6px;padding:8px 10px">' +
+          '<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Avg / Median CC</div>' +
+          '<div style="display:flex;gap:10px;align-items:baseline">' +
+          '<span style="font-size:20px;font-weight:700;color:' + avgColor + '">' + avgCc + avgDelta + '</span>' +
+          '<span style="font-size:13px;color:#484f58">/</span>' +
+          '<span style="font-size:20px;font-weight:700;color:' + medColor + '">' + medianCc + medDelta + '</span>' +
+          '</div>' +
+          '</div>';
+      })() : '') +
       '</div>';
     if (m.method_metrics && m.method_metrics.length > 0) {
       // Build set of added new-line numbers so we can mark each method as new/modified
