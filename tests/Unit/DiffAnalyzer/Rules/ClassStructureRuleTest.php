@@ -86,7 +86,7 @@ it('detects parent class change', function () {
     ));
 
     expect($parentChanges)->toHaveCount(1)
-        ->and($parentChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($parentChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($parentChanges[0]->description)->toContain('ParentA')
         ->and($parentChanges[0]->description)->toContain('ParentB');
 });
@@ -127,7 +127,7 @@ it('detects interface removed', function () {
     ));
 
     expect($implChanges)->toHaveCount(1)
-        ->and($implChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($implChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($implChanges[0]->description)->toContain('Countable');
 });
 
@@ -187,7 +187,7 @@ it('detects property removed', function () {
     ));
 
     expect($propChanges)->toHaveCount(1)
-        ->and($propChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($propChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($propChanges[0]->description)->toContain('Foo::$name');
 });
 

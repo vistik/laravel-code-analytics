@@ -5,6 +5,7 @@ namespace Vistik\LaravelCodeAnalytics;
 use Illuminate\Support\ServiceProvider;
 use Vistik\LaravelCodeAnalytics\Console\Commands\CodeAnalyzeCommand;
 use Vistik\LaravelCodeAnalytics\Console\Commands\CodeFileCommand;
+use Vistik\LaravelCodeAnalytics\Console\Commands\ListFindingsCommand;
 use Vistik\LaravelCodeAnalytics\Console\Commands\TestCoverageCommand;
 
 class LaravelCodeAnalyticsServiceProvider extends ServiceProvider
@@ -15,6 +16,7 @@ class LaravelCodeAnalyticsServiceProvider extends ServiceProvider
             $this->commands([
                 CodeAnalyzeCommand::class,
                 CodeFileCommand::class,
+                ListFindingsCommand::class,
                 TestCoverageCommand::class,
             ]);
 

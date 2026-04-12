@@ -58,31 +58,6 @@ enum FileGroup: string
         };
     }
 
-    public function description(string $action, ?string $context = null): string
-    {
-        return match ($this) {
-            self::MODEL => "{$action} model file.",
-            self::ACTION => "{$action} action class.",
-            self::CONTROLLER => "{$action} controller ({$context}).",
-            self::REQUEST => "{$action} form request ({$context}).",
-            self::HTTP => "{$action} HTTP layer ({$context}).",
-            self::PROVIDER => "{$action} service provider.",
-            self::NOVA => "{$action} Nova admin resource.",
-            self::DB => "{$action} database file.",
-            self::TEST => "{$action} test file.",
-            self::CORE => "{$action} core class.",
-            self::JOB => "{$action} job class.",
-            self::EVENT => "{$action} event/listener.",
-            self::SERVICE => "{$action} service class.",
-            self::VIEW => "{$action} view template.",
-            self::FRONTEND => "{$action} frontend asset.",
-            self::CONFIG => "{$action} configuration.",
-            self::ROUTE => "{$action} route definition.",
-            self::CONSOLE => "{$action} console command.",
-            self::OTHER, self::VIS_PUBLIC, self::VIS_PROTECTED, self::VIS_PRIVATE, self::VIS_EXTERNAL => "{$action} file.",
-        };
-    }
-
     public function label(): string
     {
         return match ($this) {

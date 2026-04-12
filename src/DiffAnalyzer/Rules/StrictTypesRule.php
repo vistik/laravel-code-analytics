@@ -53,7 +53,7 @@ class StrictTypesRule implements Rule
 
         return [new ClassifiedChange(
             category: ChangeCategory::TYPE_SYSTEM,
-            severity: Severity::VERY_HIGH,
+            severity: Severity::MEDIUM,
             description: 'declare(strict_types=1) removed — type coercion is now loose',
             line: 1,
         )];

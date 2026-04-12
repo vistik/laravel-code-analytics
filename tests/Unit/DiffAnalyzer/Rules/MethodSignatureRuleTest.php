@@ -24,7 +24,7 @@ it('detects visibility change', function () {
 
     expect($visibilityChanges)->toHaveCount(1)
         ->and($visibilityChanges[0]->category)->toBe(ChangeCategory::METHOD_SIGNATURE)
-        ->and($visibilityChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($visibilityChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($visibilityChanges[0]->description)->toContain('public -> protected');
 });
 
@@ -45,7 +45,7 @@ it('detects method made static', function () {
 
     expect($staticChanges)->toHaveCount(1)
         ->and($staticChanges[0]->category)->toBe(ChangeCategory::METHOD_SIGNATURE)
-        ->and($staticChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($staticChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($staticChanges[0]->description)->toContain('Foo::bar');
 });
 
@@ -108,7 +108,7 @@ it('detects parameter removed', function () {
 
     expect($paramChanges)->toHaveCount(1)
         ->and($paramChanges[0]->category)->toBe(ChangeCategory::METHOD_SIGNATURE)
-        ->and($paramChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($paramChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($paramChanges[0]->description)->toContain('$b');
 });
 
@@ -129,7 +129,7 @@ it('detects return type change', function () {
 
     expect($returnChanges)->toHaveCount(1)
         ->and($returnChanges[0]->category)->toBe(ChangeCategory::METHOD_SIGNATURE)
-        ->and($returnChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($returnChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($returnChanges[0]->description)->toContain('int -> string');
 });
 

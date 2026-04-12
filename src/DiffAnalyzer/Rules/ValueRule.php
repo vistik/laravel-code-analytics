@@ -86,7 +86,7 @@ class ValueRule implements Rule
             if ($oldVal !== $newVal) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::VALUES,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Constant value changed for {$key}: `{$this->summarizeExpr($oldConst->value)}` -> `{$this->summarizeExpr($new->consts[$i]->value)}`",
                     location: $key,
                     line: $new->consts[$i]->getStartLine(),

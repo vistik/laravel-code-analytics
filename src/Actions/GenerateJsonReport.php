@@ -4,28 +4,22 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
-use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 class GenerateJsonReport implements ReportGenerator
 {
     public function generate(
-        array $nodes,
-        array $edges,
-        array $fileDiffs,
-        array $analysisData,
-        string $title,
-        string $repo,
-        string $headCommit,
-        int $prAdditions,
-        int $prDeletions,
-        int $fileCount,
-        string $prUrl = '',
-        ?RiskScore $riskScore = null,
-        array $metricsData = [],
-        array $fileContents = [],
-        array $filterDefaults = [],
+        GraphPayload $payload,
+        PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
     ): string {
+        $nodes = $payload->nodes;
+        $edges = $payload->edges;
+        $analysisData = $payload->analysisData;
+        $metricsData = $payload->metricsData;
+        $riskScore = $payload->riskScore;
+
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
 
@@ -82,12 +76,12 @@ class GenerateJsonReport implements ReportGenerator
         ], $edges);
 
         return json_encode([
-            'title' => $title,
-            'repo' => $repo,
-            'head_commit' => $headCommit,
-            'file_count' => $fileCount,
-            'additions' => $prAdditions,
-            'deletions' => $prDeletions,
+            'title' => $pr->prTitle,
+            'repo' => $pr->repo,
+            'head_commit' => $pr->headCommit,
+            'file_count' => $pr->fileCount,
+            'additions' => $pr->prAdditions,
+            'deletions' => $pr->prDeletions,
             'risk' => $riskScore?->toArray(),
             'files' => $files,
             'findings' => $findings,
