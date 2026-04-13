@@ -140,6 +140,36 @@ window.addEventListener('message', function(e) {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.delete(n.id); updateReviewedCount(); clearHidden(); }
   }
+  if (e.data.type === 'applyFilters') {
+    var s = e.data.state;
+    hideConnected = s.hideConnected;
+    hiddenExts = s.hiddenExts;
+    hiddenDomains = s.hiddenDomains;
+    hiddenSeverities = s.hiddenSeverities;
+    hiddenChangeTypes = s.hiddenChangeTypes;
+    hideReviewed = s.hideReviewed;
+    if (s.reviewedNodes) {
+      reviewedNodes = new Set(s.reviewedNodes);
+      updateReviewedCount();
+    }
+    var toggleConnectedEl = document.getElementById('toggleConnected');
+    if (toggleConnectedEl) toggleConnectedEl.checked = !hideConnected;
+    var toggleReviewedEl = document.getElementById('toggleReviewed');
+    if (toggleReviewedEl) toggleReviewedEl.checked = !hideReviewed;
+    document.querySelectorAll('.ext-toggle').forEach(function(cb) {
+      cb.checked = !hiddenExts[cb.dataset.ext];
+    });
+    document.querySelectorAll('.domain-toggle').forEach(function(cb) {
+      cb.checked = !hiddenDomains[cb.dataset.domain];
+    });
+    document.querySelectorAll('.change-type-toggle').forEach(function(cb) {
+      cb.checked = !hiddenChangeTypes[cb.dataset.changeType];
+    });
+    document.querySelectorAll('.severity-toggle').forEach(function(cb) {
+      cb.checked = !hiddenSeverities[cb.dataset.severity];
+    });
+    clearHidden();
+  }
 });
 
 document.getElementById('panel-header').addEventListener('click', function(e) {
