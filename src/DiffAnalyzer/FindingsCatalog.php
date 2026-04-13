@@ -186,7 +186,7 @@ class FindingsCatalog
             ],
             [
                 'rule' => 'LaravelEloquentRule',
-                'severity' => Severity::VERY_HIGH,
+                'severity' => Severity::HIGH,
                 'title' => 'Eloquent relationship added',
                 'description' => 'A new relationship method was added — may cause eager loading or N+1 query impacts.',
                 'before' => <<<'PHP'

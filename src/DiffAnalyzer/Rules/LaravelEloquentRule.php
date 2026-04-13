@@ -139,7 +139,7 @@ class LaravelEloquentRule implements Rule
                 $types = $this->extractRelationshipTypes($pair['new']);
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::RELATIONSHIP_ADDED,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: 'Eloquent relationship added: '.$key.' ('.implode(', ', $types).')',
                     location: $key,
                     line: $pair['new']->getStartLine(),
