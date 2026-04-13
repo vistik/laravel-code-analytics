@@ -1588,8 +1588,15 @@ class AnalyzeCode
 
         $this->progress('info', 'Running JS complexity analysis...');
 
+        $t = microtime(true);
         $jsMetricsByPath = (new JsMetricsRunner)->run($jsContents);
+        $this->progress('line', '  JS metrics computed for '.count($jsMetricsByPath).' files.');
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' head metrics');
+
+        $t = microtime(true);
         $jsMetricsBefore = $this->computeJsMetricsBefore($jsContents, $oldSources);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' base metrics');
+
         $hotSpots = $this->countJsHotSpots($jsMetricsByPath);
         $metricsData = [];
 
@@ -1599,8 +1606,6 @@ class AnalyzeCode
                 $metricsData[$path] = $entry;
             }
         }
-
-        $this->progress('line', '  JS metrics computed for '.count($jsMetricsByPath).' files.');
 
         return compact('hotSpots', 'metricsData');
     }
