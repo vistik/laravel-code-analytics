@@ -6,6 +6,7 @@ use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffParser\DiffParser;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\GraphIndex\GraphIndexBuilder;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\FileMetrics;
 use Vistik\LaravelCodeAnalytics\PhpMetrics\HotspotRatioBadgeDecider;
@@ -113,6 +114,7 @@ class GenerateHtmlReport implements ReportGenerator
             'hidden_severities' => array_values($fd['hidden_severities'] ?? []),
             'hidden_extensions' => array_values($fd['hidden_extensions'] ?? []),
             'hidden_change_types' => array_values($fd['hidden_change_types'] ?? []),
+            'hidden_kinds' => array_values($fd['hidden_kinds'] ?? []),
         ], JSON_HEX_TAG);
 
         $parsedDiffsJson = json_encode(
@@ -149,6 +151,7 @@ class GenerateHtmlReport implements ReportGenerator
             'extTogglesHtml' => $toggles->ext,
             'folderTogglesHtml' => $toggles->folder,
             'severityTogglesHtml' => $toggles->severity,
+            'kindTogglesHtml' => $toggles->kind,
             'connectedCount' => $pr->connectedCount,
             'layoutSetupJs' => $renderer->getLayoutSetupJs(),
             'simulationJs' => $renderer->getSimulationJs(),
@@ -526,7 +529,39 @@ class GenerateHtmlReport implements ReportGenerator
             .'const sevScores={'.implode(',', $scores).'};';
     }
 
-    /** @param list<string> $hiddenSeverities */
+    /** @param list<string> $hiddenKinds */
+    public function buildKindToggles(array $nodes, array $hiddenKinds = []): string
+    {
+        $kindCounts = [];
+        foreach (NodeKind::cases() as $kind) {
+            $kindCounts[$kind->value] = 0;
+        }
+
+        foreach ($nodes as $node) {
+            $k = $node['kind'] ?? null;
+            if ($k !== null && isset($kindCounts[$k])) {
+                $kindCounts[$k]++;
+            }
+        }
+
+        $html = '';
+        foreach (NodeKind::cases() as $kind) {
+            $count = $kindCounts[$kind->value];
+            if ($count === 0) {
+                continue;
+            }
+            $checked = ! in_array($kind->value, $hiddenKinds) ? ' checked' : '';
+            $badge = '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:'.$kind->color().';color:#161b22;font-size:8px;font-weight:700;flex-shrink:0">'.$kind->letter().'</span>';
+            $html .= '<div class="toggle-row">'
+                .$badge
+                .'<label class="toggle"><input type="checkbox" class="kind-toggle" data-kind="'.htmlspecialchars($kind->value).'"'.$checked.'><span class="slider"></span></label>'
+                .'<label class="toggle-label">'.$kind->label().' <span style="color:#484f58">('.$count.')</span></label>'
+                .'</div>';
+        }
+
+        return $html;
+    }
+
     public function buildSeverityToggles(array $nodes, array $hiddenSeverities = []): string
     {
         $severityCounts = [];
@@ -631,6 +666,7 @@ class GenerateHtmlReport implements ReportGenerator
             ext: $this->buildExtToggles($payload->nodes, $payload->filterDefaults['hidden_extensions'] ?? []),
             folder: $this->buildFolderToggles($payload->nodes, $payload->filterDefaults['hidden_domains'] ?? ['tests']),
             severity: $this->buildSeverityToggles($payload->nodes, $payload->filterDefaults['hidden_severities'] ?? []),
+            kind: $this->buildKindToggles($payload->nodes, $payload->filterDefaults['hidden_kinds'] ?? []),
         );
 
         return $this->buildWrapperHtml($payload, $pr, $toggles, defaultView: $defaultView ?? GraphLayout::Force);
