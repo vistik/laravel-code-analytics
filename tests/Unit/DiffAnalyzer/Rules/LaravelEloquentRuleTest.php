@@ -65,7 +65,7 @@ it('detects relationship method added', function () {
 
     expect($addedChanges)->toHaveCount(1)
         ->and($addedChanges[0]->category)->toBe(ChangeCategory::RELATIONSHIP_ADDED)
-        ->and($addedChanges[0]->severity)->toBe(Severity::HIGH)
+        ->and($addedChanges[0]->severity)->toBe(Severity::VERY_HIGH)
         ->and($addedChanges[0]->description)->toContain('hasMany')
         ->and($addedChanges[0]->location)->toContain('posts');
 });

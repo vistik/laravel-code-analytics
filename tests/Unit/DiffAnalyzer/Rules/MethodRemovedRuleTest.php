@@ -19,7 +19,7 @@ it('detects method removed', function () {
 
     expect($changes)->toHaveCount(1)
         ->and($changes[0]->category)->toBe(ChangeCategory::METHOD_REMOVED)
-        ->and($changes[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
         ->and($changes[0]->description)->toContain('Method removed')
         ->and($changes[0]->description)->toContain('Foo::baz');
 });

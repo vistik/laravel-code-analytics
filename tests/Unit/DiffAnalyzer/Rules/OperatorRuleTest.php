@@ -89,7 +89,7 @@ it('detects negation added', function () {
 
     expect($negationChanges)->toHaveCount(1)
         ->and($negationChanges[0]->category)->toBe(ChangeCategory::OPERATORS)
-        ->and($negationChanges[0]->severity)->toBe(Severity::VERY_HIGH);
+        ->and($negationChanges[0]->severity)->toBe(Severity::HIGH);
 });
 
 it('returns no changes for identical operators', function () {

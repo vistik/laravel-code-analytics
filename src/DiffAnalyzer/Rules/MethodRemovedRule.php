@@ -27,7 +27,7 @@ class MethodRemovedRule implements Rule
             if ($pair['old'] !== null && $pair['new'] === null) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::METHOD_REMOVED,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Method removed: {$key}",
                     location: $key,
                 );

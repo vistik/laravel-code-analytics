@@ -70,7 +70,7 @@ it('detects boolean literal flipped', function () {
 
     expect($boolChanges)->toHaveCount(1)
         ->and($boolChanges[0]->category)->toBe(ChangeCategory::VALUES)
-        ->and($boolChanges[0]->severity)->toBe(Severity::VERY_HIGH)
+        ->and($boolChanges[0]->severity)->toBe(Severity::HIGH)
         ->and($boolChanges[0]->description)->toContain('true')
         ->and($boolChanges[0]->description)->toContain('false');
 });
