@@ -84,3 +84,47 @@ it('detects truly removed scheduled command as HIGH', function () {
         ->and($changes[0]->severity)->toBe(Severity::HIGH)
         ->and($changes[0]->description)->toContain('lago:sync-subscriptions');
 });
+
+it('detects commented-out scheduled job as HIGH', function () {
+    $old = <<<'PHP'
+        <?php
+        Schedule::job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        // Schedule::job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toHaveCount(1)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
+        ->and($changes[0]->description)->toContain('SyncSubscriptionsJob')
+        ->and($changes[0]->description)->toContain('disabled via comment');
+});
+
+it('detects truly removed scheduled job as HIGH', function () {
+    $old = <<<'PHP'
+        <?php
+        $schedule->job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toHaveCount(1)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
+        ->and($changes[0]->description)->toContain('SyncSubscriptionsJob');
+});
