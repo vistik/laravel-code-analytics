@@ -8,5 +8,6 @@ class FilterTogglesHtml
         public readonly string $ext,
         public readonly string $folder,
         public readonly string $severity = '',
+        public readonly string $kind = '',
     ) {}
 }

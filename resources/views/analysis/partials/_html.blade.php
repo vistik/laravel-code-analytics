@@ -50,6 +50,12 @@
         <span class="border-b-2 border-solid border-severe">Orange ring</span> = circular dep<br>
         Size = lines changed &middot; Scroll to zoom
       </p>
+      @if($kindTogglesHtml)
+      <div class="mb-3 pt-1 border-t border-border-subtle mt-3">
+        <p class="text-fg-subtle font-semibold tracking-widest mb-2 mt-3" style="font-size:10px;text-transform:uppercase">Constructs</p>
+        <div class="flex flex-col gap-0.5">{!! $kindTogglesHtml !!}</div>
+      </div>
+      @endif
 
       <div class="flex flex-col gap-0.5">
         <div class="toggle-row">

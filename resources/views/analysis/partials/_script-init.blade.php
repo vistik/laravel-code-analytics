@@ -114,6 +114,7 @@ var hiddenExts = _toHiddenSet(_fd.hidden_extensions);
 var hiddenDomains = _toHiddenSet(_fd.hidden_domains);
 var hiddenSeverities = _toHiddenSet(_fd.hidden_severities);
 var hiddenChangeTypes = _toHiddenSet(_fd.hidden_change_types);
+var hiddenKinds = _toHiddenSet(_fd.hidden_kinds || []);
 var reviewedNodes = new Set();
 var hideReviewed = _fd.hide_reviewed;
 var pathfindNodes = new Set();
@@ -235,6 +236,16 @@ document.querySelectorAll('.severity-toggle').forEach(function(cb) {
   });
 });
 
+document.querySelectorAll('.kind-toggle').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var kind = this.dataset.kind;
+    if (this.checked) { delete hiddenKinds[kind]; }
+    else { hiddenKinds[kind] = true; }
+    clearHidden();
+    broadcastFilterState();
+  });
+});
+
 notifyParentVisibility();
 
 function isSeverityFiltered(n) {
@@ -248,11 +259,12 @@ function isChangeTypeFiltered(n) {
 }
 function isConnectedVisible(n) {
   if (!n.isConnected) return true;
-  if (!hideConnected) return true;                        // "Show connected" on
-  if (showBridges && bridgeNodeIds.has(n.id)) return true; // bridge visible via "Connecting files"
+  if (!hideConnected) return true;                        // "Dependencies" on
+  if (showBridges && bridgeNodeIds.has(n.id)) return true; // bridge visible via "Shared dependencies"
   return false;
 }
-function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && isConnectedVisible(n) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n); }
+function isKindFiltered(n) { return n.kind ? !!hiddenKinds[n.kind] : false; }
+function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && isConnectedVisible(n) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n) && !isKindFiltered(n); }
 function isLinkVisible(l) { return isVisible(l.source) && isVisible(l.target); }
 
 {!! $simulationJs !!}

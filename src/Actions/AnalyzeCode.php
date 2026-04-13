@@ -17,6 +17,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\FileSignal\CalculateFileSignal;
 use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
@@ -175,6 +176,8 @@ class AnalyzeCode
             $this->progress('line', '  Found '.count($this->connectedNodes).' connected (non-diff) dependencies.');
         }
 
+        $nodes = $this->enrichNodesWithKind($nodes, $headContents);
+
         $t = microtime(true);
         [$nodes, $cycleMap] = $this->detectAndAnnotateCycles($nodes);
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
@@ -251,6 +254,15 @@ class AnalyzeCode
             return ['files' => [], 'risk' => $riskResult, 'content' => $content];
         }
 
+        if ($outputPath !== null && (is_dir($outputPath) || str_ends_with($outputPath, '/'))) {
+            $outputPath = $this->resolveOutputPath($format, $outputPath);
+        } elseif ($outputPath !== null) {
+            $dir = dirname($outputPath);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+        }
+
         $outputPath ??= $this->resolveOutputPath($format);
 
         $reportGenerator->writeFile($outputPath, $content);
@@ -288,9 +300,9 @@ class AnalyzeCode
         return empty($filterDefaults) ? config('laravel-code-analytics.filter_defaults', []) : $filterDefaults;
     }
 
-    private function resolveOutputPath(OutputFormat $format): string
+    private function resolveOutputPath(OutputFormat $format, ?string $outputDir = null): string
     {
-        $outputDir = base_path('output');
+        $outputDir = rtrim($outputDir ?? base_path('output'), '/');
         if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }
@@ -590,6 +602,54 @@ class AnalyzeCode
         unset($node);
 
         return $nodes;
+    }
+
+    private function enrichNodesWithKind(array $nodes, array $headContents): array
+    {
+        foreach ($nodes as &$node) {
+            $content = $headContents[$node['path']] ?? null;
+            if ($content !== null) {
+                $node['kind'] = $this->extractNodeKind($content, $node['ext']);
+            }
+        }
+        unset($node);
+
+        return $nodes;
+    }
+
+    private function extractNodeKind(string $content, string $ext): ?string
+    {
+        if ($ext === 'php') {
+            if (preg_match('/^\s*(?:(abstract)\s+)?(?:final\s+|readonly\s+)*(class|interface|trait|enum)\s+/m', $content, $m)) {
+                $keyword = $m[2];
+                if ($keyword === 'class' && ! empty($m[1])) {
+                    return NodeKind::ABSTRACT->value;
+                }
+
+                return NodeKind::from($keyword)->value;
+            }
+
+            return null;
+        }
+
+        if (in_array($ext, ['ts', 'tsx', 'js', 'jsx'])) {
+            if (preg_match('/\bexport\s+(?:default\s+)?(?:abstract\s+)?class\s+/m', $content)) {
+                return NodeKind::CLASS_KIND->value;
+            }
+            if (preg_match('/\bexport\s+interface\s+\w/m', $content)) {
+                return NodeKind::INTERFACE->value;
+            }
+            if (preg_match('/\bexport\s+(?:const\s+)?enum\s+\w/m', $content)) {
+                return NodeKind::ENUM->value;
+            }
+            if (preg_match('/\bexport\s+type\s+\w/m', $content)) {
+                return NodeKind::TYPE->value;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function buildAnalysisData(array $fileReports, array $fileReferences): array
