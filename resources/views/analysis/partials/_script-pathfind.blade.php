@@ -73,12 +73,30 @@ function clearPathfinding() {
   updatePathfindingUI(0);
 }
 
+// Auto-reveal a connected/bridge node if it's currently hidden, then open its panel.
+function autoRevealAndOpen(nd) {
+  if (nd.isConnected && !isVisible(nd)) {
+    if (bridgeNodeIds.has(nd.id)) {
+      showBridges = true;
+      var tb = document.getElementById('toggleBridges');
+      if (tb) tb.checked = true;
+    } else {
+      hideConnected = false;
+      var tc = document.getElementById('toggleConnected');
+      if (tc) tc.checked = true;
+    }
+    clearHidden();
+    broadcastFilterState();
+  }
+  openPanel(nd);
+}
+
 // Handle dep-item clicks via event delegation (avoids inline onclick escaping issues)
 document.getElementById('panel-body').addEventListener('click', function(e) {
   var item = e.target.closest('.dep-item');
   if (item && item.dataset.nodeId) {
     var target = nodeMap[item.dataset.nodeId];
-    if (target) openPanel(target);
+    if (target) autoRevealAndOpen(target);
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePanel(); clearPathfinding(); } });

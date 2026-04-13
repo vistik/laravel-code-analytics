@@ -71,6 +71,15 @@ class AnalyzeCode
     /** @var array<string, true> */
     private array $edgeSet = [];
 
+    /** @var array<string, array> Non-diff dependency nodes discovered during dependency extraction */
+    private array $connectedNodes = [];
+
+    /** @var array<string, string> FQCN → connected node ID */
+    private array $connectedNodeFqcn = [];
+
+    /** @var array<string, string>|null PSR-4 namespace prefix → relative directory (loaded from composer.json) */
+    private ?array $psr4Map = null;
+
     private ?Closure $onProgress;
 
     private float $analyzeStart = 0.0;
@@ -161,6 +170,11 @@ class AnalyzeCode
         [$fqcnToFilePath, $fileReferences] = $this->buildDependencyGraph($nodes, $phpFiles, $frontendFiles, $headContents);
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
+        if ($this->connectedNodes !== []) {
+            $nodes = array_merge($nodes, array_values($this->connectedNodes));
+            $this->progress('line', '  Found '.count($this->connectedNodes).' connected (non-diff) dependencies.');
+        }
+
         $t = microtime(true);
         [$nodes, $cycleMap] = $this->detectAndAnnotateCycles($nodes);
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
@@ -187,6 +201,12 @@ class AnalyzeCode
 
         $fileDiffs = $this->extractFileDiffs();
         $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs, $headContents) : [];
+
+        // Always load file contents for connected nodes so their code can be viewed in the panel.
+        if ($this->connectedNodes !== []) {
+            $connectedPaths = array_column(array_values($this->connectedNodes), 'path');
+            $fileContents = array_merge($fileContents, $this->loadConnectedNodeContents($connectedPaths));
+        }
 
         $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap);
 
@@ -222,6 +242,7 @@ class AnalyzeCode
                 prDeletions: $totalDeletions,
                 fileCount: $fileCount,
                 prUrl: $prLinkUrl,
+                connectedCount: count($this->connectedNodes),
             ),
         );
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
@@ -248,6 +269,10 @@ class AnalyzeCode
         $this->pathToNode = [];
         $this->edges = [];
         $this->edgeSet = [];
+        $this->connectedNodes = [];
+        $this->connectedNodeFqcn = [];
+        $this->psr4Map = null;
+        $this->repoPath = '';
         $this->repoDir = null;
         $this->prRepo = '';
         $this->readContentsFromCommit = false;
@@ -698,6 +723,38 @@ class AnalyzeCode
         }
 
         return $fileContents;
+    }
+
+    /**
+     * Read the current-state file contents for connected (non-diff) nodes so they
+     * can be shown in the panel without needing --full-files.
+     *
+     * @param  list<string>  $paths
+     * @return array<string, string>
+     */
+    private function loadConnectedNodeContents(array $paths): array
+    {
+        if (empty($paths)) {
+            return [];
+        }
+
+        if ($this->repoDir !== null) {
+            $raw = $this->readFileContentsFromGit($paths);
+        } elseif ($this->readContentsFromCommit) {
+            $raw = $this->readFileContentsFromLocalCommit($paths);
+        } else {
+            $raw = $this->collectLocalFileContents($paths);
+        }
+
+        $result = [];
+        foreach ($paths as $path) {
+            $content = $raw[$path] ?? null;
+            if ($content !== null && $content !== '' && strlen($content) <= 500_000) {
+                $result[$path] = $content;
+            }
+        }
+
+        return $result;
     }
 
     /** @return array<string, ?string> */
@@ -1737,14 +1794,172 @@ class AnalyzeCode
             }
 
             $shortName = basename(str_replace('\\', '/', $ref));
+            $matched = false;
             foreach ($this->fqcnToNode as $fqcn => $nodeId) {
                 $fqcnShort = basename(str_replace('\\', '/', $fqcn));
                 if ($fqcnShort === $shortName) {
                     $this->addEdge($sourceNodeId, $nodeId, $type);
+                    $matched = true;
                     break;
                 }
             }
+
+            if (! $matched) {
+                $connectedId = $this->ensureConnectedNode($ref);
+                if ($connectedId !== null) {
+                    $this->addEdge($sourceNodeId, $connectedId, $type);
+                }
+            }
         }
+    }
+
+    /**
+     * Derive the likely file path for a given FQCN using PSR-4 mappings from composer.json.
+     */
+    private function fqcnToExpectedPath(string $fqcn): ?string
+    {
+        $map = $this->loadPsr4Map();
+
+        // Sort by prefix length descending so the most-specific prefix wins
+        foreach ($map as $prefix => $dir) {
+            if (str_starts_with($fqcn, $prefix)) {
+                return $dir.str_replace('\\', '/', substr($fqcn, strlen($prefix))).'.php';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Load PSR-4 namespace→directory mappings from composer.json, falling back to
+     * Laravel conventions when composer.json is unavailable or unreadable.
+     *
+     * @return array<string, string> namespace prefix (with trailing \\) → relative dir (with trailing /)
+     */
+    private function loadPsr4Map(): array
+    {
+        if ($this->psr4Map !== null) {
+            return $this->psr4Map;
+        }
+
+        $composerJson = $this->readComposerJson();
+        $map = $this->parsePsr4Map($composerJson);
+
+        // Fall back to Laravel conventions when composer.json is unavailable
+        if (empty($map)) {
+            $map = [
+                'App\\' => 'app/',
+                'Database\\Factories\\' => 'database/factories/',
+                'Database\\Seeders\\' => 'database/seeders/',
+                'Tests\\' => 'tests/',
+            ];
+        }
+
+        // Sort by prefix length descending so the most-specific prefix wins
+        uksort($map, fn ($a, $b) => strlen($b) - strlen($a));
+
+        return $this->psr4Map = $map;
+    }
+
+    private function readComposerJson(): ?string
+    {
+        // Local mode: read directly from the filesystem
+        if ($this->repoPath !== '') {
+            $path = "{$this->repoPath}/composer.json";
+
+            return is_file($path) ? (file_get_contents($path) ?: null) : null;
+        }
+
+        // Remote PR mode: read from the bare clone via git cat-file
+        if ($this->repoDir !== null && $this->headCommit !== '') {
+            $content = shell_exec("git -C {$this->repoDir} cat-file blob {$this->headCommit}:composer.json 2>/dev/null");
+
+            return ($content !== null && $content !== '') ? $content : null;
+        }
+
+        return null;
+    }
+
+    /** @return array<string, string> */
+    private function parsePsr4Map(?string $json): array
+    {
+        if ($json === null) {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $map = [];
+        foreach (['autoload', 'autoload-dev'] as $key) {
+            foreach ($decoded[$key]['psr-4'] ?? [] as $ns => $dirs) {
+                $ns = rtrim($ns, '\\').'\\';
+                foreach ((array) $dirs as $dir) {
+                    $map[$ns] = rtrim($dir, '/').'/';
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Find or create a connected (non-diff) node for the given FQCN.
+     * Returns the node ID, or null if the FQCN cannot be resolved.
+     */
+    private function ensureConnectedNode(string $fqcn): ?string
+    {
+        if (isset($this->connectedNodeFqcn[$fqcn])) {
+            return $this->connectedNodeFqcn[$fqcn];
+        }
+
+        $path = $this->fqcnToExpectedPath($fqcn);
+        if ($path === null) {
+            return null;
+        }
+
+        // If this path already exists as a diff node, return that node's ID
+        if (isset($this->pathToNode[$path])) {
+            return $this->pathToNode[$path];
+        }
+
+        // For local repos, verify the file actually exists
+        if ($this->repoDir === null && $this->repoPath !== '' && ! is_file("{$this->repoPath}/{$path}")) {
+            return null;
+        }
+
+        $label = $this->generateLabel($path);
+        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: basename($path);
+        $folder = dirname($path);
+        $folder = (string) preg_replace('#^app/#', '', $folder);
+        $folder = (string) preg_replace('#^tests/(Unit|Feature)/#', 'tests/', $folder);
+        if ($folder === '.' || $folder === '') {
+            $folder = '';
+        }
+        $domain = explode('/', $folder)[0] ?: '(root)';
+
+        $node = [
+            'id' => $label,
+            'path' => $path,
+            'add' => 0,
+            'del' => 0,
+            'status' => 'modified',
+            'group' => $this->groupResolver->resolve($path)->value,
+            'hash' => hash('sha256', $path),
+            'ext' => $ext,
+            'folder' => $folder,
+            'domain' => $domain,
+            'domainColor' => '#484f58',
+            'isConnected' => true,
+        ];
+
+        $this->connectedNodes[$label] = $node;
+        $this->connectedNodeFqcn[$fqcn] = $label;
+        $this->pathToNode[$path] = $label;
+
+        return $label;
     }
 
     private function matchViewReferences(string $content, string $sourceNodeId, string $sourcePath = ''): void

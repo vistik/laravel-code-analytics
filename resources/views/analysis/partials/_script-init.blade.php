@@ -55,6 +55,30 @@ const nodes = filesData.map((f, i) => {
 
 const links = edgesData.map(([s, t, type, line]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use', callLine: line || null })).filter(l => l.source && l.target);
 
+// Pre-compute bridge nodes: connected (non-diff) nodes referenced by ≥2 diff nodes.
+// These are the "connecting files" that explain why two diff files are related.
+var bridgeNodeIds = (function() {
+  var refs = {};
+  links.forEach(function(l) {
+    var src = l.source, tgt = l.target;
+    if (tgt && tgt.isConnected && src && !src.isConnected) {
+      if (!refs[tgt.id]) refs[tgt.id] = new Set();
+      refs[tgt.id].add(src.id);
+    }
+    if (src && src.isConnected && tgt && !tgt.isConnected) {
+      if (!refs[src.id]) refs[src.id] = new Set();
+      refs[src.id].add(tgt.id);
+    }
+  });
+  var ids = new Set();
+  Object.keys(refs).forEach(function(id) { if (refs[id].size >= 2) ids.add(id); });
+  return ids;
+})();
+var bridgeCountEl = document.getElementById('bridgeCount');
+if (bridgeCountEl) bridgeCountEl.textContent = '(' + bridgeNodeIds.size + ')';
+var bridgesRow = document.getElementById('bridgesToggleRow');
+if (bridgesRow) bridgesRow.style.display = bridgeNodeIds.size > 0 ? '' : 'none';
+
 // Navigation indices pre-computed server-side by GraphIndexBuilder.
 // callersIndex entries: {nodeId, line}  (resolve full node via nodeMap[entry.nodeId])
 // implementorsIndex entries: {nodeId}   (resolve full node via nodeMap[entry.nodeId])
@@ -85,6 +109,7 @@ var externalHighlightNodes = new Set(); // set by parent frame on cycle-panel ho
 var _fd = {!! $filterDefaultsJson !!};
 function _toHiddenSet(arr) { var h = {}; arr.forEach(function(v) { h[v] = true; }); return h; }
 var hideConnected = _fd.hide_connected;
+var showBridges = false;
 var hiddenExts = _toHiddenSet(_fd.hidden_extensions);
 var hiddenDomains = _toHiddenSet(_fd.hidden_domains);
 var hiddenSeverities = _toHiddenSet(_fd.hidden_severities);
@@ -107,6 +132,7 @@ function broadcastFilterState() {
     type: 'filterStateChanged',
     state: {
       hideConnected: hideConnected,
+      showBridges: showBridges,
       hiddenExts: hiddenExts,
       hiddenDomains: hiddenDomains,
       hiddenSeverities: hiddenSeverities,
@@ -128,6 +154,12 @@ function clearHidden() {
 
 document.getElementById('toggleConnected').addEventListener('change', function() {
   hideConnected = !this.checked;
+  clearHidden();
+  broadcastFilterState();
+});
+
+document.getElementById('toggleBridges').addEventListener('change', function() {
+  showBridges = this.checked;
   clearHidden();
   broadcastFilterState();
 });
@@ -214,7 +246,13 @@ function isChangeTypeFiltered(n) {
   var changeType = (n.status === 'renamed') ? 'modified' : (n.status || 'modified');
   return !!hiddenChangeTypes[changeType];
 }
-function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && !(hideConnected && n.isConnected) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n); }
+function isConnectedVisible(n) {
+  if (!n.isConnected) return true;
+  if (!hideConnected) return true;                        // "Show connected" on
+  if (showBridges && bridgeNodeIds.has(n.id)) return true; // bridge visible via "Connecting files"
+  return false;
+}
+function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && isConnectedVisible(n) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n); }
 function isLinkVisible(l) { return isVisible(l.source) && isVisible(l.target); }
 
 {!! $simulationJs !!}
