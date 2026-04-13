@@ -81,6 +81,9 @@ class AnalyzeCode
     /** @var array<string, string>|null PSR-4 namespace prefix → relative directory (loaded from composer.json) */
     private ?array $psr4Map = null;
 
+    /** Count of outbound network calls made to GitHub during this analysis */
+    private int $githubCallCount = 0;
+
     private ?Closure $onProgress;
 
     private float $analyzeStart = 0.0;
@@ -203,24 +206,43 @@ class AnalyzeCode
         $metricsData = array_merge($metricsData, $jsMetricsData);
 
         $fileDiffs = $this->extractFileDiffs();
+
+        $t = microtime(true);
         $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs, $headContents) : [];
+        if ($includeFileContents) {
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
+        }
 
         // Always load file contents for connected nodes so their code can be viewed in the panel.
         if ($this->connectedNodes !== []) {
             $connectedPaths = array_column(array_values($this->connectedNodes), 'path');
+            // Prefetch blobs in a single batch fetch so git doesn't lazily pull them one-by-one.
+            $t = microtime(true);
+            if ($this->repoDir !== null) {
+                $this->prefetchBlobs($this->repoDir, $this->headCommit, $connectedPaths);
+                $this->progress('timing', '  ↳ '.$this->elapsed($t).' prefetching '.count($connectedPaths).' connected node blobs');
+                $t = microtime(true);
+            }
             $fileContents = array_merge($fileContents, $this->loadConnectedNodeContents($connectedPaths));
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading connected node contents');
         }
 
+        $t = microtime(true);
         $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' computing signal scores');
 
         if ($minSeverity !== null) {
+            $t = microtime(true);
             ['nodes' => $nodes, 'analysisData' => $analysisData, 'metricsData' => $metricsData,
                 'fileDiffs' => $fileDiffs, 'fileContents' => $fileContents,
                 'fileCount' => $fileCount, 'totalAdditions' => $totalAdditions, 'totalDeletions' => $totalDeletions]
                 = $this->applyMinSeverityFilter($nodes, $analysisData, $metricsData, $fileDiffs, $fileContents, $minSeverity);
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' severity filter');
         }
 
+        $t = microtime(true);
         $riskResult = $this->computeRiskScore($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots, $riskScoringConfig);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' computing risk score');
 
         $t = microtime(true);
         $this->progress('info', "Generating {$format->value} report...");
@@ -268,6 +290,10 @@ class AnalyzeCode
         $reportGenerator->writeFile($outputPath, $content);
 
         $this->progress('line', "  Generated: {$outputPath}");
+        if ($this->githubCallCount > 0) {
+            $rateLimitSuffix = $this->formatRateLimitSuffix();
+            $this->progress('timing', "  GitHub API/fetch calls: {$this->githubCallCount}{$rateLimitSuffix}");
+        }
         $this->progress('info', 'Done! ('.$this->elapsed($this->analyzeStart).' total)');
 
         return ['files' => ['all' => $outputPath], 'risk' => $riskResult];
@@ -904,6 +930,7 @@ class AnalyzeCode
         $this->progress('info', "Fetching PR #{$prNumber} from {$this->prRepo}...");
 
         $t = microtime(true);
+        $this->githubCallCount++;
         $prJson = json_decode(
             trim(shell_exec('gh pr view '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' --json title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName 2>/dev/null') ?? ''),
             true,
@@ -928,8 +955,22 @@ class AnalyzeCode
 
         $this->progress('info', 'Fetching diff...');
         $t = microtime(true);
-        $this->diff = trim(shell_exec('gh pr diff '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' 2>/dev/null') ?? '');
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' gh pr diff');
+        $diffCachePath = $this->headCommit !== ''
+            ? storage_path('app/pr-cache/'.substr($this->headCommit, 0, 2).'/'.$this->headCommit.'.diff')
+            : null;
+
+        if ($diffCachePath !== null && is_file($diffCachePath)) {
+            $this->diff = file_get_contents($diffCachePath);
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' gh pr diff (cached)');
+        } else {
+            $this->githubCallCount++;
+            $this->diff = trim(shell_exec('gh pr diff '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' 2>/dev/null') ?? '');
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' gh pr diff');
+            if ($diffCachePath !== null && str_contains($this->diff, 'diff --git')) {
+                @mkdir(dirname($diffCachePath), 0755, true);
+                file_put_contents($diffCachePath, $this->diff);
+            }
+        }
 
         if (! str_contains($this->diff, 'diff --git')) {
             throw new RuntimeException('Failed to fetch PR diff. Make sure `gh` is authenticated.');
@@ -989,9 +1030,11 @@ class AnalyzeCode
     {
         $phpPaths = array_values(array_filter($changedPaths, fn ($p) => str_ends_with($p, '.php')));
 
+        $this->githubCallCount++;
         shell_exec("git -C {$persistentDir} fetch --depth 1 --filter=blob:none origin {$this->headCommit} 2>&1");
 
         if (! empty($this->baseCommit)) {
+            $this->githubCallCount++;
             shell_exec("git -C {$persistentDir} fetch --depth 1 --filter=blob:none origin {$this->baseCommit} 2>&1");
         }
 
@@ -1094,7 +1137,25 @@ class AnalyzeCode
         }
 
         $shaArgs = implode(' ', $blobShas);
+        $this->githubCallCount++;
         shell_exec("git -C {$repoDir} fetch origin {$shaArgs} 2>/dev/null");
+    }
+
+    private function formatRateLimitSuffix(): string
+    {
+        $json = json_decode(trim(shell_exec('gh api rate_limit 2>/dev/null') ?? ''), true);
+        $core = $json['resources']['core'] ?? null;
+        if (! $core) {
+            return '';
+        }
+
+        $remaining = (int) $core['remaining'];
+        $limit = (int) $core['limit'];
+        $resetIn = max(0, (int) $core['reset'] - time());
+        $resetMin = (int) ceil($resetIn / 60);
+        $resetLabel = $resetMin > 0 ? "resets in {$resetMin}m" : 'resets soon';
+
+        return " | rate limit: {$remaining}/{$limit} remaining ({$resetLabel})";
     }
 
     // ── Local mode ───────────────────────────────────────────────────────────
