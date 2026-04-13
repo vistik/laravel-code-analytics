@@ -5,6 +5,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 use Closure;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\BladeDependencyRule;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\ViewFileDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
@@ -1727,6 +1728,14 @@ class AnalyzeCode
         foreach ((new ViewFileDependencyRule)->resolve($content, $sourcePath) as $viewPath) {
             if (isset($this->pathToNode[$viewPath])) {
                 $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+            }
+        }
+
+        if (str_ends_with($sourcePath, '.blade.php')) {
+            foreach ((new BladeDependencyRule)->resolve($content) as $viewPath) {
+                if (isset($this->pathToNode[$viewPath])) {
+                    $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+                }
             }
         }
     }
