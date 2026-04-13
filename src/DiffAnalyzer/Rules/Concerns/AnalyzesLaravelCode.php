@@ -152,6 +152,40 @@ trait AnalyzesLaravelCode
         return null;
     }
 
+    /**
+     * Extract top-level string keys from the first direct `return [...]` statement
+     * in a ClassMethod body. Returns null when the return value is too dynamic to
+     * analyse statically (e.g. a variable, a function call, etc.).
+     *
+     * @return list<string>|null
+     */
+    private function extractReturnArrayKeys(Stmt\ClassMethod $method): ?array
+    {
+        foreach ($method->stmts ?? [] as $stmt) {
+            if ($stmt instanceof Stmt\Return_ && $stmt->expr instanceof Expr\Array_) {
+                return $this->extractArrayItemStringKeys($stmt->expr);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractArrayItemStringKeys(Expr\Array_ $array): array
+    {
+        $keys = [];
+
+        foreach ($array->items as $item) {
+            if ($item->key instanceof Scalar\String_) {
+                $keys[] = $item->key->value;
+            }
+        }
+
+        return $keys;
+    }
+
     private function extractPropertyStringValue(Stmt\Property $prop): ?string
     {
         foreach ($prop->props as $propertyProp) {

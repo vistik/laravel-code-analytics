@@ -3,6 +3,7 @@
 namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules;
 
 use PhpParser\Node\Stmt;
+use PhpParser\Node\Stmt\ClassMethod;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
@@ -50,13 +51,7 @@ class LaravelApiResourceRule implements Rule
                 $newBody = $this->printer->prettyPrint($pair['new']->stmts ?? []);
 
                 if ($oldBody !== $newBody) {
-                    $changes[] = new ClassifiedChange(
-                        category: ChangeCategory::LARAVEL,
-                        severity: Severity::VERY_HIGH,
-                        description: "API Resource toArray() changed: {$key} — API response shape may have changed, can break consumers",
-                        location: $key,
-                        line: $pair['new']->getStartLine(),
-                    );
+                    array_push($changes, ...$this->toArrayChanges($key, $pair['old'], $pair['new']));
                 }
             }
 
@@ -76,6 +71,63 @@ class LaravelApiResourceRule implements Rule
                     }
                 }
             }
+        }
+
+        return $changes;
+    }
+
+    /** @return list<ClassifiedChange> */
+    private function toArrayChanges(string $key, ClassMethod $old, ClassMethod $new): array
+    {
+        $oldKeys = $this->extractReturnArrayKeys($old);
+        $newKeys = $this->extractReturnArrayKeys($new);
+
+        if ($oldKeys === null || $newKeys === null) {
+            return [new ClassifiedChange(
+                category: ChangeCategory::LARAVEL,
+                severity: Severity::VERY_HIGH,
+                description: "API Resource toArray() changed: {$key} — API response shape may have changed, can break consumers",
+                location: $key,
+                line: $new->getStartLine(),
+            )];
+        }
+
+        $changes = [];
+
+        $removed = array_values(array_diff($oldKeys, $newKeys));
+        $added = array_values(array_diff($newKeys, $oldKeys));
+
+        if ($removed !== []) {
+            $list = implode(', ', array_map(fn ($k) => "'{$k}'", $removed));
+            $changes[] = new ClassifiedChange(
+                category: ChangeCategory::LARAVEL,
+                severity: Severity::VERY_HIGH,
+                description: "API Resource toArray() removed keys: {$key} — removed: {$list}",
+                location: $key,
+                line: $new->getStartLine(),
+            );
+        }
+
+        if ($added !== []) {
+            $list = implode(', ', array_map(fn ($k) => "'{$k}'", $added));
+            $changes[] = new ClassifiedChange(
+                category: ChangeCategory::LARAVEL,
+                severity: Severity::MEDIUM,
+                description: "API Resource toArray() added keys: {$key} — added: {$list}",
+                location: $key,
+                line: $new->getStartLine(),
+            );
+        }
+
+        if ($changes === []) {
+            // Keys are identical but the body changed (e.g. values/logic changed)
+            $changes[] = new ClassifiedChange(
+                category: ChangeCategory::LARAVEL,
+                severity: Severity::VERY_HIGH,
+                description: "API Resource toArray() changed: {$key} — API response shape may have changed, can break consumers",
+                location: $key,
+                line: $new->getStartLine(),
+            );
         }
 
         return $changes;
