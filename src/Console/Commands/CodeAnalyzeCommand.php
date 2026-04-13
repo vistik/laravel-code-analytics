@@ -86,6 +86,7 @@ class CodeAnalyzeCommand extends Command
                 match ($level) {
                     'info' => $this->info($message),
                     'warn' => $this->warn($message),
+                    'timing' => $this->output->isVerbose() ? $this->line($message) : null,
                     default => $this->line($message),
                 };
             };
