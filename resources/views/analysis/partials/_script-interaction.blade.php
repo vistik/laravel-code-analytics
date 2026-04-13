@@ -32,7 +32,7 @@ document.addEventListener('mouseup', function() {
 });
 
 // ── Interaction ───────────────────────────────────────────────────────────────
-let dragNode = null, dragStartX = 0, dragStartY = 0, didDrag = false;
+let dragNode = null, dragGroup = null, dragGroupLastWX = 0, dragGroupLastWY = 0, dragStartX = 0, dragStartY = 0, didDrag = false;
 
 canvas.addEventListener('mousedown', e => {
   const [wx, wy] = screenToWorld(e.clientX, e.clientY);
@@ -45,12 +45,38 @@ canvas.addEventListener('mousedown', e => {
       return;
     }
   }
+  // Group drag (grouped layout): detect click inside a domain box
+  if (typeof nodeDraggingDisabled !== 'undefined' && nodeDraggingDisabled &&
+      typeof domainBoxes !== 'undefined') {
+    for (let i = 0; i < domainBoxes.length; i++) {
+      const box = domainBoxes[i];
+      if (wx >= box.x && wx <= box.x + box.w && wy >= box.y && wy <= box.y + box.h) {
+        dragGroup = box; dragGroupLastWX = wx; dragGroupLastWY = wy;
+        dragStartX = e.clientX; dragStartY = e.clientY; didDrag = false;
+        canvas.classList.add('grabbing');
+        return;
+      }
+    }
+  }
   isPanning = true; didDrag = false; panStartX = e.clientX - panX; panStartY = e.clientY - panY;
   canvas.classList.add('grabbing');
 });
 
 canvas.addEventListener('mousemove', e => {
   if (isPanning) { panX = e.clientX - panStartX; panY = e.clientY - panStartY; didDrag = true; return; }
+  if (dragGroup) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    const dx = wx - dragGroupLastWX, dy = wy - dragGroupLastWY;
+    dragGroupLastWX = wx; dragGroupLastWY = wy;
+    if (Math.abs(e.clientX - dragStartX) > 4 || Math.abs(e.clientY - dragStartY) > 4) didDrag = true;
+    const groupDomain = dragGroup.domain;
+    for (const n of nodes) {
+      if (isVisible(n) && (n.domain || '(root)') === groupDomain) { n.x += dx; n.y += dy; }
+    }
+    dragGroup.x += dx; dragGroup.y += dy;
+    if (dragGroup.subGroups) { for (const sg of dragGroup.subGroups) { sg.y += dy; } }
+    return;
+  }
   if (dragNode) {
     if (typeof nodeDraggingDisabled !== 'undefined' && nodeDraggingDisabled) return;
     const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
@@ -131,7 +157,7 @@ canvas.addEventListener('mouseup', e => {
     }
   } else if (dragNode && didDrag && canPin) { dragNode.pinned = true; }
   else if (isPanning && !didDrag) { closeLegend(); closePanel(); clearPathfinding(); }
-  dragNode = null; isPanning = false;
+  dragNode = null; dragGroup = null; isPanning = false;
 });
 
 // ── Draw ──────────────────────────────────────────────────────────────────────

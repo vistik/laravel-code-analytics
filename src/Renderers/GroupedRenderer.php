@@ -42,6 +42,11 @@ function computeGroupedLayout() {
   var boxPadding = 16;
   var subGap = 10;
 
+  // Columns to use inside a sub-folder: max 10 nodes per column, capped at 5
+  function subFolderCols(count) {
+    return Math.min(5, Math.max(1, Math.ceil(count / 10)));
+  }
+
   // Calculate box sizes
   var boxes = domainKeys.map(function(d) {
     var g = groups[d];
@@ -64,15 +69,19 @@ function computeGroupedLayout() {
     });
 
     var hasSubs = subKeys.length > 1 || (subKeys.length === 1 && subKeys[0] !== '(main)');
-    var boxW = Math.max(190, maxR * 2 + 130);
+    // Column count based on total domain nodes so all sub-folders share the same grid width
+    var nc = subFolderCols(totalNodes);
+    var colW = Math.max(130, maxR * 2 + 20);
     var boxH = domainHeaderH + boxPadding;
     subKeys.forEach(function(sk) {
+      var count = g.subFolders[sk].length;
       if (hasSubs) boxH += subHeaderH + subGap;
-      boxH += g.subFolders[sk].length * nodeSpacing;
+      boxH += Math.ceil(count / nc) * nodeSpacing;
     });
     boxH += boxPadding;
+    var boxW = Math.max(190, nc * colW + 2 * boxPadding);
 
-    return { domain: d, color: g.color, subKeys: subKeys, subFolders: g.subFolders, hasSubs: hasSubs, w: boxW, h: boxH };
+    return { domain: d, color: g.color, subKeys: subKeys, subFolders: g.subFolders, hasSubs: hasSubs, w: boxW, h: boxH, nc: nc };
   });
 
   // Arrange in columns, balanced by height
@@ -110,22 +119,27 @@ function computeGroupedLayout() {
     var curY = H / 2 - maxHeight / 2;
     col.boxes.forEach(function(box) {
       var subGroups = [];
-      var nodeX = curX + colWidths[ci] / 2;
       var innerY = curY + domainHeaderH + boxPadding;
+      var contentW = colWidths[ci] - 2 * boxPadding;
 
+      var nc = box.nc;
+      var colWi = contentW / nc;
       box.subKeys.forEach(function(sk) {
         var subY = innerY;
         if (box.hasSubs) {
           innerY += subHeaderH + subGap;
         }
         var subNodes = box.subFolders[sk];
-        subNodes.forEach(function(n) {
-          if (!n.pinned) { n.x = nodeX; n.y = innerY + nodeSpacing / 2; }
-          innerY += nodeSpacing;
+        var numRows = Math.ceil(subNodes.length / nc);
+        subNodes.forEach(function(n, idx) {
+          if (!n.pinned) {
+            n.x = curX + boxPadding + (idx % nc + 0.5) * colWi;
+            n.y = innerY + Math.floor(idx / nc) * nodeSpacing + nodeSpacing / 2;
+          }
         });
-        var subH = innerY - subY;
+        innerY += numRows * nodeSpacing;
         if (box.hasSubs) {
-          subGroups.push({ label: sk === '(main)' ? '' : sk, y: subY, h: subH, color: box.color });
+          subGroups.push({ label: sk === '(main)' ? '' : sk, y: subY, h: innerY - subY, color: box.color });
         }
       });
 
@@ -198,26 +212,35 @@ JS;
       ctx.fillStyle = box.color;
       ctx.fillText(box.domain, bx + 12, by + 16);
 
-      // Sub-folder sections
+      // Sub-folder sections — rendered as nested panels
       if (box.subGroups) {
         for (var si = 0; si < box.subGroups.length; si++) {
           var sg = box.subGroups[si];
           if (!sg.label) continue;
 
-          // Sub-folder divider line
+          var sInset = 8, sHeaderH = 22;
+
+          // Section container
           ctx.beginPath();
-          ctx.moveTo(bx + 12, sg.y + 2);
-          ctx.lineTo(bx + bw - 12, sg.y + 2);
-          ctx.strokeStyle = box.color + '25';
-          ctx.lineWidth = 1;
+          ctx.roundRect(bx + sInset, sg.y, bw - sInset * 2, sg.h, 4);
+          ctx.fillStyle = sg.color + '0c';
+          ctx.fill();
+          ctx.strokeStyle = sg.color + '38';
+          ctx.lineWidth = 0.75;
           ctx.stroke();
 
-          // Sub-folder label
+          // Section header bar
+          ctx.beginPath();
+          ctx.roundRect(bx + sInset, sg.y, bw - sInset * 2, sHeaderH, [4, 4, 0, 0]);
+          ctx.fillStyle = sg.color + '20';
+          ctx.fill();
+
+          // Section label
           ctx.font = '10px -apple-system, sans-serif';
           ctx.textAlign = 'left';
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = box.color + '90';
-          ctx.fillText(sg.label, bx + 12, sg.y + 6);
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = sg.color + 'bb';
+          ctx.fillText('\u25b8 ' + sg.label, bx + sInset + 8, sg.y + sHeaderH / 2);
         }
       }
     }
