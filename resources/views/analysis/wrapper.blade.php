@@ -300,6 +300,15 @@ tailwind.config = {
   .cycle-file-path { font-size: 11px; color: #484f58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
   .cycles-empty { padding: 24px 20px; font-size: 13px; color: #6e7681; text-align: center; }
 
+  /* ── Findings panel (only what Tailwind can't express) ── */
+  .findings-panel { transition: left 0.28s cubic-bezier(0.22,1,0.36,1); }
+  .findings-panel.open { left: 0; }
+  .findings-panel-resize::after {
+    content: ''; position: absolute; top: 0; right: 3px; width: 2px; height: 100%;
+    background: transparent; transition: background 0.2s;
+  }
+  .findings-panel-resize:hover::after, .findings-panel-resize.active::after { background: #388bfd; }
+
   /* ── Global scrollbars ── */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -317,6 +326,9 @@ tailwind.config = {
   <div class="tabs" style="border-right:1px solid #21262d;align-self:stretch;padding:0 12px;border-left:none">
     <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
+    </button>
+    <button class="tab" id="findingsTab" onclick="toggleFindingsPanel()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-.25-6.25a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 1.5 0v-3.5z"/></svg>Findings
     </button>
   </div>
   <div class="topbar-badges">
@@ -363,6 +375,34 @@ tailwind.config = {
     </div>
     <div class="files-scroll" id="filesScroll">
       <div id="filesRows"></div>
+    </div>
+  </div>
+
+  <div class="findings-panel absolute top-0 left-[-100%] h-full bg-surface border-r border-border-subtle z-[30] flex flex-col shadow-[8px_0_40px_rgba(0,0,0,.6),0_0_0_1px_rgba(255,255,255,.03)_inset]" id="findingsPanel" style="width:580px">
+    <div class="findings-panel-resize absolute top-0 right-[-4px] w-2 h-full cursor-col-resize z-[35]" id="findingsPanelResize"></div>
+    <div class="flex items-center justify-between px-[18px] pt-[14px] pb-[10px] border-b border-border-subtle shrink-0 bg-gradient-to-b from-[rgba(28,33,40,0.7)] to-transparent">
+      <h3 class="text-[13.5px] font-semibold text-fg tracking-[-0.01em] flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="shrink-0 opacity-70"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-.25-6.25a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 1.5 0v-3.5z"/></svg>
+        Findings <span class="text-[10.5px] font-medium bg-overlay border border-border-default rounded-[10px] px-[7px] py-[1px] text-fg-muted" id="findingsCountBadge"></span>
+      </h3>
+      <div class="flex items-center gap-2">
+        <button class="bg-transparent border border-border-default rounded-md text-fg-muted text-[11px] px-2 py-[3px] cursor-pointer whitespace-nowrap transition-all font-sans hover:border-fg-subtle hover:text-[#c9d1d9]" id="findingsShowDoneBtn" onclick="toggleFindingsShowDone()">Show done <span id="findingsDoneBadge" style="display:none" class="bg-[#0d3520] text-success rounded-lg px-[5px] py-[1px] ml-[2px] text-[10px]"></span></button>
+        <button class="bg-transparent border-0 text-fg-subtle text-lg cursor-pointer leading-none p-1 rounded-md transition-colors hover:text-fg hover:bg-overlay" onclick="toggleFindingsPanel()">&times;</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 px-4 py-2 border-b border-border-subtle shrink-0">
+      <input type="text" class="files-search" id="findingsSearch" placeholder="Filter findings...">
+      <select id="findingsSevFilter" class="bg-overlay border border-border-default text-[#c9d1d9] text-[11.5px] px-2 py-1 rounded-md cursor-pointer font-sans shrink-0 focus:outline-none focus:border-accent">
+        <option value="">All severities</option>
+        <option value="very_high">Very High</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="info">Info</option>
+      </select>
+    </div>
+    <div class="flex-1 overflow-y-auto min-h-0" id="findingsScroll">
+      <div id="findingsRows"></div>
     </div>
   </div>
 
@@ -472,11 +512,16 @@ tailwind.config = {
       document.getElementById('cyclesTab').classList.remove('active');
       document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
     } else {
-      // Close files panel if open
+      // Close other panels if open
       var filesPanel = document.getElementById('filesPanel');
       if (filesPanel.classList.contains('open')) {
         filesPanel.classList.remove('open');
         document.getElementById('filesTab').classList.remove('active');
+      }
+      var findingsPanelEl2 = document.getElementById('findingsPanel');
+      if (findingsPanelEl2 && findingsPanelEl2.classList.contains('open')) {
+        findingsPanelEl2.classList.remove('open');
+        document.getElementById('findingsTab').classList.remove('active');
       }
       var iframe = document.getElementById('view');
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
@@ -758,11 +803,16 @@ tailwind.config = {
       panel.classList.remove('open');
       document.getElementById('filesTab').classList.remove('active');
     } else {
-      // Close cycles panel if open
+      // Close other panels if open
       var cyclesPanel = document.getElementById('cyclesPanel');
       if (cyclesPanel.classList.contains('open')) {
         cyclesPanel.classList.remove('open');
         document.getElementById('cyclesTab').classList.remove('active');
+      }
+      var findingsPanel = document.getElementById('findingsPanel');
+      if (findingsPanel && findingsPanel.classList.contains('open')) {
+        findingsPanel.classList.remove('open');
+        document.getElementById('findingsTab').classList.remove('active');
       }
       panel.classList.add('open');
       document.getElementById('filesTab').classList.add('active');
@@ -939,6 +989,269 @@ tailwind.config = {
     filesPanelEl.style.transition = '';
     resizeOverlay.style.display = 'none';
   });
+
+  // ── Findings panel ──────────────────────────────────────────────────────────
+  (function() {
+    // Build path → node lookup
+    var filePathToNode = {};
+    filesNodes.forEach(function(n) { if (n.path) filePathToNode[n.path] = n; });
+
+    var sevOrder = ['very_high', 'high', 'medium', 'low', 'info'];
+
+    // Flatten all findings across all files into one array, sorted by severity
+    var allFindings = [];
+    Object.keys(filesAnalysis).forEach(function(path) {
+      var findings = filesAnalysis[path];
+      if (!findings || !findings.length) return;
+      var node = filePathToNode[path] || null;
+      findings.forEach(function(f) {
+        allFindings.push({
+          severity: f.severity || 'info',
+          category: f.category || '',
+          description: f.description || '',
+          location: f.location || null,
+          line: f.line || null,
+          filePath: path,
+          node: node,
+        });
+      });
+    });
+
+    allFindings.sort(function(a, b) {
+      var ai = sevOrder.indexOf(a.severity), bi = sevOrder.indexOf(b.severity);
+      if (ai === -1) ai = 99;
+      if (bi === -1) bi = 99;
+      return ai - bi;
+    });
+
+    // ── Stable key for each finding (used for localStorage persistence) ──
+    // Scope per-report using the first few node IDs so different reports don't share state.
+    var _scope = filesNodes.slice(0, 4).map(function(n) { return n.id; }).join('|').replace(/[^a-z0-9|]/gi, '_').slice(0, 60);
+    var storageKey = 'findings_done_' + _scope;
+
+    function findingKey(f) {
+      return f.filePath + '\x01' + f.category + '\x01' + (f.line || '') + '\x01' + f.description.slice(0, 120);
+    }
+
+    // Load persisted done set from localStorage
+    var doneFindings = new Set();
+    try {
+      var stored = localStorage.getItem(storageKey);
+      if (stored) JSON.parse(stored).forEach(function(k) { doneFindings.add(k); });
+    } catch(e) {}
+
+    function saveDone() {
+      try { localStorage.setItem(storageKey, JSON.stringify(Array.from(doneFindings))); } catch(e) {}
+    }
+
+    var showDone = false;
+
+    function updateDoneBadge() {
+      var badge = document.getElementById('findingsDoneBadge');
+      var btn = document.getElementById('findingsShowDoneBtn');
+      badge.textContent = doneFindings.size;
+      badge.style.display = doneFindings.size > 0 ? 'inline' : 'none';
+      // Toggle active appearance via Tailwind classes (no custom CSS needed)
+      btn.classList.toggle('bg-[#0d3520]', showDone);
+      btn.classList.toggle('text-success', showDone);
+      btn.classList.toggle('border-[#238636]', showDone);
+      btn.classList.toggle('text-fg-muted', !showDone);
+      btn.classList.toggle('border-border-default', !showDone);
+    }
+
+    function toggleFindingsShowDone() {
+      showDone = !showDone;
+      updateDoneBadge();
+      renderFindingsList();
+    }
+
+    function escF(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function catLabel(cat) { return (cat || '').replace(/_/g, ' '); }
+    function basename(path) { return (path || '').split('/').pop(); }
+    function dirname(path) { var p = (path || '').split('/'); p.pop(); return p.join('/'); }
+
+    function renderFindingsList() {
+      var filter = (document.getElementById('findingsSearch').value || '').toLowerCase();
+      var sevFilter = document.getElementById('findingsSevFilter').value;
+
+      var list = allFindings.filter(function(f) {
+        var isDone = doneFindings.has(findingKey(f));
+        if (isDone && !showDone) return false;
+        if (sevFilter && f.severity !== sevFilter) return false;
+        if (!filter) return true;
+        return f.description.toLowerCase().indexOf(filter) !== -1
+            || f.filePath.toLowerCase().indexOf(filter) !== -1
+            || f.category.toLowerCase().indexOf(filter) !== -1
+            || (f.location || '').toLowerCase().indexOf(filter) !== -1;
+      });
+
+      // Count badge shows only active (non-done) findings
+      var activeCount = list.filter(function(f) { return !doneFindings.has(findingKey(f)); }).length;
+      document.getElementById('findingsCountBadge').textContent = activeCount + (showDone && doneFindings.size > 0 ? ' + ' + doneFindings.size + ' done' : '');
+
+      var html = '';
+      var lastSev = null;
+
+      list.forEach(function(f) {
+        var sev = f.severity;
+        var color = sevColors[sev] || '#8b949e';
+        var key = findingKey(f);
+        var isDone = doneFindings.has(key);
+
+        if (sev !== lastSev) {
+          var isFirstHeader = lastSev === null;
+          lastSev = sev;
+          var sevCount = list.filter(function(x) { return x.severity === sev; }).length;
+          html += '<div class="flex items-center gap-[7px] px-4 py-[5px] text-[9px] font-bold uppercase tracking-[0.6px] border-b border-border-subtle shrink-0 bg-surface sticky top-0 z-[2]' + (isFirstHeader ? '' : ' border-t border-border-subtle') + '" style="color:' + color + '">' +
+            '<span class="w-[7px] h-[7px] rounded-full inline-block shrink-0" style="background:' + color + '"></span>' +
+            escF(sevLabels[sev] || sev) +
+            '<span class="rounded-[10px] px-[7px] py-[1px] text-[9px] ml-[2px]" style="background:' + color + '22;border:1px solid ' + color + '44;color:' + color + '">' + sevCount + '</span>' +
+            '</div>';
+        }
+
+        var fileName = basename(f.filePath);
+        var fileDir = dirname(f.filePath);
+        var loc = '';
+        if (f.location) loc = f.location;
+        if (f.line) loc += (f.location ? ':' : 'line ') + f.line;
+
+        var nodeId = f.node ? escF(f.node.id) : '';
+        var domainColor = f.node ? (f.node.domainColor || '#484f58') : '#484f58';
+        var lineAttr = f.line ? ' data-target-line="' + f.line + '"' : '';
+        var locAttr = (!f.line && f.location) ? ' data-target-location="' + escF(f.location) + '"' : '';
+        var keyAttr = ' data-finding-key="' + escF(key) + '"';
+
+        var doneBtnCls = isDone
+          ? 'border border-[rgba(35,134,54,0.6)] bg-[rgba(13,53,32,0.7)] text-success'
+          : 'border border-transparent bg-transparent text-[#484f58] hover:bg-[rgba(13,53,32,0.5)] hover:text-success hover:border-[rgba(35,134,54,0.5)]';
+
+        html += '<div class="flex items-start gap-[10px] px-4 py-[9px] border-b border-[rgba(33,38,45,0.7)] cursor-pointer hover:bg-overlay transition-colors' + (isDone ? ' opacity-40' : '') + '" data-node-id="' + nodeId + '"' + lineAttr + locAttr + keyAttr + '>' +
+          '<div class="w-2 h-2 rounded-full shrink-0 mt-1" style="background:' + color + '"></div>' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="text-[12.5px] text-[#c9d1d9] leading-snug mb-1' + (isDone ? ' line-through decoration-[#484f58]' : '') + '">' + escF(f.description) + '</div>' +
+            '<div class="flex items-center gap-[5px] flex-wrap">' +
+              '<span class="bg-overlay border border-border-default rounded px-[5px] py-[1px] text-fg-subtle font-mono text-[10px] whitespace-nowrap">' + escF(catLabel(f.category)) + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="text-right shrink-0 max-w-[38%] min-w-0">' +
+            '<div class="text-[11.5px] font-medium text-fg-muted whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-end gap-1">' +
+              '<span class="w-[6px] h-[6px] rounded-full shrink-0 inline-block" style="background:' + domainColor + '"></span>' +
+              escF(fileName) +
+            '</div>' +
+            (fileDir ? '<div class="text-[10px] text-[#484f58] whitespace-nowrap overflow-hidden text-ellipsis mt-[1px]">' + escF(fileDir) + '</div>' : '') +
+            (loc ? '<div class="text-[10px] text-fg-subtle whitespace-nowrap mt-[1px] font-mono">' + escF(loc) + '</div>' : '') +
+          '</div>' +
+          '<div class="shrink-0 flex items-start pt-[1px] ml-[6px]">' +
+            '<button class="w-5 h-5 rounded-[5px] cursor-pointer flex items-center justify-center text-[12px] leading-none transition-all p-0 ' + doneBtnCls + '" data-finding-key="' + escF(key) + '" title="' + (isDone ? 'Mark as active' : 'Mark as done') + '">&#10003;</button>' +
+          '</div>' +
+          '</div>';
+      });
+
+      if (!list.length) {
+        var msg = showDone ? 'No findings match your filter.' : (doneFindings.size > 0 ? 'All findings marked as done.' : 'No findings match your filter.');
+        html = '<div class="py-10 px-5 text-center text-fg-subtle text-[13px]">' + msg + '</div>';
+      }
+
+      document.getElementById('findingsRows').innerHTML = html;
+      updateDoneBadge();
+    }
+
+    function toggleFindingsPanel() {
+      var panel = document.getElementById('findingsPanel');
+      var isOpen = panel.classList.contains('open');
+      if (isOpen) {
+        panel.classList.remove('open');
+        document.getElementById('findingsTab').classList.remove('active');
+      } else {
+        // Close other panels
+        var fp = document.getElementById('filesPanel');
+        if (fp.classList.contains('open')) {
+          fp.classList.remove('open');
+          document.getElementById('filesTab').classList.remove('active');
+        }
+        var cp = document.getElementById('cyclesPanel');
+        if (cp.classList.contains('open')) {
+          cp.classList.remove('open');
+          document.getElementById('cyclesTab').classList.remove('active');
+        }
+        panel.classList.add('open');
+        document.getElementById('findingsTab').classList.add('active');
+        renderFindingsList();
+      }
+    }
+
+    // Wire search/filter
+    document.getElementById('findingsSearch').addEventListener('input', renderFindingsList);
+    document.getElementById('findingsSevFilter').addEventListener('change', renderFindingsList);
+
+    // Delegated click on the findings rows container
+    document.getElementById('findingsRows').addEventListener('click', function(e) {
+      // Done button — toggle without navigating
+      var doneBtn = e.target.closest('.finding-done-btn');
+      if (doneBtn) {
+        e.stopPropagation();
+        var key = doneBtn.dataset.findingKey;
+        if (doneFindings.has(key)) { doneFindings.delete(key); } else { doneFindings.add(key); }
+        saveDone();
+        renderFindingsList();
+        return;
+      }
+
+      // Row click → open file in full-file mode at the finding's line
+      var row = e.target.closest('.finding-row');
+      if (!row || !row.dataset.nodeId) return;
+      var line = row.dataset.targetLine ? parseInt(row.dataset.targetLine, 10) : null;
+      var location = row.dataset.targetLocation || null;
+      document.getElementById('view').contentWindow.postMessage({
+        type: 'openFile',
+        nodeId: row.dataset.nodeId,
+        fromFiles: false,
+        fromFindings: true,
+        targetLine: line,
+        targetLocation: location,
+      }, '*');
+    });
+
+    // Resize handle (mirrors files panel resize logic)
+    var findingsPanelEl = document.getElementById('findingsPanel');
+    var findingsPanelHandle = document.getElementById('findingsPanelResize');
+    var findingsPanelWidth = 580;
+    var findingsPanelResizing = false;
+    findingsPanelEl.style.width = findingsPanelWidth + 'px';
+
+    var findingsResizeOverlay = document.createElement('div');
+    findingsResizeOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;cursor:col-resize;display:none';
+    document.body.appendChild(findingsResizeOverlay);
+
+    findingsPanelHandle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      findingsPanelResizing = true;
+      findingsPanelHandle.classList.add('active');
+      findingsPanelEl.style.transition = 'none';
+      findingsResizeOverlay.style.display = 'block';
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!findingsPanelResizing) return;
+      var rect = document.querySelector('.content-area').getBoundingClientRect();
+      var newW = Math.max(360, Math.min(e.clientX - rect.left, rect.width * 0.9));
+      findingsPanelWidth = newW;
+      findingsPanelEl.style.width = newW + 'px';
+    });
+    document.addEventListener('mouseup', function() {
+      if (!findingsPanelResizing) return;
+      findingsPanelResizing = false;
+      findingsPanelHandle.classList.remove('active');
+      findingsPanelEl.style.transition = '';
+      findingsResizeOverlay.style.display = 'none';
+    });
+
+    // Expose for tab button onclick and "Show done" button
+    window.toggleFindingsPanel = toggleFindingsPanel;
+    window.toggleFindingsShowDone = toggleFindingsShowDone;
+  })();
 
   show('{{ $defaultView }}');
 </script>
