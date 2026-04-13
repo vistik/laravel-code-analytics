@@ -1128,7 +1128,7 @@ tailwind.config = {
           ? 'border border-[rgba(35,134,54,0.6)] bg-[rgba(13,53,32,0.7)] text-success'
           : 'border border-transparent bg-transparent text-[#484f58] hover:bg-[rgba(13,53,32,0.5)] hover:text-success hover:border-[rgba(35,134,54,0.5)]';
 
-        html += '<div class="flex items-start gap-[10px] px-4 py-[9px] border-b border-[rgba(33,38,45,0.7)] cursor-pointer hover:bg-overlay transition-colors' + (isDone ? ' opacity-40' : '') + '" data-node-id="' + nodeId + '"' + lineAttr + locAttr + keyAttr + '>' +
+        html += '<div class="finding-row flex items-start gap-[10px] px-4 py-[9px] border-b border-[rgba(33,38,45,0.7)] cursor-pointer hover:bg-overlay transition-colors' + (isDone ? ' opacity-40' : '') + '" data-node-id="' + nodeId + '"' + lineAttr + locAttr + keyAttr + '>' +
           '<div class="w-2 h-2 rounded-full shrink-0 mt-1" style="background:' + color + '"></div>' +
           '<div class="flex-1 min-w-0">' +
             '<div class="text-[12.5px] text-[#c9d1d9] leading-snug mb-1' + (isDone ? ' line-through decoration-[#484f58]' : '') + '">' + escF(f.description) + '</div>' +
@@ -1145,7 +1145,7 @@ tailwind.config = {
             (loc ? '<div class="text-[10px] text-fg-subtle whitespace-nowrap mt-[1px] font-mono">' + escF(loc) + '</div>' : '') +
           '</div>' +
           '<div class="shrink-0 flex items-start pt-[1px] ml-[6px]">' +
-            '<button class="w-5 h-5 rounded-[5px] cursor-pointer flex items-center justify-center text-[12px] leading-none transition-all p-0 ' + doneBtnCls + '" data-finding-key="' + escF(key) + '" title="' + (isDone ? 'Mark as active' : 'Mark as done') + '">&#10003;</button>' +
+            '<button class="finding-done-btn w-5 h-5 rounded-[5px] cursor-pointer flex items-center justify-center text-[12px] leading-none transition-all p-0 ' + doneBtnCls + '" data-finding-key="' + escF(key) + '" title="' + (isDone ? 'Mark as active' : 'Mark as done') + '">&#10003;</button>' +
           '</div>' +
           '</div>';
       });
