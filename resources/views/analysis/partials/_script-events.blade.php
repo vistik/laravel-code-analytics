@@ -122,6 +122,16 @@ window.addEventListener('message', function(e) {
     openedFromFiles = !!e.data.fromFiles;
     clearNavStack();
     openPanel(n);
+    if (e.data.fromFindings) {
+      // Switch to full-file view first (if content is available), then scroll to the finding
+      var fullBtn = document.querySelector('.diff-view-btn[data-view="full"]');
+      if (fullBtn && !fullBtn.classList.contains('active')) fullBtn.click();
+      if (e.data.targetLine) {
+        scrollToDiffRow(findDiffRowByLine(e.data.targetLine));
+      } else if (e.data.targetLocation) {
+        scrollToDiffRow(findDiffRowByLocation(e.data.targetLocation));
+      }
+    }
   }
   if (e.data.type === 'closePanel') {
     closePanel();
