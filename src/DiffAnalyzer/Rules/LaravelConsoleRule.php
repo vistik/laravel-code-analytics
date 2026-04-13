@@ -112,26 +112,40 @@ class LaravelConsoleRule implements Rule
         $oldSchedules = $this->extractScheduleCalls($comparison['old_nodes']);
         $newSchedules = $this->extractScheduleCalls($comparison['new_nodes']);
 
-        $added = count($newSchedules) - count($oldSchedules);
-
-        if ($added > 0) {
-            $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
-                severity: Severity::MEDIUM,
-                description: "{$added} scheduled task(s) added",
-            );
-        } elseif ($added < 0) {
-            $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
-                severity: Severity::MEDIUM,
-                description: abs($added).' scheduled task(s) removed',
-            );
-        }
-
-        // Compare individual schedules by command name
         $oldByCommand = $this->indexSchedulesByCommand($oldSchedules);
         $newByCommand = $this->indexSchedulesByCommand($newSchedules);
 
+        $newSource = $comparison['new_source'] ?? null;
+
+        // Detect removed commands — check if each was commented out
+        $removedCommands = array_diff_key($oldByCommand, $newByCommand);
+        foreach ($removedCommands as $command => $call) {
+            if ($newSource !== null && $this->isScheduleCommentedOut($command, $newSource)) {
+                $changes[] = new ClassifiedChange(
+                    category: ChangeCategory::LARAVEL,
+                    severity: Severity::HIGH,
+                    description: "Scheduled task disabled via comment: {$command}",
+                );
+            } else {
+                $changes[] = new ClassifiedChange(
+                    category: ChangeCategory::LARAVEL,
+                    severity: Severity::HIGH,
+                    description: "Scheduled task removed: {$command}",
+                );
+            }
+        }
+
+        // Detect added commands
+        $addedCommands = array_diff_key($newByCommand, $oldByCommand);
+        if (count($addedCommands) > 0) {
+            $changes[] = new ClassifiedChange(
+                category: ChangeCategory::LARAVEL,
+                severity: Severity::MEDIUM,
+                description: count($addedCommands).' scheduled task(s) added',
+            );
+        }
+
+        // Compare individual schedules by command name for frequency/option changes
         foreach (array_intersect_key($oldByCommand, $newByCommand) as $command => $oldCall) {
             $newCall = $newByCommand[$command];
             $oldPrinted = $this->printer->prettyPrint([$oldCall]);
@@ -145,6 +159,18 @@ class LaravelConsoleRule implements Rule
                 );
             }
         }
+    }
+
+    /**
+     * Check whether a schedule command name appears in a commented-out Schedule:: call in the source.
+     */
+    private function isScheduleCommentedOut(string $command, string $source): bool
+    {
+        // Match lines like: // Schedule::command('cmd') or // $schedule->command('cmd')
+        $quotedCommand = preg_quote($command, '/');
+        $pattern = '/^\s*\/\/.*(?:Schedule::command|\$schedule->command)\s*\(\s*[\'"]'.$quotedCommand.'[\'"]/m';
+
+        return (bool) preg_match($pattern, $source);
     }
 
     /**
