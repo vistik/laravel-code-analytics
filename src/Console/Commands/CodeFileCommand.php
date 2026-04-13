@@ -73,6 +73,10 @@ class CodeFileCommand extends Command
             $toggles = new FilterTogglesHtml(ext: '', folder: '');
 
             if ($outputArg !== null) {
+                if (is_dir($outputArg)) {
+                    $outputArg = rtrim($outputArg, '/').'/'.pathinfo($relPath, PATHINFO_FILENAME).'.html';
+                }
+
                 // Single output path: one layout file, no switcher needed
                 $html = $generator->execute($payload, $pr, $toggles, $view, $layerStack);
 
