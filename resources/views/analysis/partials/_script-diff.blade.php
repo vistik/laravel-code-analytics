@@ -136,11 +136,11 @@ function scrollToComplexity() {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function scrollToDiffRow(target) {
+function scrollToDiffRow(target, instant) {
   if (!target) return;
   document.querySelectorAll('.diff-table tr.diff-highlight').forEach(function(r) { r.classList.remove('diff-highlight'); });
   target.classList.add('diff-highlight');
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.scrollIntoView({ behavior: instant ? 'instant' : 'smooth', block: 'center' });
 }
 
 function findDiffRowByLine(line) {
