@@ -46,8 +46,7 @@
     <div class="px-4 pb-4 flex flex-col gap-0">
       {!! $riskPanel !!}
       <p class="text-fg-muted leading-relaxed mb-3" style="font-size:11px">
-        <span class="border-b-2 border-dashed border-success">Dashed border</span> = new &middot;
-        <span class="border-b-2 border-dashed border-fg-subtle">Gray dashed</span> = connected<br>
+        <span class="border-b-2 border-solid border-fg-subtle">Gray line</span> = connected<br>
         <span class="border-b-2 border-solid border-severe">Orange ring</span> = circular dep<br>
         Size = lines changed &middot; Scroll to zoom
       </p>

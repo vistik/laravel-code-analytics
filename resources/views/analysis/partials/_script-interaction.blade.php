@@ -164,22 +164,13 @@ function draw() {
       else if (l.target === activeRef) dirColor = 'rgba(63,185,80,0.85)';  // green: used by
     }
 
-    // Line — style varies by dependency type
-    // constructor_injection: solid, thicker | method_injection: solid | new_instance: long dash
-    // container_resolved: dash-dot | static_call: dotted | use: faint solid
-    var depDash = [];
-    if (!isConnEdge) {
-      if      (l.depType === 'new_instance')       depDash = [8, 4];
-      else if (l.depType === 'container_resolved') depDash = [6, 3, 2, 3];
-      else if (l.depType === 'static_call')        depDash = [2, 4];
-      else if (l.depType === 'use')                depDash = [3, 6];
-    }
+    // Line — all solid
     ctx.beginPath(); ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y);
     if (isConnEdge && !highlight) {
-      ctx.setLineDash([4, 4]);
+      ctx.setLineDash([]);
       ctx.strokeStyle = dimmed ? 'rgba(48,54,61,0.1)' : 'rgba(72,79,88,0.35)';
     } else {
-      ctx.setLineDash(highlight ? [] : depDash);
+      ctx.setLineDash([]);
       const cycleEdgeColor = isCycleEdge ? hexAlpha(l.source.cycleColor, dimmed ? 0.15 : 0.7) : null;
       ctx.strokeStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleEdgeColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.3)');
     }
