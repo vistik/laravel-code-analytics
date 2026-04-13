@@ -63,12 +63,12 @@ tailwind.config = {
   .risk-score-denom { font-size: 11px; color: #6e7681; }
   .risk-label { font-size: 10.5px; padding: 2px 8px; border-radius: 20px; border: 1px solid; font-weight: 500; }
   .risk-tooltip, .metrics-tooltip {
-    display: none; position: absolute; top: 0; left: calc(100% + 12px);
+    display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
     background: #1c2128; border: 1px solid #30363d; border-radius: 10px;
     padding: 12px 14px; box-shadow: 0 8px 32px rgba(0,0,0,.6); z-index: 100;
   }
   .risk-tooltip::before, .metrics-tooltip::before {
-    content: ''; position: absolute; top: 0; left: -12px; width: 12px; height: 100%;
+    content: ''; position: absolute; top: -8px; left: 0; width: 100%; height: 8px;
   }
   .risk-tooltip { min-width: 210px; }
   .metrics-tooltip { white-space: nowrap; }
@@ -100,21 +100,21 @@ tailwind.config = {
   .content-area { flex: 1; position: relative; overflow: hidden; }
   iframe { border: none; width: 100%; height: 100%; }
 
-  /* ── File overview panel (right slide-over) ── */
+  /* ── File overview panel (left slide-over) ── */
   .files-panel {
-    position: absolute; top: 0; right: -100%; height: 100%;
-    background: #161b22; border-left: 1px solid #21262d; z-index: 30;
+    position: absolute; top: 0; left: -100%; height: 100%;
+    background: #161b22; border-right: 1px solid #21262d; z-index: 30;
     display: flex; flex-direction: column;
-    box-shadow: -8px 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03) inset;
-    transition: right 0.28s cubic-bezier(0.22,1,0.36,1);
+    box-shadow: 8px 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03) inset;
+    transition: left 0.28s cubic-bezier(0.22,1,0.36,1);
   }
-  .files-panel.open { right: 0; }
+  .files-panel.open { left: 0; }
   .files-panel-resize {
-    position: absolute; top: 0; left: -4px; width: 8px; height: 100%;
+    position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
     cursor: col-resize; z-index: 35;
   }
   .files-panel-resize::after {
-    content: ''; position: absolute; top: 0; left: 3px; width: 2px; height: 100%;
+    content: ''; position: absolute; top: 0; right: 3px; width: 2px; height: 100%;
     background: transparent; transition: background 0.2s;
   }
   .files-panel-resize:hover::after, .files-panel-resize.active::after { background: #388bfd; }
@@ -314,15 +314,17 @@ tailwind.config = {
     {!! $headlineHtml !!}
     <span class="pr-meta">{{ $fileCount }} files &middot; +{{ $prAdditions }} &minus;{{ $prDeletions }}</span>
   </div>
+  <div class="tabs" style="border-right:1px solid #21262d;align-self:stretch;padding:0 12px;border-left:none">
+    <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
+    </button>
+  </div>
   <div class="topbar-badges">
     {!! $riskBadgeHtml !!}
   </div>
   <div class="tabs">
     <button class="tab tab-orange" id="cyclesTab" onclick="toggleCyclesPanel()" style="display:none">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 2a6 6 0 1 0 5.659 8.006.75.75 0 0 1 1.414.494A7.5 7.5 0 1 1 14.5 6.32V5.25a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h1.313A6.011 6.011 0 0 0 8 2Z"/></svg>Circular deps
-    </button>
-    <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
     </button>
     {!! $tabButtons !!}
   </div>
@@ -762,9 +764,6 @@ tailwind.config = {
         cyclesPanel.classList.remove('open');
         document.getElementById('cyclesTab').classList.remove('active');
       }
-      openedFromFiles = false;
-      var iframe = document.getElementById('view');
-      iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
       panel.classList.add('open');
       document.getElementById('filesTab').classList.add('active');
       renderFileList();
@@ -801,8 +800,6 @@ tailwind.config = {
     currentDir = (currentSort === 'name' || currentSort === 'mi') ? 1 : -1;
     renderFileList();
   });
-  var openedFromFiles = false;
-
   document.getElementById('filesRows').addEventListener('click', function(e) {
     var btn = e.target.closest('.file-review-btn');
     if (btn) {
@@ -813,8 +810,6 @@ tailwind.config = {
     var row = e.target.closest('.file-row');
     if (!row) return;
     var nodeId = row.dataset.nodeId;
-    openedFromFiles = true;
-    toggleFilesPanel();
     var iframe = document.getElementById('view');
     iframe.contentWindow.postMessage({ type: 'openFile', nodeId: nodeId, fromFiles: true }, '*');
   });
@@ -838,21 +833,11 @@ tailwind.config = {
         setTimeout(function() { targetRow.style.background = ''; }, 1200);
       }, 280);
     }
-    if (e.data.type === 'panelClosed' && openedFromFiles) {
-      openedFromFiles = false;
-      if (!filesPanelEl.classList.contains('open')) toggleFilesPanel();
-    }
     if (e.data.type === 'backToFiles') {
-      openedFromFiles = false;
       var iframe = document.getElementById('view');
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
-      if (!filesPanelEl.classList.contains('open')) toggleFilesPanel();
     }
     if (e.data.type === 'panelOpened') {
-      if (filesPanelEl.classList.contains('open')) {
-        filesPanelEl.classList.remove('open');
-        document.getElementById('filesTab').classList.remove('active');
-      }
       var cyclesPanelEl = document.getElementById('cyclesPanel');
       if (cyclesPanelEl.classList.contains('open')) {
         cyclesPanelEl.classList.remove('open');
@@ -941,7 +926,7 @@ tailwind.config = {
     if (!filesPanelResizing) return;
     var contentArea = document.querySelector('.content-area');
     var rect = contentArea.getBoundingClientRect();
-    var newW = rect.right - e.clientX;
+    var newW = e.clientX - rect.left;
     newW = Math.max(340, Math.min(newW, rect.width * 0.9));
     filesPanelWidth = newW;
     filesPanelEl.style.width = filesPanelWidth + 'px';
