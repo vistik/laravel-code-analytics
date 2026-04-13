@@ -16,6 +16,8 @@ for (var i = 0; i < nodes.length; i++) {
   n.x = W/2 + Math.cos(angle) * (n.isConnected ? connSpread : spread) + (Math.random() - .5) * 80;
   n.y = H/2 + Math.sin(angle) * (n.isConnected ? connSpread : spread) + (Math.random() - .5) * 80;
 }
+// ── Pre-warm: settle the layout before the first render ───────────────────────
+for (var _w = 0; _w < 300; _w++) simulate();
 JS;
     }
 
@@ -23,6 +25,7 @@ JS;
     {
         return <<<'JS'
 // ── Physics ───────────────────────────────────────────────────────────────────
+var _simFrame = 0;
 function simulate() {
   const repulsion = 4500, attraction = 0.004, damping = 0.88, centerPull = 0.002;
   const vis = nodes.filter(isVisible);
@@ -59,6 +62,9 @@ JS;
 
     public function getFrameHookJs(): string
     {
-        return 'simulate();';
+        return <<<'JS'
+var _t = (++_simFrame < 60) ? 8 : (_simFrame < 240) ? 3 : 1;
+for (var _i = 0; _i < _t; _i++) simulate();
+JS;
     }
 }
