@@ -184,6 +184,21 @@ class FindingsCatalog
                     }
                     PHP,
             ],
+            [
+                'rule' => 'LaravelEloquentRule',
+                'severity' => Severity::VERY_HIGH,
+                'title' => 'Eloquent relationship added',
+                'description' => 'A new relationship method was added — may cause eager loading or N+1 query impacts.',
+                'before' => <<<'PHP'
+                    // no relationship
+                    PHP,
+                'after' => <<<'PHP'
+                    public function tags(): BelongsToMany
+                    {
+                        return $this->belongsToMany(Tag::class);
+                    }
+                    PHP,
+            ],
 
             // ──────────────────────────────────────────────────────────────
             // Auth / security
@@ -248,25 +263,6 @@ class FindingsCatalog
             ],
 
             // ──────────────────────────────────────────────────────────────
-            // Method / class structure
-            // ──────────────────────────────────────────────────────────────
-            [
-                'rule' => 'MethodRemovedRule',
-                'severity' => Severity::VERY_HIGH,
-                'title' => 'Method removed',
-                'description' => 'A public or protected method was deleted — any callers will receive a fatal error.',
-                'before' => <<<'PHP'
-                    public function calculateTotal(): float
-                    {
-                        return $this->subtotal + $this->tax;
-                    }
-                    PHP,
-                'after' => <<<'PHP'
-                    // calculateTotal() deleted
-                    PHP,
-            ],
-
-            // ──────────────────────────────────────────────────────────────
             // Logic / values
             // ──────────────────────────────────────────────────────────────
             [
@@ -303,30 +299,6 @@ class FindingsCatalog
                     PHP,
                 'after' => <<<'PHP'
                     if ($b > $a) {
-                    PHP,
-            ],
-            [
-                'rule' => 'OperatorRule',
-                'severity' => Severity::VERY_HIGH,
-                'title' => 'Negation added',
-                'description' => 'A ! (not) was added to an expression — the condition is now inverted.',
-                'before' => <<<'PHP'
-                    if ($user->can('delete')) {
-                    PHP,
-                'after' => <<<'PHP'
-                    if (!$user->can('delete')) {
-                    PHP,
-            ],
-            [
-                'rule' => 'ValueRule',
-                'severity' => Severity::VERY_HIGH,
-                'title' => 'Boolean literal flipped',
-                'description' => 'A true literal was changed to false (or vice versa) — the guarding or enabling condition is now inverted.',
-                'before' => <<<'PHP'
-                    protected bool $timestamps = true;
-                    PHP,
-                'after' => <<<'PHP'
-                    protected bool $timestamps = false;
                     PHP,
             ],
             [
@@ -467,30 +439,46 @@ class FindingsCatalog
     private static function high(): array
     {
         return [
+            // ──────────────────────────────────────────────────────────────
+            // Method / class structure
+            // ──────────────────────────────────────────────────────────────
             [
-                'rule' => 'ControlFlowRule',
+                'rule' => 'MethodRemovedRule',
                 'severity' => Severity::HIGH,
-                'title' => 'If condition changed',
-                'description' => 'The condition in an if statement was modified — the branch may now trigger in different circumstances.',
+                'title' => 'Method removed',
+                'description' => 'A public or protected method was deleted — any callers will receive a fatal error.',
                 'before' => <<<'PHP'
-                    if ($order->status === 'paid') {
+                    public function calculateTotal(): float
+                    {
+                        return $this->subtotal + $this->tax;
+                    }
                     PHP,
                 'after' => <<<'PHP'
-                    if ($order->status === 'pending') {
+                    // calculateTotal() deleted
                     PHP,
             ],
             [
-                'rule' => 'ControlFlowRule',
+                'rule' => 'OperatorRule',
                 'severity' => Severity::HIGH,
-                'title' => 'If statement added or removed',
-                'description' => 'A new branching condition was introduced, or an existing one was deleted.',
+                'title' => 'Negation added',
+                'description' => 'A ! (not) was added to an expression — the condition is now inverted.',
                 'before' => <<<'PHP'
-                    $this->notify($user);
+                    if ($user->can('delete')) {
                     PHP,
                 'after' => <<<'PHP'
-                    if ($user->wantsNotifications()) {
-                        $this->notify($user);
-                    }
+                    if (!$user->can('delete')) {
+                    PHP,
+            ],
+            [
+                'rule' => 'ValueRule',
+                'severity' => Severity::HIGH,
+                'title' => 'Boolean literal flipped',
+                'description' => 'A true literal was changed to false (or vice versa) — the guarding or enabling condition is now inverted.',
+                'before' => <<<'PHP'
+                    protected bool $timestamps = true;
+                    PHP,
+                'after' => <<<'PHP'
+                    protected bool $timestamps = false;
                     PHP,
             ],
             [
@@ -731,21 +719,6 @@ class FindingsCatalog
                     }
                     PHP,
             ],
-            [
-                'rule' => 'LaravelEloquentRule',
-                'severity' => Severity::HIGH,
-                'title' => 'Eloquent relationship added',
-                'description' => 'A new relationship method was added — may cause eager loading or N+1 query impacts.',
-                'before' => <<<'PHP'
-                    // no relationship
-                    PHP,
-                'after' => <<<'PHP'
-                    public function tags(): BelongsToMany
-                    {
-                        return $this->belongsToMany(Tag::class);
-                    }
-                    PHP,
-            ],
         ];
     }
 
@@ -755,6 +728,32 @@ class FindingsCatalog
     private static function medium(): array
     {
         return [
+            [
+                'rule' => 'ControlFlowRule',
+                'severity' => Severity::MEDIUM,
+                'title' => 'If condition changed',
+                'description' => 'The condition in an if statement was modified — the branch may now trigger in different circumstances.',
+                'before' => <<<'PHP'
+                    if ($order->status === 'paid') {
+                    PHP,
+                'after' => <<<'PHP'
+                    if ($order->status === 'pending') {
+                    PHP,
+            ],
+            [
+                'rule' => 'ControlFlowRule',
+                'severity' => Severity::MEDIUM,
+                'title' => 'If statement added or removed',
+                'description' => 'A new branching condition was introduced, or an existing one was deleted.',
+                'before' => <<<'PHP'
+                    $this->notify($user);
+                    PHP,
+                'after' => <<<'PHP'
+                    if ($user->wantsNotifications()) {
+                        $this->notify($user);
+                    }
+                    PHP,
+            ],
             [
                 'rule' => 'MethodChangedRule',
                 'severity' => Severity::MEDIUM,

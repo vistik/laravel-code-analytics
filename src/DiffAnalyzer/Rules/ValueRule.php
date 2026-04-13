@@ -140,7 +140,7 @@ class ValueRule implements Rule
             if ($oldBooleans[$i] !== $newBooleans[$i]) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::VALUES,
-                    severity: Severity::VERY_HIGH,
+                    severity: Severity::HIGH,
                     description: "Boolean literal flipped in {$key}: `{$oldBooleans[$i]}` -> `{$newBooleans[$i]}`",
                     location: $key,
                 );

@@ -75,7 +75,7 @@ class ControlFlowRule implements Rule
         if ($countDiff > 0) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::CONDITIONAL,
-                severity: Severity::HIGH,
+                severity: Severity::MEDIUM,
                 description: "{$countDiff} if statement(s) added in {$key}",
                 location: $key,
             );
@@ -97,7 +97,7 @@ class ControlFlowRule implements Rule
             if ($oldCond !== $newCond) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::CONDITIONAL,
-                    severity: Severity::HIGH,
+                    severity: Severity::MEDIUM,
                     description: "If condition changed in {$key}: `{$this->summarizeExpr($oldIfs[$i]->cond)}` -> `{$this->summarizeExpr($newIfs[$i]->cond)}`",
                     location: $key,
                     line: $newIfs[$i]->getStartLine(),
@@ -151,7 +151,7 @@ class ControlFlowRule implements Rule
             if ($diff > 0) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::LOOP,
-                    severity: Severity::HIGH,
+                    severity: Severity::MEDIUM,
                     description: "{$diff} {$shortName} loop(s) added in {$key}",
                     location: $key,
                 );
@@ -248,7 +248,7 @@ class ControlFlowRule implements Rule
             if ($oldStr !== $newStr) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::RETURN,
-                    severity: Severity::HIGH,
+                    severity: Severity::MEDIUM,
                     description: "Return value changed in {$key}: `{$this->summarizeExpr($oldExpr)}` -> `{$this->summarizeExpr($newExpr)}`",
                     location: $key,
                     line: $newReturns[$i]->getStartLine(),
@@ -294,7 +294,7 @@ class ControlFlowRule implements Rule
             if ($oldArms !== $newArms) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::SWITCH_MATCH,
-                    severity: Severity::HIGH,
+                    severity: Severity::MEDIUM,
                     description: "Match arms changed in {$key}: {$oldArms} -> {$newArms}",
                     location: $key,
                     line: $newMatch[$i]->getStartLine(),

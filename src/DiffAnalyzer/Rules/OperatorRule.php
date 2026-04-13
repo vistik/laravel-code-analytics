@@ -186,7 +186,7 @@ class OperatorRule implements Rule
         foreach ($added as $expr) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::OPERATORS,
-                severity: Severity::VERY_HIGH,
+                severity: Severity::HIGH,
                 description: "Negation added in {$key}: `!({$expr})`",
                 location: $key,
             );

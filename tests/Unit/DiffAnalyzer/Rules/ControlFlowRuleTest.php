@@ -24,7 +24,7 @@ it('detects if statement added', function () {
 
     expect($ifChanges)->toHaveCount(1)
         ->and($ifChanges[0]->category)->toBe(ChangeCategory::CONDITIONAL)
-        ->and($ifChanges[0]->severity)->toBe(Severity::HIGH);
+        ->and($ifChanges[0]->severity)->toBe(Severity::MEDIUM);
 });
 
 it('detects if condition changed', function () {
@@ -44,7 +44,7 @@ it('detects if condition changed', function () {
 
     expect($condChanges)->toHaveCount(1)
         ->and($condChanges[0]->category)->toBe(ChangeCategory::CONDITIONAL)
-        ->and($condChanges[0]->severity)->toBe(Severity::HIGH);
+        ->and($condChanges[0]->severity)->toBe(Severity::MEDIUM);
 });
 
 it('detects else branch added', function () {
@@ -84,7 +84,7 @@ it('detects loop added', function () {
 
     expect($loopChanges)->toHaveCount(1)
         ->and($loopChanges[0]->category)->toBe(ChangeCategory::LOOP)
-        ->and($loopChanges[0]->severity)->toBe(Severity::HIGH);
+        ->and($loopChanges[0]->severity)->toBe(Severity::MEDIUM);
 });
 
 it('detects try-catch added', function () {
@@ -144,7 +144,7 @@ it('detects return value changed', function () {
 
     expect($returnValueChanges)->toHaveCount(1)
         ->and($returnValueChanges[0]->category)->toBe(ChangeCategory::RETURN)
-        ->and($returnValueChanges[0]->severity)->toBe(Severity::HIGH);
+        ->and($returnValueChanges[0]->severity)->toBe(Severity::MEDIUM);
 });
 
 it('summarizes long return value expressions in description', function () {
@@ -204,5 +204,5 @@ it('detects match arm count changed', function () {
 
     expect($matchChanges)->toHaveCount(1)
         ->and($matchChanges[0]->category)->toBe(ChangeCategory::SWITCH_MATCH)
-        ->and($matchChanges[0]->severity)->toBe(Severity::HIGH);
+        ->and($matchChanges[0]->severity)->toBe(Severity::MEDIUM);
 });
