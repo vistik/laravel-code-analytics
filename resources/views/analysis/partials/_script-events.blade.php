@@ -123,13 +123,14 @@ window.addEventListener('message', function(e) {
     clearNavStack();
     openPanel(n);
     if (e.data.fromFindings) {
-      // Switch to full-file view first (if content is available), then scroll to the finding
+      // Switch to full-file view first (if content is available), then scroll to the finding.
+      // Use instant scroll so the panel opens already positioned at the highlighted line.
       var fullBtn = document.querySelector('.diff-view-btn[data-view="full"]');
       if (fullBtn && !fullBtn.classList.contains('active')) fullBtn.click();
       if (e.data.targetLine) {
-        scrollToDiffRow(findDiffRowByLine(e.data.targetLine));
+        scrollToDiffRow(findDiffRowByLine(e.data.targetLine), true);
       } else if (e.data.targetLocation) {
-        scrollToDiffRow(findDiffRowByLocation(e.data.targetLocation));
+        scrollToDiffRow(findDiffRowByLocation(e.data.targetLocation), true);
       }
     }
   }
