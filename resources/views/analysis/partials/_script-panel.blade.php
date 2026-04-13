@@ -184,8 +184,10 @@ function openPanel(n) {
   var badgeClass = sb[0];
   var badgeText = sb[1];
 
+  var kindColors = { class: '#388bfd', abstract: '#79c0ff', interface: '#bc8cff', trait: '#f0883e', enum: '#3fb950', type: '#d2a8ff' };
+  var kindLabel = n.kind ? ' <span style="font-size:13px;font-weight:400;color:' + (kindColors[n.kind] || '#8b949e') + ';margin-left:6px">' + n.kind + '</span>' : '';
   document.getElementById('panel-header').innerHTML =
-    '<div class="file-name"' + (n.status === 'deleted' ? ' style="text-decoration:line-through;text-decoration-color:#f85149;color:#8b949e"' : '') + '>' + n.id + '</div>' +
+    '<div class="file-name"' + (n.status === 'deleted' ? ' style="text-decoration:line-through;text-decoration-color:#f85149;color:#8b949e"' : '') + '>' + n.id + kindLabel + '</div>' +
     '<div class="file-path">' + n.path + '</div>' +
     '<div class="badge-row">' +
       '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +

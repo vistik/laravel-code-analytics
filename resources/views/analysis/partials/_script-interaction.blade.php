@@ -123,10 +123,13 @@ canvas.addEventListener('mousemove', e => {
       if (n.cycleId != null) {
         cycleLine = '<div class="stat"><span style="color:' + n.cycleColor + '">&#8635; Cycle ' + n.cycleId + '</span></div>';
       }
+      var kindColors = { class: '#388bfd', abstract: '#79c0ff', interface: '#bc8cff', trait: '#f0883e', enum: '#3fb950', type: '#d2a8ff' };
+      var kindLine = n.kind ? '<div class="stat"><span style="color:' + (kindColors[n.kind] || '#8b949e') + '">' + n.kind.charAt(0).toUpperCase() + n.kind.slice(1) + '</span></div>' : '';
       tooltip.innerHTML =
         '<div class="path">' + n.path + '</div>' +
         '<div class="stat"><span class="added">+' + n.add + '</span> &nbsp;<span class="removed">&minus;' + n.del + '</span> &nbsp;' +
         (function(s) { var m = { added: ['#3fb950','NEW'], deleted: ['#f85149','DELETED'], renamed: ['#a5b4fc','RENAMED'], modified: ['#d29922','MODIFIED'] }; var p = m[s] || m.modified; return '<span style="color:' + p[0] + '">' + p[1] + '</span>'; })(n.status) + '</div>' +
+        kindLine +
         severityLine +
         watchLine +
         cycleLine +
@@ -323,6 +326,21 @@ function draw() {
       ctx.closePath();
       ctx.fillStyle = watchColor; ctx.fill();
       ctx.strokeStyle = '#161b22'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    // Kind badge (class / interface / trait / enum / type)
+    if (!dim && !n.isConnected && n.kind) {
+      const kindMeta = { class: ['C','#388bfd'], abstract: ['A','#79c0ff'], interface: ['I','#bc8cff'], trait: ['T','#f0883e'], enum: ['E','#3fb950'], type: ['T','#d2a8ff'] };
+      const [letter, bg] = kindMeta[n.kind] || [null, null];
+      if (letter) {
+        const br = Math.max(4, Math.min(7, n.r * 0.22));
+        const bx = n.x + n.r * 0.7, by = n.y + n.r * 0.7;
+        ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2);
+        ctx.fillStyle = bg; ctx.fill();
+        ctx.strokeStyle = '#161b22'; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.font = `bold ${Math.max(5, Math.floor(br * 1.3))}px -apple-system, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#161b22'; ctx.fillText(letter, bx, by);
+      }
     }
     // Label: node name + folder subtitle
     const fontSize = n.isConnected ? Math.max(8, Math.min(11, n.r * 0.5)) : Math.max(9, Math.min(13, n.r * 0.5));
