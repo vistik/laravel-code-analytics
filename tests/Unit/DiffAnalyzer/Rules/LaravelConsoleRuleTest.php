@@ -40,3 +40,47 @@ it('ignores non-command files', function () {
 
     expect($changes)->toBeEmpty();
 });
+
+it('detects commented-out scheduled command as HIGH', function () {
+    $old = <<<'PHP'
+        <?php
+        Schedule::command('lago:sync-subscriptions')->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        // Schedule::command('lago:sync-subscriptions')->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toHaveCount(1)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
+        ->and($changes[0]->description)->toContain('lago:sync-subscriptions')
+        ->and($changes[0]->description)->toContain('disabled via comment');
+});
+
+it('detects truly removed scheduled command as HIGH', function () {
+    $old = <<<'PHP'
+        <?php
+        Schedule::command('lago:sync-subscriptions')->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toHaveCount(1)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
+        ->and($changes[0]->description)->toContain('lago:sync-subscriptions');
+});
