@@ -487,9 +487,12 @@ tailwind.config = {
     {!! $jsLayoutData !!}
   };
 
+  var initialViewLoaded = false;
   function show(name) {
     document.querySelectorAll('.tab[data-layout]').forEach(t => t.classList.toggle('active', t.dataset.layout === name));
     document.getElementById('view').srcdoc = atob(layouts[name]);
+    if (initialViewLoaded) pendingFilterApply = true;
+    initialViewLoaded = true;
   }
 
   document.querySelectorAll('.tab[data-layout]').forEach(t => t.addEventListener('click', () => show(t.dataset.layout)));
@@ -517,6 +520,8 @@ tailwind.config = {
   // ── Build file list ──
   var reviewedFiles = new Set();
   var showReviewed = false;
+  var currentFilterState = null;
+  var pendingFilterApply = false;
   var changedFiles = filesNodes.filter(function(n) { return !n.isConnected; });
   changedFiles.forEach(function(n) { n._signal = n._signal || 0; });
 
@@ -873,6 +878,16 @@ tailwind.config = {
     if (e.data.type === 'changeTypeFilterChanged') {
       hiddenChangeTypes = e.data.hiddenChangeTypes;
       if (filesPanelEl.classList.contains('open')) renderFileList();
+    }
+    if (e.data.type === 'filterStateChanged') {
+      currentFilterState = e.data.state;
+    }
+    if (e.data.type === 'visibleNodesChanged') {
+      if (pendingFilterApply && currentFilterState) {
+        pendingFilterApply = false;
+        var state = Object.assign({}, currentFilterState, { reviewedNodes: Array.from(reviewedFiles) });
+        document.getElementById('view').contentWindow.postMessage({ type: 'applyFilters', state: state }, '*');
+      }
     }
   });
 

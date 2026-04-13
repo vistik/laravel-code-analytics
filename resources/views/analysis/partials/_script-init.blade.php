@@ -101,6 +101,21 @@ function notifyParentVisibility() {
   }
 }
 
+function broadcastFilterState() {
+  if (window.parent === window) return;
+  window.parent.postMessage({
+    type: 'filterStateChanged',
+    state: {
+      hideConnected: hideConnected,
+      hiddenExts: hiddenExts,
+      hiddenDomains: hiddenDomains,
+      hiddenSeverities: hiddenSeverities,
+      hiddenChangeTypes: hiddenChangeTypes,
+      hideReviewed: hideReviewed,
+    }
+  }, '*');
+}
+
 function clearHidden() {
   if (selectedNode && !isVisible(selectedNode)) closePanel();
   if (hoveredNode && !isVisible(hoveredNode)) { hoveredNode = null; tooltip.style.display = 'none'; }
@@ -114,12 +129,14 @@ function clearHidden() {
 document.getElementById('toggleConnected').addEventListener('change', function() {
   hideConnected = !this.checked;
   clearHidden();
+  broadcastFilterState();
 });
 
 document.getElementById('toggleReviewed').addEventListener('change', function() {
   hideReviewed = !this.checked;
   clearHidden();
   if (window.parent !== window) window.parent.postMessage({ type: 'showReviewedChanged', show: this.checked }, '*');
+  broadcastFilterState();
 });
 
 function updateReviewedCount() {
@@ -151,6 +168,7 @@ document.querySelectorAll('.ext-toggle').forEach(function(cb) {
     if (this.checked) { delete hiddenExts[ext]; }
     else { hiddenExts[ext] = true; }
     clearHidden();
+    broadcastFilterState();
   });
 });
 
@@ -160,6 +178,7 @@ document.querySelectorAll('.domain-toggle').forEach(function(cb) {
     if (this.checked) { delete hiddenDomains[domain]; }
     else { hiddenDomains[domain] = true; }
     clearHidden();
+    broadcastFilterState();
   });
 });
 
@@ -170,6 +189,7 @@ document.querySelectorAll('.change-type-toggle').forEach(function(cb) {
     else { hiddenChangeTypes[changeType] = true; }
     clearHidden();
     if (window.parent !== window) window.parent.postMessage({ type: 'changeTypeFilterChanged', hiddenChangeTypes: hiddenChangeTypes }, '*');
+    broadcastFilterState();
   });
 });
 
@@ -179,6 +199,7 @@ document.querySelectorAll('.severity-toggle').forEach(function(cb) {
     if (this.checked) { delete hiddenSeverities[severity]; }
     else { hiddenSeverities[severity] = true; }
     clearHidden();
+    broadcastFilterState();
   });
 });
 
