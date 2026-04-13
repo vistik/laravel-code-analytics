@@ -90,7 +90,7 @@ document.addEventListener('click', function(e) {
   // Link points directly to an interface → show picker (or navigate if only 1 impl).
   var impls = implementorsIndex[nodeId];
   if (impls && impls.length > 1) { showImplsPopup(impls, link); return; }
-  if (impls && impls.length === 1) { openPanel(nodeMap[impls[0].nodeId]); return; }
+  if (impls && impls.length === 1) { autoRevealAndOpen(nodeMap[impls[0].nodeId]); return; }
 
   // Link points to a concrete class via a method call: if that class implements an
   // interface that has multiple implementations, show the picker instead of jumping straight in.
@@ -108,7 +108,7 @@ document.addEventListener('click', function(e) {
 
   // Cross-file link → open the target panel, then scroll to the call line if known
   var callLine = link.getAttribute('data-call-line');
-  openPanel(nd);
+  autoRevealAndOpen(nd);
   if (callLine) scrollToDiffLine(parseInt(callLine, 10));
 });
 
@@ -143,6 +143,7 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'applyFilters') {
     var s = e.data.state;
     hideConnected = s.hideConnected;
+    showBridges = s.showBridges || false;
     hiddenExts = s.hiddenExts;
     hiddenDomains = s.hiddenDomains;
     hiddenSeverities = s.hiddenSeverities;
@@ -154,6 +155,8 @@ window.addEventListener('message', function(e) {
     }
     var toggleConnectedEl = document.getElementById('toggleConnected');
     if (toggleConnectedEl) toggleConnectedEl.checked = !hideConnected;
+    var toggleBridgesEl2 = document.getElementById('toggleBridges');
+    if (toggleBridgesEl2) toggleBridgesEl2.checked = showBridges;
     var toggleReviewedEl = document.getElementById('toggleReviewed');
     if (toggleReviewedEl) toggleReviewedEl.checked = !hideReviewed;
     document.querySelectorAll('.ext-toggle').forEach(function(cb) {

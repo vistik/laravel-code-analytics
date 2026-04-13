@@ -119,7 +119,7 @@ function renderMethodPanel(n) {
   document.querySelectorAll('.dep-item[data-id]').forEach(function(el) {
     el.addEventListener('click', function() {
       var nd = nodeMap[el.getAttribute('data-id')];
-      if (nd) openPanel(nd);
+      if (nd) autoRevealAndOpen(nd);
     });
   });
 
@@ -515,6 +515,15 @@ function openPanel(n) {
       fullBtn +
       '</span></h4>' +
       '<table class="diff-table ' + activeMode + '">' + tableRows + '</table></div>';
+  } else if (n.isConnected && fileContents[n.path]) {
+    // Connected (non-diff) node: show full source so the user can read the bridging code.
+    var connIsPHP = n.path.endsWith('.php');
+    var connLinkMap = connIsPHP ? buildFileLinkMap(n) : null;
+    var connClassMap = connIsPHP ? classNameIndex : null;
+    var connRows = renderFullFile(fileContents[n.path], [], connIsPHP, connLinkMap, connClassMap, implementorsIndex);
+    bodyHtml += '<div class="diff-section">' +
+      '<h4>Source</h4>' +
+      '<table class="diff-table full">' + connRows + '</table></div>';
   }
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
