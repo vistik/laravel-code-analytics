@@ -73,6 +73,8 @@ class AnalyzeCode
 
     private ?Closure $onProgress;
 
+    private float $analyzeStart = 0.0;
+
     public function __construct(
         private readonly FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
         ?RiskScoring $riskScorer = null,
@@ -108,8 +110,10 @@ class AnalyzeCode
         ?string $toCommit = null,
     ): array {
         $this->onProgress = $onProgress;
+        $this->analyzeStart = microtime(true);
         $this->resetState();
 
+        $t = microtime(true);
         if ($prUrl !== null) {
             $init = $this->initFromPrUrl($prUrl);
             $init['prLinkUrl'] = $prUrl;
@@ -119,6 +123,7 @@ class AnalyzeCode
         } else {
             $init = $this->initLocalMode($repoPath, $baseBranch, $title, $full);
         }
+        $this->progress('timing', '  ↳ init: '.$this->elapsed($t));
 
         $files = $init['files'];
         $totalAdditions = $init['totalAdditions'];
@@ -144,15 +149,25 @@ class AnalyzeCode
 
         $fileDiffMap = $this->buildFileDiffMap();
 
+        $t = microtime(true);
         $nodes = $this->buildNodes($files, $fileDiffMap, $this->resolveWatchedFiles($watchedFiles));
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
+        $t = microtime(true);
         [$phpFiles, $frontendFiles, $headContents] = $this->resolveHeadContents($nodes);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
+        $t = microtime(true);
         [$fqcnToFilePath, $fileReferences] = $this->buildDependencyGraph($nodes, $phpFiles, $frontendFiles, $headContents);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
+        $t = microtime(true);
         [$nodes, $cycleMap] = $this->detectAndAnnotateCycles($nodes);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
+        $t = microtime(true);
         [$fileReports, $oldSources] = $this->runAstAnalysis($phpFiles, $headContents, $fileDiffMap, $criticalTables);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
         $nodes = $this->enrichNodesWithAnalysis($nodes, $fileReports);
 
@@ -160,8 +175,14 @@ class AnalyzeCode
 
         [$nodes, $analysisData] = $this->injectCycleFindings($nodes, $analysisData, $cycleMap);
 
+        $t = microtime(true);
         ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics($headContents, $oldSources, $fqcnToFilePath);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+
+        $t = microtime(true);
         ['hotSpots' => $jsHotSpots, 'metricsData' => $jsMetricsData] = $this->computeJsMetrics($frontendFiles, $headContents, $oldSources);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+
         $metricsData = array_merge($metricsData, $jsMetricsData);
 
         $fileDiffs = $this->extractFileDiffs();
@@ -178,6 +199,7 @@ class AnalyzeCode
 
         $riskResult = $this->computeRiskScore($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots, $riskScoringConfig);
 
+        $t = microtime(true);
         $this->progress('info', "Generating {$format->value} report...");
 
         $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
@@ -202,6 +224,7 @@ class AnalyzeCode
                 prUrl: $prLinkUrl,
             ),
         );
+        $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
         if ($raw) {
             return ['files' => [], 'risk' => $riskResult, 'content' => $content];
@@ -212,7 +235,7 @@ class AnalyzeCode
         $reportGenerator->writeFile($outputPath, $content);
 
         $this->progress('line', "  Generated: {$outputPath}");
-        $this->progress('info', 'Done!');
+        $this->progress('info', 'Done! ('.$this->elapsed($this->analyzeStart).' total)');
 
         return ['files' => ['all' => $outputPath], 'risk' => $riskResult];
     }
@@ -487,8 +510,12 @@ class AnalyzeCode
 
         $astComparer = new AstComparer;
         $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel, $this->repoPath ?: null, $criticalTables);
-        $oldSources = $this->fetchOldSources($phpFiles, $fileDiffMap);
 
+        $t = microtime(true);
+        $oldSources = $this->fetchOldSources($phpFiles, $fileDiffMap);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' fetching base sources ('.count($oldSources).' files)');
+
+        $t = microtime(true);
         $fileReports = [];
         foreach ($phpFiles as $node) {
             $filePath = $node['path'];
@@ -504,6 +531,7 @@ class AnalyzeCode
         }
 
         $this->progress('line', '  Analyzed '.count($fileReports).' PHP files.');
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' AST parse + classify');
 
         return [$this->correlateWithMigrations($fileReports, $headContents), $oldSources];
     }
@@ -758,6 +786,7 @@ class AnalyzeCode
 
         $this->progress('info', "Fetching PR #{$prNumber} from {$this->prRepo}...");
 
+        $t = microtime(true);
         $prJson = json_decode(
             trim(shell_exec('gh pr view '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' --json title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName 2>/dev/null') ?? ''),
             true,
@@ -774,11 +803,16 @@ class AnalyzeCode
 
         $this->progress('line', '  Title: '.$prJson['title']);
         $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' gh pr view');
 
+        $t = microtime(true);
         $this->resolveGitObjectsCache(array_column($prJson['files'], 'path'));
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' git objects');
 
         $this->progress('info', 'Fetching diff...');
+        $t = microtime(true);
         $this->diff = trim(shell_exec('gh pr diff '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' 2>/dev/null') ?? '');
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' gh pr diff');
 
         if (! str_contains($this->diff, 'diff --git')) {
             throw new RuntimeException('Failed to fetch PR diff. Make sure `gh` is authenticated.');
@@ -1310,7 +1344,11 @@ class AnalyzeCode
 
         $this->progress('info', 'Running PhpMetrics...');
 
+        $t = microtime(true);
         $metricsBefore = $this->buildBeforePhpMetrics($oldSources);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' base metrics ('.count($metricsBefore).' classes)');
+
+        $t = microtime(true);
         $metricsByFqcn = (new PhpMetricsRunner)->run($headContents);
         $hotSpots = $this->countHotSpots($metricsByFqcn);
         $metricsData = [];
@@ -1327,8 +1365,11 @@ class AnalyzeCode
         }
 
         $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' head metrics');
 
+        $t = microtime(true);
         $metricsData = $this->enrichWithMethodMetrics($metricsData, $headContents, $oldSources);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' method metrics');
 
         return compact('hotSpots', 'metricsData');
     }
@@ -1567,6 +1608,15 @@ class AnalyzeCode
         if ($this->onProgress) {
             ($this->onProgress)($level, $message);
         }
+    }
+
+    private function elapsed(float $start): string
+    {
+        $sec = microtime(true) - $start;
+
+        return $sec >= 1.0
+            ? sprintf('%.2fs', $sec)
+            : sprintf('%dms', (int) round($sec * 1000));
     }
 
     private function matchesWatchPattern(string $path, string $pattern): bool
