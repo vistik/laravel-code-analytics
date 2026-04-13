@@ -230,6 +230,15 @@ class AnalyzeCode
             return ['files' => [], 'risk' => $riskResult, 'content' => $content];
         }
 
+        if ($outputPath !== null && (is_dir($outputPath) || str_ends_with($outputPath, '/'))) {
+            $outputPath = $this->resolveOutputPath($format, $outputPath);
+        } elseif ($outputPath !== null) {
+            $dir = dirname($outputPath);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+        }
+
         $outputPath ??= $this->resolveOutputPath($format);
 
         $reportGenerator->writeFile($outputPath, $content);
@@ -263,9 +272,9 @@ class AnalyzeCode
         return empty($filterDefaults) ? config('laravel-code-analytics.filter_defaults', []) : $filterDefaults;
     }
 
-    private function resolveOutputPath(OutputFormat $format): string
+    private function resolveOutputPath(OutputFormat $format, ?string $outputDir = null): string
     {
-        $outputDir = base_path('output');
+        $outputDir = rtrim($outputDir ?? base_path('output'), '/');
         if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }

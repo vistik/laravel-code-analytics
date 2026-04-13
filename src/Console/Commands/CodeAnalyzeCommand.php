@@ -28,6 +28,7 @@ class CodeAnalyzeCommand extends Command
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
         {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file, full)}
         {--format=html : Output format: html, md, json, metrics, metrics-details, or github}
+        {--output= : Output file or directory path (alternative to the positional output argument)}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--open : Open the generated file in the browser when done}
@@ -42,7 +43,7 @@ class CodeAnalyzeCommand extends Command
             $config = $this->loadConfig();
 
             $repoPath = $this->argument('repo-path') ?? $config['repo_path'] ?? getcwd();
-            $outputPath = $this->argument('output') ?? $config['output'] ?? null;
+            $outputPath = $this->option('output') ?? $this->argument('output') ?? $config['output'] ?? null;
             $baseBranch = $this->option('base') ?? $config['base'] ?? 'main';
             $title = $this->option('title') ?? $config['title'] ?? null;
             $viewString = $this->option('view') ?? $config['view'] ?? null;
