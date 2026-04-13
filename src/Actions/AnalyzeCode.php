@@ -164,7 +164,7 @@ class AnalyzeCode
         $metricsData = array_merge($metricsData, $jsMetricsData);
 
         $fileDiffs = $this->extractFileDiffs();
-        $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs) : [];
+        $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs, $headContents) : [];
 
         $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap);
 
@@ -639,23 +639,30 @@ class AnalyzeCode
         return [$analysisData, $node];
     }
 
-    private function collectFileContents(array $fileDiffs): array
+    private function collectFileContents(array $fileDiffs, array $preloaded = []): array
     {
         $diffPaths = array_keys($fileDiffs);
         if (empty($diffPaths)) {
             return [];
         }
 
+        $toFetch = empty($preloaded)
+            ? $diffPaths
+            : array_values(array_filter($diffPaths, fn ($p) => ! array_key_exists($p, $preloaded)));
+
         if ($this->repoDir !== null) {
-            $rawContents = $this->readFileContentsFromGit($diffPaths);
+            $rawContents = $this->readFileContentsFromGit($toFetch);
         } elseif ($this->readContentsFromCommit) {
-            $rawContents = $this->readFileContentsFromLocalCommit($diffPaths);
+            $rawContents = $this->readFileContentsFromLocalCommit($toFetch);
         } else {
-            $rawContents = $this->collectLocalFileContents($diffPaths);
+            $rawContents = $this->collectLocalFileContents($toFetch);
         }
 
+        $rawContents = array_merge($preloaded, $rawContents);
+
         $fileContents = [];
-        foreach ($rawContents as $path => $content) {
+        foreach ($diffPaths as $path) {
+            $content = $rawContents[$path] ?? null;
             if ($content !== null && strlen($content) <= 500_000) {
                 $fileContents[$path] = $content;
             }
@@ -853,7 +860,7 @@ class AnalyzeCode
     // ── Git helpers ──────────────────────────────────────────────────────────
 
     /**
-     * Read file contents from the bare git clone via a single cat-file --batch pass.
+     * Read file contents from the bare git clone via cat-file --batch, in chunks.
      *
      * @param  list<string>  $paths
      * @return array<string, string|null>
@@ -864,23 +871,38 @@ class AnalyzeCode
             return array_fill_keys($paths, null);
         }
 
-        $stdin = implode("\n", array_map(fn ($p) => "{$this->headCommit}:{$p}", $paths))."\n";
-        $batchOutput = Process::input($stdin)->run("git -C {$this->repoDir} cat-file --batch")->output();
+        $result = [];
+        foreach (array_chunk($paths, 30) as $chunk) {
+            $stdin = implode("\n", array_map(fn ($p) => "{$this->headCommit}:{$p}", $chunk))."\n";
+            $batchOutput = Process::input($stdin)->timeout(300)->run("git -C {$this->repoDir} cat-file --batch")->output();
+            $result = array_merge($result, $this->parseCatFileBatchOutput($batchOutput, $chunk));
+        }
 
-        $headContents = [];
+        return $result;
+    }
+
+    /**
+     * Parse the binary output of `git cat-file --batch` into a path → content map.
+     *
+     * @param  list<string>  $paths
+     * @return array<string, string|null>
+     */
+    private function parseCatFileBatchOutput(string $batchOutput, array $paths): array
+    {
+        $contents = [];
         $pos = 0;
         $len = strlen($batchOutput);
 
         foreach ($paths as $path) {
             if ($pos >= $len) {
-                $headContents[$path] = null;
+                $contents[$path] = null;
 
                 continue;
             }
 
             $nl = strpos($batchOutput, "\n", $pos);
             if ($nl === false) {
-                $headContents[$path] = null;
+                $contents[$path] = null;
                 break;
             }
 
@@ -888,7 +910,7 @@ class AnalyzeCode
             $pos = $nl + 1;
 
             if (str_ends_with($header, ' missing')) {
-                $headContents[$path] = null;
+                $contents[$path] = null;
 
                 continue;
             }
@@ -897,10 +919,10 @@ class AnalyzeCode
             $content = $size > 0 ? substr($batchOutput, $pos, $size) : '';
             $pos += $size + 1;
 
-            $headContents[$path] = $content !== '' ? $content : null;
+            $contents[$path] = $content !== '' ? $content : null;
         }
 
-        return $headContents;
+        return $contents;
     }
 
     private function prefetchBlobs(string $repoDir, string $commit, array $filePaths): void
@@ -1011,43 +1033,14 @@ class AnalyzeCode
             return [];
         }
 
-        $stdin = implode("\n", array_map(fn ($p) => "{$this->headCommit}:{$p}", $paths))."\n";
-        $batchOutput = Process::input($stdin)->run('git -C '.escapeshellarg($this->repoPath).' cat-file --batch')->output();
-
-        $contents = [];
-        $pos = 0;
-        $len = strlen($batchOutput);
-
-        foreach ($paths as $path) {
-            if ($pos >= $len) {
-                $contents[$path] = null;
-
-                continue;
-            }
-
-            $nl = strpos($batchOutput, "\n", $pos);
-            if ($nl === false) {
-                $contents[$path] = null;
-                break;
-            }
-
-            $header = substr($batchOutput, $pos, $nl - $pos);
-            $pos = $nl + 1;
-
-            if (str_ends_with($header, ' missing')) {
-                $contents[$path] = null;
-
-                continue;
-            }
-
-            $size = (int) (explode(' ', $header)[2] ?? 0);
-            $content = $size > 0 ? substr($batchOutput, $pos, $size) : '';
-            $pos += $size + 1;
-
-            $contents[$path] = $content !== '' ? $content : null;
+        $result = [];
+        foreach (array_chunk($paths, 30) as $chunk) {
+            $stdin = implode("\n", array_map(fn ($p) => "{$this->headCommit}:{$p}", $chunk))."\n";
+            $batchOutput = Process::input($stdin)->timeout(300)->run('git -C '.escapeshellarg($this->repoPath).' cat-file --batch')->output();
+            $result = array_merge($result, $this->parseCatFileBatchOutput($batchOutput, $chunk));
         }
 
-        return $contents;
+        return $result;
     }
 
     /**
