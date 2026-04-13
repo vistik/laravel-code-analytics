@@ -162,15 +162,38 @@ class LaravelConsoleRule implements Rule
     }
 
     /**
-     * Check whether a schedule command name appears in a commented-out Schedule:: call in the source.
+     * Check whether a schedule identifier appears in a commented-out Schedule:: call in the source.
+     * Handles both command('name') style and job(ClassName::class) style.
      */
-    private function isScheduleCommentedOut(string $command, string $source): bool
+    private function isScheduleCommentedOut(string $identifier, string $source): bool
     {
-        // Match lines like: // Schedule::command('cmd') or // $schedule->command('cmd')
-        $quotedCommand = preg_quote($command, '/');
-        $pattern = '/^\s*\/\/.*(?:Schedule::command|\$schedule->command)\s*\(\s*[\'"]'.$quotedCommand.'[\'"]/m';
+        $quoted = preg_quote($identifier, '/');
 
-        return (bool) preg_match($pattern, $source);
+        // Match: // Schedule::command('identifier') or // $schedule->command('identifier')
+        $commandPattern = '/^\s*\/\/.*(?:Schedule::command|\$schedule->command)\s*\(\s*[\'"]'.$quoted.'[\'"]/m';
+        if (preg_match($commandPattern, $source)) {
+            return true;
+        }
+
+        // Match: // Schedule::job(ClassName::class) or // $schedule->job(ClassName::class)
+        $jobPattern = '/^\s*\/\/.*(?:Schedule::job|\$schedule->job)\s*\(\s*'.$quoted.'::class/m';
+
+        return (bool) preg_match($jobPattern, $source);
+    }
+
+    /**
+     * Get the first class-constant argument from a method/static call, e.g. MyJob::class → 'MyJob'.
+     */
+    private function getFirstClassArg(Expr\StaticCall|Expr\MethodCall $call): ?string
+    {
+        if (isset($call->args[0]) && $call->args[0] instanceof Node\Arg) {
+            $value = $call->args[0]->value;
+            if ($value instanceof Expr\ClassConstFetch && $value->class instanceof Node\Name) {
+                return $value->class->getLast();
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -193,13 +216,13 @@ class LaravelConsoleRule implements Rule
             }
         }
 
-        // $schedule->command() style
+        // $schedule->command() / $schedule->job() style
         $methodCalls = $this->finder->findInstanceOf($nodes, Expr\MethodCall::class);
         foreach ($methodCalls as $call) {
             if ($call->var instanceof Expr\Variable
                 && $call->var->name === 'schedule'
                 && $call->name instanceof Node\Identifier
-                && $call->name->toString() === 'command') {
+                && in_array($call->name->toString(), ['command', 'job'], true)) {
                 $calls[] = $call;
             }
         }
@@ -216,7 +239,7 @@ class LaravelConsoleRule implements Rule
         $indexed = [];
 
         foreach ($calls as $call) {
-            $command = $this->getFirstStringArg($call) ?? 'unknown';
+            $command = $this->getFirstStringArg($call) ?? $this->getFirstClassArg($call) ?? 'unknown';
             $indexed[$command] = $call;
         }
 
