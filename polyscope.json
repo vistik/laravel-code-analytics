@@ -30,6 +30,10 @@
                 "command": "./testbench code:analyze --format=json --open"
             },
             {
+                "label": "Analyze code [Mega PR] (--format=html --full-files)",
+                "command": "./testbench code:analyze --open --base=production --pr=https://github.com/laravel/cloud/pull/4574 --format=html --full-files"
+            },
+            {
                 "label": "Analyze code [Big PR] (--format=html)",
                 "command": "./testbench code:analyze --open --pr=https://github.com/laravel/cloud/pull/4604 --format=html"
             },
