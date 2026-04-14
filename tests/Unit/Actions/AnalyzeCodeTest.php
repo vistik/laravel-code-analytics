@@ -4,6 +4,7 @@ use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
+use Vistik\LaravelCodeAnalytics\FileSignal\FileSignalScoring;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
@@ -1014,6 +1015,135 @@ describe('execute — minSeverity filter', function () {
         removeTempDir($dir);
 
         expect($result['risk'])->toBeInstanceOf(RiskScore::class);
+    });
+});
+
+// ── computeSignalScores (PR connection boost) ─────────────────────────────────
+
+/**
+ * Create an AnalyzeCode instance with a stub scorer that always returns the
+ * given base score, inject edges via reflection, then invoke computeSignalScores.
+ */
+function computeSignalScoresWithEdges(array $nodes, array $edges, int $baseScore = 0): array
+{
+    $scorer = new class($baseScore) implements FileSignalScoring
+    {
+        public function __construct(private int $base) {}
+
+        public function calculate(array $node, array $findings, ?array $metrics): int
+        {
+            return $this->base;
+        }
+    };
+
+    $obj = new AnalyzeCode(fileSignalScorer: $scorer);
+
+    $edgesProp = new ReflectionProperty($obj, 'edges');
+    $edgesProp->setAccessible(true);
+    $edgesProp->setValue($obj, $edges);
+
+    $method = new ReflectionMethod($obj, 'computeSignalScores');
+    $method->setAccessible(true);
+
+    return $method->invoke($obj, $nodes, [], []);
+}
+
+function makeSignalNode(string $id, bool $isConnected = false): array
+{
+    return [
+        'id' => $id,
+        'path' => "app/{$id}.php",
+        'add' => 0,
+        'del' => 0,
+        'isConnected' => $isConnected,
+    ];
+}
+
+describe('computeSignalScores — PR connection boost', function () {
+    it('adds no connection boost when there are no edges', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar')];
+        $result = computeSignalScoresWithEdges($nodes, []);
+
+        expect($result[0])->not->toHaveKey('_connectionBoost')
+            ->and($result[1])->not->toHaveKey('_connectionBoost');
+    });
+
+    it('adds no connection boost when the only edge links to an external connected node', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('External', isConnected: true)];
+        $result = computeSignalScoresWithEdges($nodes, [['Foo', 'External', 'use']]);
+
+        expect($result[0])->not->toHaveKey('_connectionBoost');
+    });
+
+    it('boosts both ends of an edge between two changed files', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar')];
+        $result = computeSignalScoresWithEdges($nodes, [['Foo', 'Bar', 'use']]);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['Foo']['_connectionBoost'])->toBe(5)
+            ->and($byId['Bar']['_connectionBoost'])->toBe(5);
+    });
+
+    it('accumulates boost for multiple connections', function () {
+        $nodes = [makeSignalNode('A'), makeSignalNode('B'), makeSignalNode('C'), makeSignalNode('D')];
+        $edges = [['A', 'B', 'use'], ['A', 'C', 'use'], ['A', 'D', 'use']];
+        $result = computeSignalScoresWithEdges($nodes, $edges);
+
+        $byId = array_column($result, null, 'id');
+        // A has 3 outgoing edges → 3 × 5 = 15
+        expect($byId['A']['_connectionBoost'])->toBe(15)
+            ->and($byId['A']['_connections'])->toBe(3);
+    });
+
+    it('stores the connection count on the node', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar'), makeSignalNode('Baz')];
+        $edges = [['Foo', 'Bar', 'use'], ['Foo', 'Baz', 'use']];
+        $result = computeSignalScoresWithEdges($nodes, $edges);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['Foo']['_connections'])->toBe(2);
+    });
+
+    it('adds the connection boost on top of the base signal', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar')];
+        $result = computeSignalScoresWithEdges($nodes, [['Foo', 'Bar', 'use']], baseScore: 20);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['Foo']['_signal'])->toBe(25); // 20 base + 5 boost
+    });
+
+    it('respects a custom multiplier from config', function () {
+        config(['laravel-code-analytics.file_signal.pr_connections.multiplier' => 10]);
+
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar')];
+        $result = computeSignalScoresWithEdges($nodes, [['Foo', 'Bar', 'use']]);
+
+        config(['laravel-code-analytics.file_signal.pr_connections.multiplier' => 5]);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['Foo']['_connectionBoost'])->toBe(10);
+    });
+
+    it('does not count edges where one end is a connected node', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar'), makeSignalNode('External', isConnected: true)];
+        $edges = [['Foo', 'Bar', 'use'], ['Bar', 'External', 'use']];
+        $result = computeSignalScoresWithEdges($nodes, $edges);
+
+        $byId = array_column($result, null, 'id');
+        // Bar→External should not be counted; Bar only gets credit for Foo→Bar
+        expect($byId['Bar']['_connections'])->toBe(1)
+            ->and($byId['Bar']['_connectionBoost'])->toBe(5);
+    });
+
+    it('counts both incoming and outgoing edges', function () {
+        // A → B, C → A: A has 1 in + 1 out = 2 connections
+        $nodes = [makeSignalNode('A'), makeSignalNode('B'), makeSignalNode('C')];
+        $edges = [['A', 'B', 'use'], ['C', 'A', 'use']];
+        $result = computeSignalScoresWithEdges($nodes, $edges);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['A']['_connections'])->toBe(2)
+            ->and($byId['A']['_connectionBoost'])->toBe(10);
     });
 });
 

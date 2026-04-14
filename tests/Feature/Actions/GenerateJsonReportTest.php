@@ -4,7 +4,7 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
-function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null): array
+function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null): array
 {
     return [
         'path' => $path,
@@ -16,6 +16,8 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
         'cycleId' => $cycleId,
         'cycleColor' => $cycleId !== null ? '#f0883e' : null,
         '_cycleBoost' => $cycleBoost,
+        '_connectionBoost' => $connectionBoost,
+        '_connections' => $connections,
         'veryHighCount' => 0, 'highCount' => 0, 'mediumCount' => 0, 'lowCount' => 0, 'infoCount' => 0, 'analysisCount' => 0,
     ];
 }
@@ -112,4 +114,30 @@ test('file entry severity is null for non-cycle files with no findings', functio
     $data = generateJson([makeJsonNode('app/Bar.php')]);
 
     expect($data['files'][0]['severity'])->toBeNull();
+});
+
+// ── connection_boost field ────────────────────────────────────────────────────
+
+test('file entry connection_boost is null when node has no connection boost', function () {
+    $data = generateJson([makeJsonNode('app/Bar.php')]);
+
+    expect($data['files'][0]['connection_boost'])->toBeNull();
+});
+
+test('file entry connection_boost reflects the stored boost value', function () {
+    $data = generateJson([makeJsonNode('app/Foo.php', connectionBoost: 15, connections: 3)]);
+
+    expect($data['files'][0]['connection_boost'])->toBe(15);
+});
+
+test('files are sorted by signal descending when connection boosts differ', function () {
+    $data = generateJson([
+        makeJsonNode('app/Low.php', signal: 10),
+        makeJsonNode('app/High.php', signal: 25, connectionBoost: 15, connections: 3),
+        makeJsonNode('app/Mid.php', signal: 20, connectionBoost: 5, connections: 1),
+    ]);
+
+    expect($data['files'][0]['path'])->toBe('app/High.php')
+        ->and($data['files'][1]['path'])->toBe('app/Mid.php')
+        ->and($data['files'][2]['path'])->toBe('app/Low.php');
 });
