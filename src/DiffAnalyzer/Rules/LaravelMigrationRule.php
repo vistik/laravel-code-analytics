@@ -81,28 +81,28 @@ class LaravelMigrationRule implements Rule
 
             match ($methodName) {
                 'create' => $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: Severity::MEDIUM,
                     description: "Migration creates table{$tableInfo}",
                     location: $key,
                     line: $call->getStartLine(),
                 ),
                 'drop', 'dropIfExists' => $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: Severity::VERY_HIGH,
                     description: "Migration drops table{$tableInfo}",
                     location: $key,
                     line: $call->getStartLine(),
                 ),
                 'table' => $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: $this->isCriticalTable($tableName) ? Severity::VERY_HIGH : Severity::HIGH,
                     description: 'Migration modifies table'.$tableInfo.($this->isCriticalTable($tableName) ? ' (critical table — high lock risk)' : ''),
                     location: $key,
                     line: $call->getStartLine(),
                 ),
                 'rename' => $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: Severity::VERY_HIGH,
                     description: "Migration renames table{$tableInfo}",
                     location: $key,
@@ -120,7 +120,7 @@ class LaravelMigrationRule implements Rule
     {
         foreach ($this->findMethodCallsByName($method, 'dropColumn') as $call) {
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::VERY_HIGH,
                 description: 'Migration drops column',
                 location: $key,
@@ -130,7 +130,7 @@ class LaravelMigrationRule implements Rule
 
         foreach ($this->findMethodCallsByName($method, 'dropColumns') as $call) {
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::VERY_HIGH,
                 description: 'Migration drops columns',
                 location: $key,
@@ -140,7 +140,7 @@ class LaravelMigrationRule implements Rule
 
         foreach ($this->findMethodCallsByName($method, 'renameColumn') as $call) {
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::VERY_HIGH,
                 description: 'Migration renames column',
                 location: $key,
@@ -150,7 +150,7 @@ class LaravelMigrationRule implements Rule
 
         foreach ($this->findMethodCallsByName($method, 'change') as $call) {
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::MEDIUM,
                 description: 'Migration modifies column',
                 location: $key,
@@ -166,7 +166,7 @@ class LaravelMigrationRule implements Rule
         foreach ($indexMethods as $indexMethod) {
             if (in_array($indexMethod, $methodCalls, true)) {
                 $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: Severity::INFO,
                     description: "Migration adds {$indexMethod} index",
                     location: $key,
@@ -177,7 +177,7 @@ class LaravelMigrationRule implements Rule
         foreach ($dropIndexMethods as $dropMethod) {
             if (in_array($dropMethod, $methodCalls, true)) {
                 $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: Severity::MEDIUM,
                     description: "Migration removes index ({$dropMethod})",
                     location: $key,
@@ -187,7 +187,7 @@ class LaravelMigrationRule implements Rule
 
         if (in_array('foreign', $methodCalls, true)) {
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::MEDIUM,
                 description: 'Migration adds foreign key',
                 location: $key,
@@ -196,7 +196,7 @@ class LaravelMigrationRule implements Rule
 
         if (in_array('dropForeign', $methodCalls, true)) {
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::MEDIUM,
                 description: 'Migration drops foreign key',
                 location: $key,
@@ -208,7 +208,7 @@ class LaravelMigrationRule implements Rule
             $name = $call->name instanceof Node\Identifier ? $call->name->toString() : '';
             if (in_array($name, self::COLUMN_METHODS, true)) {
                 $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: Severity::INFO,
                     description: "Migration adds column ({$name})",
                     location: $key,

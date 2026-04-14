@@ -35,7 +35,7 @@ it('flags index addition on existing table as high', function () use ($migration
 
     expect($hit)->not->toBeNull()
         ->and($hit->severity)->toBe(Severity::HIGH)
-        ->and($hit->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($hit->category)->toBe(ChangeCategory::LARAVEL_MIGRATION)
         ->and($hit->description)->toContain('index')
         ->and($hit->description)->toContain('products');
 });

@@ -112,7 +112,7 @@ class LaravelTableMigrationRule implements Rule
                 if ($isExistingTable) {
                     $criticalNote = $isCriticalTable ? ' (critical table — high lock risk)' : '';
                     $changes[] = new ClassifiedChange(
-                        category: ChangeCategory::LARAVEL,
+                        category: ChangeCategory::LARAVEL_MIGRATION,
                         severity: $isCriticalTable ? Severity::VERY_HIGH : Severity::HIGH,
                         description: "Adds {$indexMethod} index to existing table{$tableLabel}{$criticalNote} — may lock table during migration",
                         location: $key,
@@ -120,7 +120,7 @@ class LaravelTableMigrationRule implements Rule
                     );
                 } else {
                     $changes[] = new ClassifiedChange(
-                        category: ChangeCategory::LARAVEL,
+                        category: ChangeCategory::LARAVEL_MIGRATION,
                         severity: Severity::INFO,
                         description: "Adds {$indexMethod} index to new table{$tableLabel}",
                         location: $key,
@@ -145,7 +145,7 @@ class LaravelTableMigrationRule implements Rule
             foreach ($this->findMethodCallsByName($closure, $dropMethod) as $call) {
                 $criticalNote = $isCriticalTable ? ' (critical table)' : '';
                 $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
+                    category: ChangeCategory::LARAVEL_MIGRATION,
                     severity: $isCriticalTable ? Severity::VERY_HIGH : Severity::HIGH,
                     description: "Removes index ({$dropMethod}) from table{$tableLabel}{$criticalNote} — may break queries using that index",
                     location: $key,
