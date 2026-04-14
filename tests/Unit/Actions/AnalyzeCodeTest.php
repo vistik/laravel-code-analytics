@@ -521,6 +521,47 @@ describe('execute — no diff', function () {
     });
 });
 
+// ── execute — uncommitted changes cancel branch commits ───────────────────────
+
+describe('execute — uncommitted changes cancel branch commits', function () {
+    it('falls back to HEAD diff and produces a report when uncommitted changes cancel the branch diff vs base', function () {
+        $dir = makeTempGitRepo(); // main: README.md committed
+
+        // Create a feature branch and commit a new file there (main stays at initial commit)
+        shell_exec("git -C {$dir} checkout -b feature 2>&1");
+        file_put_contents("{$dir}/new-file.php", '<?php class Foo {}');
+        shell_exec("git -C {$dir} add new-file.php 2>&1");
+        shell_exec("git -C {$dir} commit -m 'add new-file' 2>&1");
+
+        // Undo the file in the working tree (unstaged delete):
+        //   git diff main  → empty   (working tree matches main)
+        //   git status     → " D new-file.php"
+        //   git diff HEAD  → shows deletion
+        unlink("{$dir}/new-file.php");
+
+        $messages = [];
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $warnText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'warn')->pluck(1)->all());
+        $lineText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'line')->pluck(1)->all());
+
+        // In raw mode, files is always [] but content is set when a report was generated
+        expect($result)->toHaveKey('content')
+            ->and($warnText)->toContain('No net changes between working tree and main')
+            ->and($lineText)->toContain('(uncommitted only)');
+    });
+});
+
 // ── execute — progress callback ───────────────────────────────────────────────
 
 describe('execute — progress callback', function () {
