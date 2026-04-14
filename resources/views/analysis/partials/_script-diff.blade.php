@@ -136,6 +136,51 @@ function scrollToComplexity() {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function diffGroupStarts() {
+  var rows = Array.from(document.querySelectorAll('.diff-table.full tr'));
+  var starts = [];
+  for (var i = 0; i < rows.length; i++) {
+    var isDiff = !!rows[i].querySelector('.diff-add, .diff-del');
+    var prevIsDiff = i > 0 && !!rows[i - 1].querySelector('.diff-add, .diff-del');
+    if (isDiff && !prevIsDiff) starts.push(rows[i]);
+  }
+  return starts;
+}
+
+function scrollToNextDiff() {
+  var starts = diffGroupStarts();
+  if (!starts.length) return;
+  var panelBody = document.getElementById('panel-body');
+  var panelRect = panelBody ? panelBody.getBoundingClientRect() : document.documentElement.getBoundingClientRect();
+  var center = panelRect.top + panelRect.height / 2;
+  var next = null;
+  for (var i = 0; i < starts.length; i++) {
+    if (starts[i].getBoundingClientRect().top > center + 10) { next = starts[i]; break; }
+  }
+  scrollToDiffRow(next || starts[0]); // wrap to first
+}
+
+function scrollToPrevDiff() {
+  var starts = diffGroupStarts();
+  if (!starts.length) return;
+  var panelBody = document.getElementById('panel-body');
+  var panelRect = panelBody ? panelBody.getBoundingClientRect() : document.documentElement.getBoundingClientRect();
+  var center = panelRect.top + panelRect.height / 2;
+  var prev = null;
+  for (var i = starts.length - 1; i >= 0; i--) {
+    if (starts[i].getBoundingClientRect().top < center - 10) { prev = starts[i]; break; }
+  }
+  scrollToDiffRow(prev || starts[starts.length - 1]); // wrap to last
+}
+
+function updateDiffNav() {
+  var nav = document.getElementById('diff-nav');
+  if (!nav) return;
+  var table = document.querySelector('.diff-table.full');
+  var hasDiffs = !!(table && table.querySelector('.diff-add, .diff-del'));
+  nav.classList.toggle('visible', diffViewMode === 'full' && hasDiffs);
+}
+
 function scrollToDiffRow(target, instant) {
   if (!target) return;
   document.querySelectorAll('.diff-table tr.diff-highlight').forEach(function(r) { r.classList.remove('diff-highlight'); });
