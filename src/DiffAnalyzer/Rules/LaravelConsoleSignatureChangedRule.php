@@ -69,6 +69,30 @@ class LaravelConsoleSignatureChangedRule implements Rule
                 location: $key,
                 line: $pair['new']->getStartLine(),
             );
+
+            if ($oldCommandName !== '') {
+                $callers = $this->findArtisanCallers($oldCommandName);
+
+                if ($callers['code'] !== []) {
+                    $changes[] = new ClassifiedChange(
+                        category: ChangeCategory::LARAVEL,
+                        severity: Severity::VERY_HIGH,
+                        description: "Artisan command '{$oldCommandName}' is called in production code: ".implode(', ', $callers['code']),
+                        location: $key,
+                        line: $pair['new']->getStartLine(),
+                    );
+                }
+
+                if ($callers['tests'] !== []) {
+                    $changes[] = new ClassifiedChange(
+                        category: ChangeCategory::LARAVEL,
+                        severity: Severity::MEDIUM,
+                        description: "Artisan command '{$oldCommandName}' is called in tests: ".implode(', ', $callers['tests']),
+                        location: $key,
+                        line: $pair['new']->getStartLine(),
+                    );
+                }
+            }
         }
 
         return $changes;
@@ -94,5 +118,91 @@ class LaravelConsoleSignatureChangedRule implements Rule
         $content = (string) file_get_contents($consolePath);
 
         return str_contains($content, "'{$commandName}'") || str_contains($content, "\"{$commandName}\"");
+    }
+
+    /**
+     * Find files that call the given artisan command by name via:
+     * - $this->artisan('cmd') — test helper
+     * - Artisan::call('cmd') or Artisan::queue('cmd') — production/queue code
+     *
+     * Returns two lists: ['tests' => [...paths], 'code' => [...paths]]
+     *
+     * @return array{tests: list<string>, code: list<string>}
+     */
+    private function findArtisanCallers(string $commandName): array
+    {
+        if ($this->repoPath === null) {
+            return ['tests' => [], 'code' => []];
+        }
+
+        $quoted = preg_quote($commandName, '/');
+        $artisanFacadePattern = '/Artisan::\w+\s*\(\s*[\'"]'.$quoted.'[\'"]/';
+        $artisanMethodPattern = '/->artisan\s*\(\s*[\'"]'.$quoted.'[\'"]/';
+
+        $tests = [];
+        $code = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->repoPath, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if (! $file instanceof \SplFileInfo || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $filePath = $file->getPathname();
+
+            // Skip vendor directory
+            if (str_contains($filePath, '/vendor/')) {
+                continue;
+            }
+
+            $content = (string) file_get_contents($filePath);
+            $relativePath = ltrim(str_replace($this->repoPath, '', $filePath), '/');
+            $isTestFile = str_starts_with($relativePath, 'tests/') || str_contains($relativePath, 'Test.php');
+
+            // Artisan::call / Artisan::queue — unambiguous, always counts
+            if (preg_match($artisanFacadePattern, $content)) {
+                if ($isTestFile) {
+                    $tests[] = $relativePath;
+                } else {
+                    $code[] = $relativePath;
+                }
+
+                continue;
+            }
+
+            // ->artisan() — only counts in Laravel test files (InteractsWithConsole trait or TestCase / Pest)
+            if (preg_match($artisanMethodPattern, $content) && $isTestFile && $this->isLaravelTestFile($content)) {
+                $tests[] = $relativePath;
+            }
+        }
+
+        return ['tests' => $tests, 'code' => $code];
+    }
+
+    /**
+     * Check whether a file is a Laravel test that uses the InteractsWithConsole trait
+     * (which provides $this->artisan()), either directly, via TestCase, or via Pest.
+     */
+    private function isLaravelTestFile(string $content): bool
+    {
+        // Uses the trait directly
+        if (str_contains($content, 'InteractsWithConsole')) {
+            return true;
+        }
+
+        // Extends TestCase (PHPUnit-style Laravel test)
+        if (preg_match('/extends\s+\\\\?[\w\\\\]*TestCase\b/', $content)) {
+            return true;
+        }
+
+        // Pest-style test file — uses() binds the TestCase which includes the trait
+        if (preg_match('/\b(?:uses|it|test)\s*\(/', $content)) {
+            return true;
+        }
+
+        return false;
     }
 }
