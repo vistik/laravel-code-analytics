@@ -56,7 +56,13 @@ function highlightPHP(code, linkMap, classMap, ifaceIndex) {
           while (pi >= 0 && tokens[pi].type === 'plain') pi--;
           var prevKeyword = pi >= 0 ? tokens[pi] : null;
           var isDefinition = prevKeyword && prevKeyword.type === 'keyword' && prevKeyword.text === 'function';
-          if (!isDefinition) { tokens.push({type: 'method_link', text: word, targetId: linkMap[word]}); i = j; continue; }
+          if (!isDefinition) {
+            // If preceded by a class_link (ClassName::method), use the class node as the
+            // target rather than the linkMap entry. This prevents self-referential links
+            // when the current class also defines a method with the same name.
+            var targetId = (prevKeyword && prevKeyword.type === 'class_link') ? prevKeyword.targetId : linkMap[word];
+            tokens.push({type: 'method_link', text: word, targetId: targetId}); i = j; continue;
+          }
         }
       }
       // Detect class reference link: UpperCamelCase word in classMap.

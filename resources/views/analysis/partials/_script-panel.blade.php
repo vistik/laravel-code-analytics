@@ -330,8 +330,8 @@ function openPanel(n) {
       if (rawDiffForMethods) {
         var tmpNl = 0;
         rawDiffForMethods.split('\n').forEach(function(dl) {
-          if (dl.startsWith('@@@@')) {
-            var dhm = dl.match(/@@@@ -\d+(?:,\d+)? \+(\d+)/);
+          if (dl.startsWith('@@')) {
+            var dhm = dl.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
             if (dhm) tmpNl = parseInt(dhm[1]);
           } else if (dl.startsWith('+')) { addedNewLines.add(tmpNl++); }
           else if (dl.startsWith('-')) { /* deleted – no new line */ }
