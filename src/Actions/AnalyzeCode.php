@@ -230,8 +230,10 @@ class AnalyzeCode
                 $this->progress('timing', '  ↳ '.$this->elapsed($t).' prefetching '.count($connectedPaths).' connected node blobs');
                 $t = microtime(true);
             }
-            $fileContents = array_merge($fileContents, $this->loadConnectedNodeContents($connectedPaths));
+            $connectedContents = $this->loadConnectedNodeContents($connectedPaths);
+            $fileContents = array_merge($fileContents, $connectedContents);
             $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading connected node contents');
+            $nodes = $this->enrichNodesWithKind($nodes, $connectedContents);
         }
 
         $t = microtime(true);
