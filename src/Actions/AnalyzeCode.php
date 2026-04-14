@@ -9,6 +9,7 @@ use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\BladeDependencyRule;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\ViewFileDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\DiffParser;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
@@ -26,6 +27,9 @@ use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
+use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
+use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectType;
+use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectTypeDetector;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
 use Vistik\LaravelCodeAnalytics\Support\JsMetricsRunner;
 use Vistik\LaravelCodeAnalytics\Support\PhpDependencyExtractor;
@@ -49,7 +53,7 @@ class AnalyzeCode
 
     private string $diff;
 
-    private bool $isLaravel;
+    private ProjectType $projectType = ProjectType::Unknown;
 
     /** Bare-clone path when analyzing a remote GitHub PR (null in local mode) */
     private ?string $repoDir = null;
@@ -88,11 +92,14 @@ class AnalyzeCode
 
     private float $analyzeStart = 0.0;
 
+    private bool $groupResolverIsDefault;
+
     public function __construct(
-        private readonly FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
+        private FileGroupResolver $groupResolver = new PatternBasedGroupResolver,
         ?RiskScoring $riskScorer = null,
         ?FileSignalScoring $fileSignalScorer = null,
     ) {
+        $this->groupResolverIsDefault = $this->groupResolver instanceof PatternBasedGroupResolver;
         $this->riskScorer = $riskScorer ?? new CalculateRiskScore;
         $this->fileSignalScorer = $fileSignalScorer ?? new CalculateFileSignal;
     }
@@ -249,6 +256,7 @@ class AnalyzeCode
 
         $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
         $content = $reportGenerator->generate(
+            layerStack: LayerStack::fromConfig($this->projectType),
             payload: new GraphPayload(
                 nodes: $nodes,
                 edges: $this->edges,
@@ -572,7 +580,7 @@ class AnalyzeCode
         $this->progress('info', 'Running AST analysis...');
 
         $astComparer = new AstComparer;
-        $changeClassifier = new ChangeClassifier($astComparer, $this->isLaravel, $this->repoPath ?: null, $criticalTables);
+        $changeClassifier = new ChangeClassifier($astComparer, $this->projectType, $this->repoPath ?: null, $criticalTables);
 
         $t = microtime(true);
         $oldSources = $this->fetchOldSources($phpFiles, $fileDiffMap);
@@ -601,7 +609,7 @@ class AnalyzeCode
 
     private function correlateWithMigrations(array $fileReports, array $headContents): array
     {
-        if (! $this->isLaravel) {
+        if ($this->projectType !== ProjectType::LaravelApp) {
             return $fileReports;
         }
 
@@ -943,7 +951,6 @@ class AnalyzeCode
         $this->headCommit = $prJson['headRefOid'] ?? '';
         $this->baseCommit = $prJson['baseRefOid'] ?? '';
         $this->branchName = "PR #{$prNumber}";
-        $this->isLaravel = false;
 
         $this->progress('line', '  Title: '.$prJson['title']);
         $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
@@ -1021,8 +1028,8 @@ class AnalyzeCode
         }
 
         if ($this->repoDir !== null) {
-            $artisanType = trim(shell_exec("git -C {$this->repoDir} cat-file -t {$this->headCommit}:artisan 2>/dev/null") ?? '');
-            $this->isLaravel = $artisanType === 'blob';
+            $this->projectType = (new ProjectTypeDetector)->fromGit($this->repoDir, $this->headCommit);
+            $this->applyProjectTypeGroupResolver();
         }
     }
 
@@ -1183,7 +1190,8 @@ class AnalyzeCode
         $this->baseCommit = $resolvedFrom;
         $this->headCommit = $resolvedTo;
         $this->branchName = trim(shell_exec('git -C '.escapeshellarg($this->repoPath).' rev-parse --abbrev-ref HEAD 2>/dev/null') ?? 'HEAD');
-        $this->isLaravel = file_exists("{$this->repoPath}/artisan");
+        $this->projectType = (new ProjectTypeDetector)->fromFilesystem($this->repoPath);
+        $this->applyProjectTypeGroupResolver();
         $this->readContentsFromCommit = true;
 
         $repoName = basename($this->repoPath);
@@ -1279,7 +1287,8 @@ class AnalyzeCode
 
         $remoteUrl = trim(shell_exec("git -C {$this->repoPath} remote get-url origin 2>/dev/null") ?? '');
         $repoName = $this->resolveRepoName($remoteUrl);
-        $this->isLaravel = file_exists("{$this->repoPath}/artisan");
+        $this->projectType = (new ProjectTypeDetector)->fromFilesystem($this->repoPath);
+        $this->applyProjectTypeGroupResolver();
 
         if ($full) {
             return $this->initAllFilesMode($repoName, $title);
@@ -1295,6 +1304,19 @@ class AnalyzeCode
         }
 
         return basename($this->repoPath);
+    }
+
+    private function applyProjectTypeGroupResolver(): void
+    {
+        if (! $this->groupResolverIsDefault) {
+            return;
+        }
+
+        $patterns = config('laravel-code-analytics.file_group_patterns.'.$this->projectType->value);
+
+        if (is_array($patterns) && ! empty($patterns)) {
+            $this->groupResolver = new ArrayFileGroupResolver($patterns);
+        }
     }
 
     private function initAllFilesMode(string $repoName, ?string $title): array

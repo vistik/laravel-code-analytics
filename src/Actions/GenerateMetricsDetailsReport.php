@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
@@ -13,8 +14,9 @@ class GenerateMetricsDetailsReport extends GenerateMetricsReport implements Repo
         GraphPayload $payload,
         PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
+        ?LayerStack $layerStack = null,
     ): string {
-        $output = parent::generate($payload, $pr, $defaultView);
+        $output = parent::generate($payload, $pr, $defaultView, $layerStack);
         $metricsData = $payload->metricsData;
 
         if (empty($metricsData)) {

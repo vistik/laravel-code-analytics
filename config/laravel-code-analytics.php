@@ -1,10 +1,154 @@
 <?php
 
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\AssignmentRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\AttributeRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ClassStructureRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ConstructorInjectionRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ControlFlowRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\CosmeticRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\DateTimeRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\DependencyRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\EnumRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ErrorHandlingRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\FileLevelRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ImportRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelApiResourceRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelAuthRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelCacheRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigDependencyRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentAddedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentDefaultChangedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentRemovedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleSignatureChangedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDataMigrationRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDbFacadeRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEloquentRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEnvironmentRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelLivewireRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelMigrationRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelNotificationRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelQueueRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRedirectRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRouteRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelServiceContainerRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelTableMigrationRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelUnauthorizedRouteRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MagicMethodRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodAddedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodChangedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRemovedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRenamedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodSignatureRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\OperatorRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\SideEffectRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\StrictTypesRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\TypeSystemRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ValueRule;
 use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
 use Vistik\LaravelCodeAnalytics\Renderers\CakeLayer;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
+use Vistik\LaravelCodeAnalytics\Support\Detection\LaravelAppDetector;
+use Vistik\LaravelCodeAnalytics\Support\Detection\LaravelPackageDetector;
+use Vistik\LaravelCodeAnalytics\Support\Detection\PhpPackageDetector;
+use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectType;
 
 return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Project Type Detectors
+    |--------------------------------------------------------------------------
+    |
+    | Ordered list of detectors used to determine the project type of the
+    | repository being analysed. The first detector that returns true wins.
+    | Each entry maps a Detector class to the ProjectType it represents.
+    |
+    | You may remove, reorder, or add your own detectors here. Every
+    | detector must implement the Detector interface.
+    |
+    */
+
+    'detectors' => [
+        LaravelAppDetector::class => ProjectType::LaravelApp,
+        LaravelPackageDetector::class => ProjectType::LaravelPackage,
+        PhpPackageDetector::class => ProjectType::PhpPackage,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Analysis Rules
+    |--------------------------------------------------------------------------
+    |
+    | Rules are grouped by project type. "generic" rules run for every project.
+    | Additional rules are loaded based on the detected project type using the
+    | ProjectType enum case name as key (e.g. "LaravelApp", "LaravelPackage").
+    |
+    | Each entry is a Rule class name. Constructor dependencies (AstComparer,
+    | criticalTables, repoPath) are injected automatically.
+    |
+    | You may add, remove, or reorder rules per group.
+    |
+    */
+
+    'rules' => [
+        'generic' => [
+            FileLevelRule::class,
+            DependencyRule::class,
+            CosmeticRule::class,
+            ImportRule::class,
+            StrictTypesRule::class,
+            TypeSystemRule::class,
+            MethodAddedRule::class,
+            MethodChangedRule::class,
+            MethodRemovedRule::class,
+            MethodRenamedRule::class,
+            MethodSignatureRule::class,
+            ConstructorInjectionRule::class,
+            ClassStructureRule::class,
+            EnumRule::class,
+            AttributeRule::class,
+            MagicMethodRule::class,
+            ControlFlowRule::class,
+            OperatorRule::class,
+            ValueRule::class,
+            SideEffectRule::class,
+            ErrorHandlingRule::class,
+            AssignmentRule::class,
+            DateTimeRule::class,
+        ],
+
+        ProjectType::LaravelApp->value => [
+            LaravelMigrationRule::class,
+            LaravelTableMigrationRule::class,
+            LaravelDataMigrationRule::class,
+            LaravelRouteRule::class,
+            LaravelUnauthorizedRouteRule::class,
+            LaravelEloquentRule::class,
+            LaravelAuthRule::class,
+            LaravelQueueRule::class,
+            LaravelRedirectRule::class,
+            LaravelNotificationRule::class,
+            LaravelServiceContainerRule::class,
+            LaravelConfigRule::class,
+            LaravelConfigDependencyRule::class,
+            LaravelApiResourceRule::class,
+            LaravelLivewireRule::class,
+            LaravelConsoleRule::class,
+            LaravelConsoleSignatureChangedRule::class,
+            LaravelConsoleArgumentAddedRule::class,
+            LaravelConsoleArgumentRemovedRule::class,
+            LaravelConsoleArgumentDefaultChangedRule::class,
+            LaravelEnvironmentRule::class,
+            LaravelCacheRule::class,
+            LaravelDbFacadeRule::class,
+        ],
+
+        ProjectType::LaravelPackage->value => [
+            // Laravel package-specific rules go here
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -184,6 +328,82 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | File Group Patterns (per project type)
+    |--------------------------------------------------------------------------
+    |
+    | Maps FileGroup names to regex patterns for each detected project type.
+    | The outer key is a ProjectType enum case name (LaravelApp, LaravelPackage,
+    | PhpPackage). The inner keys are FileGroup values, and the values are arrays
+    | of regex patterns — first match wins, groups are checked in definition order.
+    |
+    | When a project type is detected, its pattern set is used automatically.
+    | If no entry exists for the detected type the built-in defaults apply.
+    |
+    */
+
+    'file_group_patterns' => [
+
+        ProjectType::LaravelApp->value => [
+            FileGroup::TEST->value       => ['^tests/'],
+            FileGroup::DB->value         => ['^database/'],
+            FileGroup::NOVA->value       => ['Nova/'],
+            FileGroup::MODEL->value      => ['^app/Models/'],
+            FileGroup::ACTION->value     => ['^app/Actions/'],
+            FileGroup::JOB->value        => ['^app/Jobs/'],
+            FileGroup::CONTROLLER->value => ['^app/Http/Controllers/'],
+            FileGroup::REQUEST->value    => ['^app/Http/Requests/', '^app/Http/Resources/'],
+            FileGroup::HTTP->value       => ['^app/Http/'],
+            FileGroup::CONSOLE->value    => ['^app/Console/'],
+            FileGroup::PROVIDER->value   => ['^app/Providers/'],
+            FileGroup::CORE->value       => ['^app/Exceptions/', '^app/Enums/'],
+            FileGroup::EVENT->value      => ['^app/Events/', '^app/Listeners/'],
+            FileGroup::SERVICE->value    => ['^app/Services/'],
+            FileGroup::VIEW->value       => ['^resources/views/'],
+            FileGroup::FRONTEND->value   => ['^resources/(js|css)/'],
+            FileGroup::CONFIG->value     => ['^config/'],
+            FileGroup::ROUTE->value      => ['^routes/'],
+        ],
+
+        ProjectType::LaravelPackage->value => [
+            FileGroup::TEST->value       => ['^tests/'],
+            FileGroup::DB->value         => ['^database/'],
+            FileGroup::NOVA->value       => ['Nova/'],
+            FileGroup::CONSOLE->value    => ['^src/Console/'],
+            FileGroup::PROVIDER->value   => ['^src/Providers/', 'ServiceProvider\.php$'],
+            FileGroup::CONTROLLER->value => ['^src/Http/Controllers/'],
+            FileGroup::REQUEST->value    => ['^src/Http/Requests/', '^src/Http/Resources/'],
+            FileGroup::HTTP->value       => ['^src/Http/'],
+            FileGroup::ROUTE->value      => ['^routes/', '^src/Routes/'],
+            FileGroup::ACTION->value     => ['^src/Actions/'],
+            FileGroup::JOB->value        => ['^src/Jobs/'],
+            FileGroup::EVENT->value      => ['^src/Events/', '^src/Listeners/'],
+            FileGroup::SERVICE->value    => ['^src/Services/'],
+            FileGroup::MODEL->value      => ['^src/Models/'],
+            FileGroup::CORE->value       => ['^src/Enums/', '^src/Exceptions/', '^src/Contracts/', '^src/'],
+            FileGroup::VIEW->value       => ['^resources/views/'],
+            FileGroup::FRONTEND->value   => ['^resources/(js|css)/'],
+            FileGroup::CONFIG->value     => ['^config/'],
+        ],
+
+        ProjectType::PhpPackage->value => [
+            FileGroup::TEST->value       => ['^tests/'],
+            FileGroup::DB->value         => ['^database/'],
+            FileGroup::CONSOLE->value    => ['^src/Console/', '^bin/'],
+            FileGroup::HTTP->value       => ['^src/Http/'],
+            FileGroup::ACTION->value     => ['^src/Actions/'],
+            FileGroup::SERVICE->value    => ['^src/Services/'],
+            FileGroup::EVENT->value      => ['^src/Events/', '^src/Listeners/'],
+            FileGroup::MODEL->value      => ['^src/Models/', '^src/Entities/', '^src/Entity/'],
+            FileGroup::CORE->value       => ['^src/'],
+            FileGroup::VIEW->value       => ['^resources/views/'],
+            FileGroup::FRONTEND->value   => ['^resources/(js|css)/'],
+            FileGroup::CONFIG->value     => ['^config/'],
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Architecture Layer Stack
     |--------------------------------------------------------------------------
     |
@@ -195,42 +415,120 @@ return [
     |
     */
 
-    'layer_stack' => new LayerStack(
-        new CakeLayer(label: 'Entry', color: '#ffa657', groups: [
-            FileGroup::ROUTE,
-            FileGroup::CONFIG,
-        ]),
-        new CakeLayer(label: 'Controllers', color: '#d29922', groups: [
-            FileGroup::CONTROLLER,
-            FileGroup::HTTP,
-            FileGroup::CONSOLE,
-        ]),
-        new CakeLayer(label: 'Requests / Resources', color: '#e3b341', groups: [
-            FileGroup::REQUEST,
-        ]),
-        new CakeLayer(label: 'Application', color: '#79c0ff', groups: [
-            FileGroup::SERVICE,
-            FileGroup::ACTION,
-            FileGroup::JOB,
-            FileGroup::EVENT,
-        ]),
-        new CakeLayer(label: 'Domain', color: '#3fb950', groups: [
-            FileGroup::MODEL,
-            FileGroup::CORE,
-            FileGroup::NOVA,
-        ]),
-        new CakeLayer(label: 'Infrastructure', color: '#8957e5', groups: [
-            FileGroup::DB,
-            FileGroup::PROVIDER,
-        ]),
-        new CakeLayer(label: 'Presentation', color: '#7ee787', groups: [
-            FileGroup::VIEW,
-            FileGroup::FRONTEND,
-        ]),
-        new CakeLayer(label: 'Testing', color: '#58a6ff', groups: [
-            FileGroup::TEST,
-            FileGroup::OTHER,
-        ]),
-    ),
+    'layer_stacks' => [
+
+        ProjectType::LaravelApp->value => new LayerStack(
+            new CakeLayer(label: 'Entry', color: '#ffa657', groups: [
+                FileGroup::ROUTE,
+                FileGroup::CONFIG,
+            ]),
+            new CakeLayer(label: 'Controllers', color: '#d29922', groups: [
+                FileGroup::CONTROLLER,
+                FileGroup::HTTP,
+                FileGroup::CONSOLE,
+            ]),
+            new CakeLayer(label: 'Requests / Resources', color: '#e3b341', groups: [
+                FileGroup::REQUEST,
+            ]),
+            new CakeLayer(label: 'Application', color: '#79c0ff', groups: [
+                FileGroup::SERVICE,
+                FileGroup::ACTION,
+                FileGroup::JOB,
+                FileGroup::EVENT,
+            ]),
+            new CakeLayer(label: 'Domain', color: '#3fb950', groups: [
+                FileGroup::MODEL,
+                FileGroup::CORE,
+                FileGroup::NOVA,
+            ]),
+            new CakeLayer(label: 'Infrastructure', color: '#8957e5', groups: [
+                FileGroup::DB,
+                FileGroup::PROVIDER,
+            ]),
+            new CakeLayer(label: 'Presentation', color: '#7ee787', groups: [
+                FileGroup::VIEW,
+                FileGroup::FRONTEND,
+            ]),
+            new CakeLayer(label: 'Testing', color: '#58a6ff', groups: [
+                FileGroup::TEST,
+                FileGroup::OTHER,
+            ]),
+        ),
+
+        ProjectType::LaravelPackage->value => new LayerStack(
+            new CakeLayer(label: 'Provider & Config', color: '#56d4dd', groups: [
+                FileGroup::PROVIDER,
+                FileGroup::CONFIG,
+            ]),
+            new CakeLayer(label: 'Console', color: '#b392f0', groups: [
+                FileGroup::CONSOLE,
+            ]),
+            new CakeLayer(label: 'HTTP', color: '#f0883e', groups: [
+                FileGroup::CONTROLLER,
+                FileGroup::HTTP,
+                FileGroup::REQUEST,
+                FileGroup::ROUTE,
+            ]),
+            new CakeLayer(label: 'Application', color: '#79c0ff', groups: [
+                FileGroup::ACTION,
+                FileGroup::SERVICE,
+                FileGroup::JOB,
+                FileGroup::EVENT,
+            ]),
+            new CakeLayer(label: 'Core', color: '#3fb950', groups: [
+                FileGroup::CORE,
+                FileGroup::MODEL,
+            ]),
+            new CakeLayer(label: 'Infrastructure', color: '#8957e5', groups: [
+                FileGroup::DB,
+                FileGroup::NOVA,
+            ]),
+            new CakeLayer(label: 'Presentation', color: '#7ee787', groups: [
+                FileGroup::VIEW,
+                FileGroup::FRONTEND,
+            ]),
+            new CakeLayer(label: 'Testing', color: '#58a6ff', groups: [
+                FileGroup::TEST,
+                FileGroup::OTHER,
+            ]),
+        ),
+
+        ProjectType::PhpPackage->value => new LayerStack(
+            new CakeLayer(label: 'Config', color: '#ffa657', groups: [
+                FileGroup::CONFIG,
+            ]),
+            new CakeLayer(label: 'Application', color: '#79c0ff', groups: [
+                FileGroup::ACTION,
+                FileGroup::SERVICE,
+                FileGroup::JOB,
+                FileGroup::EVENT,
+            ]),
+            new CakeLayer(label: 'Domain', color: '#3fb950', groups: [
+                FileGroup::CORE,
+                FileGroup::MODEL,
+            ]),
+            new CakeLayer(label: 'HTTP', color: '#f0883e', groups: [
+                FileGroup::CONTROLLER,
+                FileGroup::HTTP,
+                FileGroup::REQUEST,
+                FileGroup::ROUTE,
+            ]),
+            new CakeLayer(label: 'Infrastructure', color: '#8957e5', groups: [
+                FileGroup::DB,
+                FileGroup::PROVIDER,
+                FileGroup::NOVA,
+            ]),
+            new CakeLayer(label: 'Presentation', color: '#7ee787', groups: [
+                FileGroup::CONSOLE,
+                FileGroup::VIEW,
+                FileGroup::FRONTEND,
+            ]),
+            new CakeLayer(label: 'Testing', color: '#58a6ff', groups: [
+                FileGroup::TEST,
+                FileGroup::OTHER,
+            ]),
+        ),
+
+    ],
 
 ];

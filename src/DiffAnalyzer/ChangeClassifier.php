@@ -2,56 +2,12 @@
 
 namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer;
 
+use ReflectionClass;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\AssignmentRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\AttributeRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ClassStructureRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ConstructorInjectionRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ControlFlowRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\CosmeticRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\DateTimeRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\DependencyRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\EnumRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ErrorHandlingRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\FileLevelRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ImportRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelApiResourceRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelAuthRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelCacheRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigDependencyRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConfigRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentAddedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentDefaultChangedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleArgumentRemovedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleSignatureChangedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDataMigrationRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDbFacadeRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEloquentRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEnvironmentRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelLivewireRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelMigrationRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelNotificationRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelQueueRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRedirectRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelRouteRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelServiceContainerRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelTableMigrationRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelUnauthorizedRouteRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MagicMethodRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodAddedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodChangedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRemovedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRenamedRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodSignatureRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\OperatorRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\Rule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\SideEffectRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\StrictTypesRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\TypeSystemRule;
-use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ValueRule;
+use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectType;
 
 class ChangeClassifier
 {
@@ -61,63 +17,21 @@ class ChangeClassifier
     /**
      * @param  list<string>  $criticalTables
      */
-    public function __construct(AstComparer $comparer, bool $isLaravel = true, private readonly ?string $repoPath = null, private readonly array $criticalTables = [])
+    public function __construct(AstComparer $comparer, ProjectType $projectType = ProjectType::Unknown, ?string $repoPath = null, array $criticalTables = [])
     {
-        $this->rules = [
-            // Generic rules
-            new FileLevelRule,
-            new DependencyRule,
-            new CosmeticRule,
-            new ImportRule,
-            new StrictTypesRule,
-            new TypeSystemRule,
-            new MethodAddedRule,
-            new MethodChangedRule($comparer),
-            new MethodRemovedRule,
-            new MethodRenamedRule,
-            new MethodSignatureRule,
-            new ConstructorInjectionRule,
-            new ClassStructureRule,
-            new EnumRule,
-            new AttributeRule,
-            new MagicMethodRule,
-            new ControlFlowRule,
-            new OperatorRule,
-            new ValueRule,
-            new SideEffectRule,
-            new ErrorHandlingRule,
-            new AssignmentRule,
-            new DateTimeRule,
+        $context = [
+            'comparer' => $comparer,
+            'criticalTables' => $criticalTables,
+            'repoPath' => $repoPath,
         ];
 
-        if ($isLaravel) {
-            $this->rules = [
-                ...$this->rules,
-                new LaravelMigrationRule($this->criticalTables),
-                new LaravelTableMigrationRule($this->criticalTables),
-                new LaravelDataMigrationRule,
-                new LaravelRouteRule,
-                new LaravelUnauthorizedRouteRule,
-                new LaravelEloquentRule,
-                new LaravelAuthRule,
-                new LaravelQueueRule,
-                new LaravelRedirectRule,
-                new LaravelNotificationRule,
-                new LaravelServiceContainerRule,
-                new LaravelConfigRule,
-                new LaravelConfigDependencyRule($this->repoPath),
-                new LaravelApiResourceRule,
-                new LaravelLivewireRule,
-                new LaravelConsoleRule,
-                new LaravelConsoleSignatureChangedRule($this->repoPath),
-                new LaravelConsoleArgumentAddedRule,
-                new LaravelConsoleArgumentRemovedRule,
-                new LaravelConsoleArgumentDefaultChangedRule,
-                new LaravelEnvironmentRule,
-                new LaravelCacheRule,
-                new LaravelDbFacadeRule,
-            ];
-        }
+        $genericClasses = config('laravel-code-analytics.rules.generic', []);
+        $projectClasses = config('laravel-code-analytics.rules.'.$projectType->value, []);
+
+        $this->rules = array_map(
+            fn (string $class) => $this->instantiateRule($class, $context),
+            [...$genericClasses, ...$projectClasses],
+        );
     }
 
     /**
@@ -145,6 +59,30 @@ class ChangeClassifier
             status: $file->status,
             changes: $allChanges,
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function instantiateRule(string $class, array $context): Rule
+    {
+        $ref = new ReflectionClass($class);
+        $constructor = $ref->getConstructor();
+
+        if ($constructor === null || $constructor->getNumberOfParameters() === 0) {
+            return $ref->newInstance();
+        }
+
+        $args = [];
+        foreach ($constructor->getParameters() as $param) {
+            if (array_key_exists($param->getName(), $context)) {
+                $args[] = $context[$param->getName()];
+            } elseif ($param->isDefaultValueAvailable()) {
+                $args[] = $param->getDefaultValue();
+            }
+        }
+
+        return $ref->newInstanceArgs($args);
     }
 
     private const SNIPPET_CONTEXT_LINES = 3;

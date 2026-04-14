@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
@@ -13,6 +14,7 @@ class GenerateJsonReport implements ReportGenerator
         GraphPayload $payload,
         PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
+        ?LayerStack $layerStack = null,
     ): string {
         $nodes = $payload->nodes;
         $edges = $payload->edges;

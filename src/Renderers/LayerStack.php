@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Renderers;
 
 use Countable;
 use Vistik\LaravelCodeAnalytics\Enums\FileGroup;
+use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectType;
 
 readonly class LayerStack implements Countable
 {
@@ -50,9 +51,18 @@ readonly class LayerStack implements Countable
         );
     }
 
-    public static function fromConfig(): self
+    public static function fromConfig(?ProjectType $type = null): self
     {
-        return config('analysis.layer_stack') ?? self::default();
+        if ($type !== null) {
+            $stack = config('laravel-code-analytics.layer_stacks.'.$type->value);
+            if ($stack instanceof self) {
+                return $stack;
+            }
+        }
+
+        return config('laravel-code-analytics.layer_stack')
+            ?? config('analysis.layer_stack')
+            ?? self::default();
     }
 
     public static function forMethodGraph(): self
