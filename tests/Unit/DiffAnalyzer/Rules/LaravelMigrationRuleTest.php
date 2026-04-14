@@ -20,7 +20,7 @@ it('detects schema create', function () {
     $schemaCreate = collect($changes)->first(fn ($c) => str_contains($c->description, 'creates table'));
 
     expect($schemaCreate)->not->toBeNull()
-        ->and($schemaCreate->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($schemaCreate->category)->toBe(ChangeCategory::LARAVEL_MIGRATION)
         ->and($schemaCreate->severity)->toBe(Severity::MEDIUM)
         ->and($schemaCreate->description)->toContain('users');
 });
@@ -38,7 +38,7 @@ it('detects schema drop', function () {
     $schemaDrop = collect($changes)->first(fn ($c) => str_contains($c->description, 'drops table'));
 
     expect($schemaDrop)->not->toBeNull()
-        ->and($schemaDrop->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($schemaDrop->category)->toBe(ChangeCategory::LARAVEL_MIGRATION)
         ->and($schemaDrop->severity)->toBe(Severity::VERY_HIGH)
         ->and($schemaDrop->description)->toContain('users');
 });
@@ -56,7 +56,7 @@ it('detects column addition', function () {
     $columnAdd = collect($changes)->first(fn ($c) => str_contains($c->description, 'adds column') && str_contains($c->description, 'string'));
 
     expect($columnAdd)->not->toBeNull()
-        ->and($columnAdd->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($columnAdd->category)->toBe(ChangeCategory::LARAVEL_MIGRATION)
         ->and($columnAdd->severity)->toBe(Severity::INFO);
 });
 
@@ -73,7 +73,7 @@ it('detects column drop', function () {
     $columnDrop = collect($changes)->first(fn ($c) => str_contains($c->description, 'drops column'));
 
     expect($columnDrop)->not->toBeNull()
-        ->and($columnDrop->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($columnDrop->category)->toBe(ChangeCategory::LARAVEL_MIGRATION)
         ->and($columnDrop->severity)->toBe(Severity::VERY_HIGH);
 });
 
