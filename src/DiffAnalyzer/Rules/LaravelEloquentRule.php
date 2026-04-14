@@ -554,6 +554,7 @@ class LaravelEloquentRule implements Rule
             // Pattern: $model->posts->with(...) or $model->posts->loadMissing(...)
             if ($call->var instanceof Expr\PropertyFetch) {
                 $found[] = $methodName;
+
                 continue;
             }
 
