@@ -128,6 +128,7 @@ class AnalyzeCode
         array $criticalTables = [],
         ?string $fromCommit = null,
         ?string $toCommit = null,
+        ?array $focusFiles = null,
     ): array {
         $this->onProgress = $onProgress;
         $this->analyzeStart = microtime(true);
@@ -256,7 +257,7 @@ class AnalyzeCode
         $t = microtime(true);
         $this->progress('info', "Generating {$format->value} report...");
 
-        $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
+        $reportGenerator = $format->generator(['metrics' => $githubMetrics, 'focus' => $focusFiles]);
         $content = $reportGenerator->generate(
             layerStack: LayerStack::fromConfig($this->projectType),
             payload: new GraphPayload(
@@ -362,6 +363,14 @@ class AnalyzeCode
     {
         $files = array_values(array_filter($files, function (array $file) use ($patterns): bool {
             foreach ($patterns as $pattern) {
+                if (str_starts_with($pattern, '*.')) {
+                    $ext = substr($pattern, 2);
+                    if (str_ends_with($file['path'], '.'.$ext)) {
+                        return true;
+                    }
+
+                    continue;
+                }
                 if (fnmatch($pattern, $file['path']) || str_contains($file['path'], $pattern)) {
                     return true;
                 }

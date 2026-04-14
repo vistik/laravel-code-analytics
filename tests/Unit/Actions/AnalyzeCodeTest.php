@@ -1320,3 +1320,91 @@ class HomeController {}');
             ->and($paths)->toContain('resources/views/contact.blade.php');
     });
 });
+
+// ── applyFilePatternFilter ────────────────────────────────────────────────────
+
+function applyPatternFilter(array $files, array $patterns): array
+{
+    $obj = new AnalyzeCode;
+    // $onProgress is not initialised until execute() — set it to null so progress() calls are no-ops.
+    $prop = new ReflectionProperty($obj, 'onProgress');
+    $prop->setAccessible(true);
+    $prop->setValue($obj, null);
+
+    $ref = new ReflectionMethod($obj, 'applyFilePatternFilter');
+    $ref->setAccessible(true);
+    [$filtered] = $ref->invoke($obj, $files, $patterns);
+
+    return array_column($filtered, 'path');
+}
+
+function patternFile(string $path, int $additions = 3, int $deletions = 1): array
+{
+    return ['path' => $path, 'additions' => $additions, 'deletions' => $deletions];
+}
+
+describe('applyFilePatternFilter — extension patterns', function () {
+    it('matches a PHP file in a subdirectory with *.php', function () {
+        $files = [patternFile('app/Services/Foo.php'), patternFile('app/Foo.vue')];
+
+        expect(applyPatternFilter($files, ['*.php']))->toBe(['app/Services/Foo.php']);
+    });
+
+    it('does not match a file with a different extension', function () {
+        $files = [patternFile('app/Foo.vue'), patternFile('app/Foo.ts')];
+
+        expect(applyPatternFilter($files, ['*.php']))->toBeEmpty();
+    });
+
+    it('matches multiple extensions when multiple *.ext patterns given', function () {
+        $files = [
+            patternFile('app/Foo.php'),
+            patternFile('app/Bar.vue'),
+            patternFile('app/Baz.ts'),
+            patternFile('app/Qux.json'),
+        ];
+
+        expect(applyPatternFilter($files, ['*.php', '*.vue']))->toBe(['app/Foo.php', 'app/Bar.vue']);
+    });
+
+    it('does not match a file whose name ends with the extension string but lacks the dot', function () {
+        // e.g. *.php should not match a file named "notphp"
+        $files = [patternFile('app/notphp')];
+
+        expect(applyPatternFilter($files, ['*.php']))->toBeEmpty();
+    });
+});
+
+describe('applyFilePatternFilter — path/substring patterns', function () {
+    it('matches files whose path contains the pattern string', function () {
+        $files = [patternFile('app/Services/Foo.php'), patternFile('app/Models/Bar.php')];
+
+        expect(applyPatternFilter($files, ['Services']))->toBe(['app/Services/Foo.php']);
+    });
+
+    it('matches files by folder prefix with trailing slash', function () {
+        $files = [patternFile('app/Http/Foo.php'), patternFile('app/Models/Bar.php')];
+
+        expect(applyPatternFilter($files, ['app/Http/']))->toBe(['app/Http/Foo.php']);
+    });
+
+    it('does not match a folder that is only a prefix of another folder name', function () {
+        // 'app/Http/' should not match 'app/HttpKernel/Foo.php' (trailing slash prevents it)
+        $files = [patternFile('app/Http/Foo.php'), patternFile('app/HttpKernel/Bar.php')];
+
+        expect(applyPatternFilter($files, ['app/Http/']))->toBe(['app/Http/Foo.php']);
+    });
+
+    it('returns a file that matches any of several patterns', function () {
+        $files = [
+            patternFile('app/Services/Foo.php'),
+            patternFile('app/Models/Bar.php'),
+            patternFile('app/Http/Baz.php'),
+        ];
+
+        expect(applyPatternFilter($files, ['Services', 'Models']))->toBe([
+            'app/Services/Foo.php',
+            'app/Models/Bar.php',
+        ]);
+    });
+});
