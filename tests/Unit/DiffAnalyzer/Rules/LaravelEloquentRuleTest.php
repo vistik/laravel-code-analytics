@@ -178,6 +178,84 @@ it('detects scope modification', function () {
         ->and($scopeChanges[0]->location)->toContain('scopeActive');
 });
 
+it('detects ->loadMissing() added on relationship property', function () {
+    $old = '<?php class OrderService { public function process($order) { $items = $order->items; } }';
+    $new = '<?php class OrderService { public function process($order) { $items = $order->items; $order->items->loadMissing("product"); } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Services/OrderService.php', 'app/Services/OrderService.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, '->loadMissing() called on relationship'),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::DB_QUERY_ADDED)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('detects ->with() added on relationship property', function () {
+    $old = '<?php class UserService { public function getPosts($user) { return $user->posts; } }';
+    $new = '<?php class UserService { public function getPosts($user) { return $user->posts->with("comments"); } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Services/UserService.php', 'app/Services/UserService.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, '->with() called on relationship'),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::DB_QUERY_ADDED)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('detects ->with() added on Eloquent relation builder', function () {
+    $old = '<?php class Post extends Model { public function comments() { return $this->hasMany(Comment::class); } }';
+    $new = '<?php class Post extends Model { public function comments() { return $this->hasMany(Comment::class)->with("author"); } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/Post.php', 'app/Models/Post.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, '->with() called on relationship'),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::DB_QUERY_ADDED)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('does not flag ->with() on a static model call', function () {
+    $old = '<?php class UserController { public function index() { return User::all(); } }';
+    $new = '<?php class UserController { public function index() { return User::with("posts")->get(); } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Controllers/UserController.php', 'app/Controllers/UserController.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, '->with() called on relationship'),
+    ));
+
+    expect($found)->toBeEmpty();
+});
+
 it('returns no changes for identical model', function () {
     $code = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $fillable = ["name", "email"]; public function posts() { return $this->hasMany(Post::class); } }';
 
