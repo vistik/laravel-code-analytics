@@ -501,6 +501,9 @@ function openPanel(n) {
   var parsedDiff = parsedDiffs[n.path];
   if (parsedDiff) {
     var isPHP = n.path.endsWith('.php');
+    var isJS = /\.(js|jsx|ts|tsx|vue|mjs|cjs)$/.test(n.path);
+    var jsLang = /\.(ts|tsx)$/.test(n.path) ? 'typescript' : 'javascript';
+    var hlFn = isPHP ? highlightPHP : isJS ? function(c) { return highlightJS(c, jsLang); } : escapeHtml;
     var fullContent = fileContents[n.path];
     // Build a link map that lets $this->ownMethod() resolve to the current file.
     // The global methodNameIndex uses first-match, so a private/protected method
@@ -508,9 +511,9 @@ function openPanel(n) {
     var diffLinkMap = isPHP ? buildFileLinkMap(n) : null;
     var diffClassMap = isPHP ? classNameIndex : null;
     var tableRows;
-    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap, implementorsIndex);
-    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, isPHP, diffLinkMap, diffClassMap, implementorsIndex);
-    else tableRows = renderUnifiedDiff(parsedDiff, isPHP, diffLinkMap, diffClassMap, implementorsIndex);
+    if (diffViewMode === 'split') tableRows = renderSplitDiff(parsedDiff, hlFn, diffLinkMap, diffClassMap, implementorsIndex);
+    else if (diffViewMode === 'full' && fullContent) tableRows = renderFullFile(fullContent, parsedDiff, hlFn, diffLinkMap, diffClassMap, implementorsIndex);
+    else tableRows = renderUnifiedDiff(parsedDiff, hlFn, diffLinkMap, diffClassMap, implementorsIndex);
     var activeMode = (diffViewMode === 'full' && !fullContent) ? 'unified' : diffViewMode;
     var fullBtn = fullContent
       ? '<button class="diff-view-btn' + (activeMode === 'full' ? ' active' : '') + '" data-view="full">Full file</button>'
@@ -711,12 +714,15 @@ function openPanel(n) {
       var parsed = parsedDiffs[n.path];
       if (!parsed) return;
       var isPHP = n.path.endsWith('.php');
+      var isJS = /\.(js|jsx|ts|tsx|vue|mjs|cjs)$/.test(n.path);
+      var jsLang = /\.(ts|tsx)$/.test(n.path) ? 'typescript' : 'javascript';
+      var hlFn = isPHP ? highlightPHP : isJS ? function(c) { return highlightJS(c, jsLang); } : escapeHtml;
       var rows;
       var reLinkMap = isPHP ? buildFileLinkMap(n) : null;
       var reClassMap = isPHP ? classNameIndex : null;
-      if (mode === 'split') rows = renderSplitDiff(parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
-      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
-      else rows = renderUnifiedDiff(parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
+      if (mode === 'split') rows = renderSplitDiff(parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
+      else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
+      else rows = renderUnifiedDiff(parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
       if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); updateDiffNav(); }
     });
