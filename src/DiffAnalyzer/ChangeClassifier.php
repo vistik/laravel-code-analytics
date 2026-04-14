@@ -41,6 +41,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelServiceContainerRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelTableMigrationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelUnauthorizedRouteRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MagicMethodRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\NewPhpDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodAddedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodChangedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRemovedRule;
@@ -77,6 +78,7 @@ class ChangeClassifier
             new MethodRenamedRule,
             new MethodSignatureRule,
             new ConstructorInjectionRule,
+            new NewPhpDependencyRule,
             new ClassStructureRule,
             new EnumRule,
             new AttributeRule,
