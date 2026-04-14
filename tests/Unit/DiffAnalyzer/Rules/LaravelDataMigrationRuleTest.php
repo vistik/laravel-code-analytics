@@ -36,7 +36,7 @@ it('flags DB::insert() as critical', function () use ($migrationFile, $stub) {
 
     expect($hit)->not->toBeNull()
         ->and($hit->severity)->toBe(Severity::VERY_HIGH)
-        ->and($hit->category)->toBe(ChangeCategory::LARAVEL);
+        ->and($hit->category)->toBe(ChangeCategory::LARAVEL_MIGRATION);
 });
 
 it('flags DB::update() as critical', function () use ($migrationFile, $stub) {
@@ -146,7 +146,7 @@ it('flags Eloquent model create() as critical', function () use ($migrationFile,
 
     expect($hit)->not->toBeNull()
         ->and($hit->severity)->toBe(Severity::VERY_HIGH)
-        ->and($hit->category)->toBe(ChangeCategory::LARAVEL);
+        ->and($hit->category)->toBe(ChangeCategory::LARAVEL_MIGRATION);
 });
 
 it('flags Eloquent model insert() as critical', function () use ($migrationFile, $stub) {

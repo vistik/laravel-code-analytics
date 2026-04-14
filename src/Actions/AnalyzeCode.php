@@ -459,6 +459,7 @@ class AnalyzeCode
         $componentNameToNode = $this->buildComponentNameMap($nodes);
         $fileReferences = $this->processPhpDependencies($phpFiles, $headContents);
         $this->processFrontendDependencies($frontendFiles, $headContents, $componentNameToNode);
+        $this->processBladeDependents();
 
         $this->progress('line', '  Found '.count($this->edges).' dependencies.');
 
@@ -536,6 +537,151 @@ class AnalyzeCode
             }
             $this->matchComponentReferences($content, $node['id'], $componentNameToNode);
         }
+    }
+
+    /**
+     * Scan every Blade file in the repo and add reverse edges:
+     * non-diff files that @extend/@include a changed Blade file become connected nodes.
+     */
+    private function processBladeDependents(): void
+    {
+        $changedBladePaths = array_filter(
+            array_keys($this->pathToNode),
+            fn ($p) => str_ends_with($p, '.blade.php')
+        );
+
+        if (empty($changedBladePaths)) {
+            return;
+        }
+
+        $changedBladePathSet = array_flip($changedBladePaths);
+
+        $allBladePaths = $this->listAllBladeFiles();
+        $nonDiffPaths = array_values(array_filter($allBladePaths, fn ($p) => ! isset($this->pathToNode[$p])));
+
+        if (empty($nonDiffPaths)) {
+            return;
+        }
+
+        $contents = $this->readBulkFileContents($nonDiffPaths);
+        $rule = new BladeDependencyRule;
+
+        foreach ($contents as $path => $content) {
+            if ($content === null || $content === '') {
+                continue;
+            }
+
+            foreach ($rule->resolve($content) as $depPath) {
+                if (! isset($changedBladePathSet[$depPath])) {
+                    continue;
+                }
+
+                $dependentNodeId = $this->ensureConnectedBladeNode($path);
+                if ($dependentNodeId !== null) {
+                    $this->addEdge($dependentNodeId, $this->pathToNode[$depPath]);
+                }
+            }
+        }
+    }
+
+    private function ensureConnectedBladeNode(string $path): ?string
+    {
+        if (isset($this->pathToNode[$path])) {
+            return $this->pathToNode[$path];
+        }
+
+        if ($this->repoDir === null && $this->repoPath !== '' && ! is_file("{$this->repoPath}/{$path}")) {
+            return null;
+        }
+
+        $label = $this->generateLabel($path);
+        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: basename($path);
+        $folder = dirname($path);
+        $folder = (string) preg_replace('#^app/#', '', $folder);
+        $folder = (string) preg_replace('#^tests/(Unit|Feature)/#', 'tests/', $folder);
+        if ($folder === '.' || $folder === '') {
+            $folder = '';
+        }
+        $domain = explode('/', $folder)[0] ?: '(root)';
+
+        $node = [
+            'id' => $label,
+            'path' => $path,
+            'add' => 0,
+            'del' => 0,
+            'status' => 'modified',
+            'group' => $this->groupResolver->resolve($path)->value,
+            'hash' => hash('sha256', $path),
+            'ext' => $ext,
+            'folder' => $folder,
+            'domain' => $domain,
+            'domainColor' => '#484f58',
+            'isConnected' => true,
+        ];
+
+        $this->connectedNodes[$label] = $node;
+        $this->pathToNode[$path] = $label;
+
+        return $label;
+    }
+
+    /**
+     * Returns repo-relative paths of all tracked .blade.php files.
+     *
+     * @return list<string>
+     */
+    private function listAllBladeFiles(): array
+    {
+        if ($this->repoDir !== null) {
+            $output = trim(shell_exec("git -C {$this->repoDir} ls-tree -r {$this->headCommit} --name-only 2>/dev/null") ?? '');
+        } elseif ($this->repoPath !== '') {
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files '*.blade.php' 2>/dev/null") ?? '');
+        } else {
+            return [];
+        }
+
+        if (empty($output)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            explode("\n", $output),
+            fn ($p) => str_ends_with($p, '.blade.php')
+        ));
+    }
+
+    /**
+     * Read file contents for the given paths using whichever strategy is active.
+     *
+     * @param  list<string>  $paths
+     * @return array<string, string|null>
+     */
+    private function readBulkFileContents(array $paths): array
+    {
+        if (empty($paths)) {
+            return [];
+        }
+
+        if ($this->repoDir !== null) {
+            return $this->readFileContentsFromGit($paths);
+        }
+
+        if ($this->readContentsFromCommit) {
+            return $this->readFileContentsFromLocalCommit($paths);
+        }
+
+        $contents = [];
+        foreach ($paths as $path) {
+            $fullPath = "{$this->repoPath}/{$path}";
+            if (is_file($fullPath)) {
+                $content = file_get_contents($fullPath);
+                $contents[$path] = $content !== false && $content !== '' ? $content : null;
+            } else {
+                $contents[$path] = null;
+            }
+        }
+
+        return $contents;
     }
 
     /**

@@ -400,6 +400,9 @@ tailwind.config = {
         <option value="low">Low</option>
         <option value="info">Info</option>
       </select>
+      <select id="findingsTypeFilter" class="bg-overlay border border-border-default text-[#c9d1d9] text-[11.5px] px-2 py-1 rounded-md cursor-pointer font-sans shrink-0 focus:outline-none focus:border-accent">
+        <option value="">All types</option>
+      </select>
     </div>
     <div class="flex-1 overflow-y-auto min-h-0" id="findingsScroll">
       <div id="findingsRows"></div>
@@ -1027,6 +1030,21 @@ tailwind.config = {
       return ai - bi;
     });
 
+    // Populate type filter with categories present in this report
+    (function() {
+      var cats = [];
+      allFindings.forEach(function(f) { if (f.category && cats.indexOf(f.category) === -1) cats.push(f.category); });
+      cats.sort();
+      var typeSelect = document.getElementById('findingsTypeFilter');
+      if (cats.length <= 1) { typeSelect.style.display = 'none'; return; }
+      cats.forEach(function(cat) {
+        var opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = catLabel(cat);
+        typeSelect.appendChild(opt);
+      });
+    }());
+
     // ── Stable key for each finding (used for localStorage persistence) ──
     // Scope per-report using the first few node IDs so different reports don't share state.
     var _scope = filesNodes.slice(0, 4).map(function(n) { return n.id; }).join('|').replace(/[^a-z0-9|]/gi, '_').slice(0, 60);
@@ -1079,11 +1097,13 @@ tailwind.config = {
     function renderFindingsList() {
       var filter = (document.getElementById('findingsSearch').value || '').toLowerCase();
       var sevFilter = document.getElementById('findingsSevFilter').value;
+      var typeFilter = document.getElementById('findingsTypeFilter').value;
 
       var list = allFindings.filter(function(f) {
         var isDone = doneFindings.has(findingKey(f));
         if (isDone && !showDone) return false;
         if (sevFilter && f.severity !== sevFilter) return false;
+        if (typeFilter && f.category !== typeFilter) return false;
         if (!filter) return true;
         return f.description.toLowerCase().indexOf(filter) !== -1
             || f.filePath.toLowerCase().indexOf(filter) !== -1
@@ -1189,6 +1209,7 @@ tailwind.config = {
     // Wire search/filter
     document.getElementById('findingsSearch').addEventListener('input', renderFindingsList);
     document.getElementById('findingsSevFilter').addEventListener('change', renderFindingsList);
+    document.getElementById('findingsTypeFilter').addEventListener('change', renderFindingsList);
 
     // Delegated click on the findings rows container
     document.getElementById('findingsRows').addEventListener('click', function(e) {

@@ -21,6 +21,7 @@ enum ChangeCategory: string
     case CLASS_STRUCTURE = 'class_structure';
     case SIDE_EFFECTS = 'side_effects';
     case LARAVEL = 'laravel';
+    case LARAVEL_MIGRATION = 'laravel_migration';
     case RELATIONSHIP_ADDED = 'relationship_added';
     case RELATIONSHIP_REMOVED = 'relationship_removed';
     case RELATIONSHIP_TYPE_CHANGED = 'relationship_type_changed';
@@ -61,6 +62,7 @@ enum ChangeCategory: string
             self::CLASS_STRUCTURE => 'Class, interface & enum structure',
             self::SIDE_EFFECTS => 'Side effects & external calls',
             self::LARAVEL => 'Laravel framework changes',
+            self::LARAVEL_MIGRATION => 'Laravel migration changes',
             self::RELATIONSHIP_ADDED => 'Eloquent relationship additions',
             self::RELATIONSHIP_REMOVED => 'Eloquent relationship removals',
             self::RELATIONSHIP_TYPE_CHANGED => 'Eloquent relationship type changes',

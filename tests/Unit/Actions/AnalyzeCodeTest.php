@@ -1146,3 +1146,177 @@ describe('computeSignalScores — PR connection boost', function () {
             ->and($byId['A']['_connectionBoost'])->toBe(10);
     });
 });
+
+// ── execute — blade dependents ────────────────────────────────────────────────
+
+describe('execute — blade dependents', function () {
+    it('adds a non-diff blade file that @extends a changed blade as a connected node', function () {
+        $dir = makeTempGitRepo();
+
+        // Commit home.blade.php on main — it exists before the diff, so it is NOT a diff node
+        addAndStageFile($dir, 'resources/views/home.blade.php', "@extends('layouts.app')\n<div>Home</div>");
+        shell_exec("git -C {$dir} commit -m 'add home view' 2>&1");
+
+        // Stage the layout file — this IS in the diff
+        addAndStageFile($dir, 'resources/views/layouts/app.blade.php', '<html>{{ $slot }}</html>');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('resources/views/home.blade.php')
+            ->and($paths)->toContain('resources/views/layouts/app.blade.php');
+
+        // The connected node was not part of the diff — it has zero additions and deletions
+        $homeFile = collect($content['files'])->firstWhere('path', 'resources/views/home.blade.php');
+        expect($homeFile['additions'])->toBe(0)
+            ->and($homeFile['deletions'])->toBe(0);
+    });
+
+    it('adds a non-diff blade file that @includes a changed blade as a connected node', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'resources/views/page.blade.php', "@include('partials.header')\n<div>Content</div>");
+        shell_exec("git -C {$dir} commit -m 'add page' 2>&1");
+
+        addAndStageFile($dir, 'resources/views/partials/header.blade.php', '<header>Site header</header>');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('resources/views/page.blade.php');
+    });
+
+    it('adds a non-diff blade file that uses an <x-component> tag from a changed blade as a connected node', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'resources/views/dashboard.blade.php', "<x-alert />\n<div>Dashboard</div>");
+        shell_exec("git -C {$dir} commit -m 'add dashboard' 2>&1");
+
+        addAndStageFile($dir, 'resources/views/components/alert.blade.php', '<div class="alert">{{ $slot }}</div>');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('resources/views/dashboard.blade.php');
+    });
+
+    it('does not add blade files that reference unrelated (non-diff) blade files', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'resources/views/unrelated.blade.php', "@extends('other.layout')\n<div>Unrelated</div>");
+        shell_exec("git -C {$dir} commit -m 'add unrelated view' 2>&1");
+
+        // Only the layout/app blade is in the diff — unrelated.blade.php extends a different layout
+        addAndStageFile($dir, 'resources/views/layouts/app.blade.php', '<html>{{ $slot }}</html>');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->not->toContain('resources/views/unrelated.blade.php');
+    });
+
+    it('does not run the blade dependents scan when no blade files are in the diff', function () {
+        $dir = makeTempGitRepo();
+
+        // Commit a blade file that would be picked up if the scan ran
+        addAndStageFile($dir, 'resources/views/home.blade.php', "@extends('layouts.app')");
+        shell_exec("git -C {$dir} commit -m 'add home view' 2>&1");
+
+        // Only a PHP controller is in the diff — no blade files
+        addAndStageFile($dir, 'app/Http/Controllers/HomeController.php', '<?php
+namespace App\Http\Controllers;
+class HomeController {}');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->not->toContain('resources/views/home.blade.php');
+    });
+
+    it('creates a dependency edge from the dependent blade to the changed blade', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'resources/views/home.blade.php', "@extends('layouts.app')");
+        shell_exec("git -C {$dir} commit -m 'add home view' 2>&1");
+
+        addAndStageFile($dir, 'resources/views/layouts/app.blade.php', '<html>{{ $slot }}</html>');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+
+    it('handles multiple non-diff blade files referencing the same changed blade', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'resources/views/home.blade.php', "@extends('layouts.app')");
+        addAndStageFile($dir, 'resources/views/about.blade.php', "@extends('layouts.app')");
+        addAndStageFile($dir, 'resources/views/contact.blade.php', "@extends('layouts.app')");
+        shell_exec("git -C {$dir} commit -m 'add views' 2>&1");
+
+        addAndStageFile($dir, 'resources/views/layouts/app.blade.php', '<html>{{ $slot }}</html>');
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('resources/views/home.blade.php')
+            ->and($paths)->toContain('resources/views/about.blade.php')
+            ->and($paths)->toContain('resources/views/contact.blade.php');
+    });
+});
