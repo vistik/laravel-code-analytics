@@ -634,6 +634,9 @@ tailwind.config = {
     if (changePts) {
       rows += '<div class="signal-tooltip-row"><span class="label">Lines changed (&plusmn;' + (n.add + n.del) + ')</span><span class="val" style="color:' + valColor(changePts) + '">+' + changePts + '</span></div>';
     }
+    if (n._connectionBoost != null && n._connectionBoost > 0) {
+      rows += '<div class="signal-tooltip-row"><span class="label" style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#58a6ff;display:inline-block;flex-shrink:0"></span>PR connections (&times;' + n._connections + ')</span><span class="val" style="color:#58a6ff">+' + n._connectionBoost + '</span></div>';
+    }
     if (n.cycleId != null && n._cycleBoost != null) {
       rows += '<div class="signal-tooltip-row"><span class="label" style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;border:1.5px solid ' + (n.cycleColor || '#f0883e') + ';display:inline-block;flex-shrink:0"></span>Circular dependency</span><span class="val" style="color:' + (n.cycleColor || '#f0883e') + '">+' + n._cycleBoost + '</span></div>';
     }

@@ -1012,6 +1012,21 @@ class AnalyzeCode
         $cycleBoostBase = (int) ($cycleCfg['base'] ?? 100);
         $cycleBoostPct = (float) ($cycleCfg['signal_pct'] ?? 0.20);
 
+        $connCfg = config('laravel-code-analytics.file_signal.pr_connections', []);
+        $connMultiplier = (float) ($connCfg['multiplier'] ?? 5);
+
+        // Count edges between changed (diff) files only — exclude connected nodes.
+        $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected'])));
+        $changedIds = array_flip(array_column($diffNodes, 'id'));
+        $internalConnections = array_fill_keys(array_column($diffNodes, 'id'), 0);
+
+        foreach ($this->edges as [$sourceId, $targetId]) {
+            if (isset($changedIds[$sourceId], $changedIds[$targetId])) {
+                $internalConnections[$sourceId]++;
+                $internalConnections[$targetId]++;
+            }
+        }
+
         foreach ($nodes as &$node) {
             $base = $this->fileSignalScorer->calculate(
                 $node,
@@ -1024,6 +1039,14 @@ class AnalyzeCode
                 $node['_cycleBoost'] = $boost;
             } else {
                 $node['_signal'] = $base;
+            }
+
+            $connections = $internalConnections[$node['id']] ?? 0;
+            if ($connections > 0) {
+                $connBoost = (int) round($connections * $connMultiplier);
+                $node['_signal'] += $connBoost;
+                $node['_connectionBoost'] = $connBoost;
+                $node['_connections'] = $connections;
             }
         }
         unset($node);

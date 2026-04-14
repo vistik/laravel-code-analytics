@@ -85,6 +85,11 @@ return [
             'cutoff' => 200,
             'multiplier' => 0.5,
         ],
+        'pr_connections' => [
+            // Score added per edge to/from another changed file in the same PR.
+            // More connections = more central to the PR = reviewed first.
+            'multiplier' => 5,
+        ],
     ],
 
     /*
