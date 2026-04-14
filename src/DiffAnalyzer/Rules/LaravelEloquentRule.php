@@ -70,6 +70,7 @@ class LaravelEloquentRule implements Rule
         $this->analyzeAccessorsMutators($comparison, $changes);
         $this->analyzeModelEvents($comparison, $changes);
         $this->analyzeEagerLoading($comparison, $changes);
+        $this->analyzeRelationshipEagerLoading($comparison, $changes);
         $this->analyzeSoftDeletes($file, $comparison, $changes);
         $this->analyzeTransactions($comparison, $changes);
 
@@ -501,6 +502,71 @@ class LaravelEloquentRule implements Rule
                 );
             }
         }
+    }
+
+    /**
+     * @param  list<ClassifiedChange>  $changes
+     */
+    private function analyzeRelationshipEagerLoading(array $comparison, array &$changes): void
+    {
+        $targetMethods = ['with', 'loadMissing'];
+
+        foreach ($comparison['methods'] as $key => $pair) {
+            $oldCalls = $pair['old'] !== null ? $this->findEagerLoadCallsOnRelationships($pair['old'], $targetMethods) : [];
+            $newCalls = $pair['new'] !== null ? $this->findEagerLoadCallsOnRelationships($pair['new'], $targetMethods) : [];
+
+            $added = array_diff($newCalls, $oldCalls);
+
+            foreach ($added as $method) {
+                $changes[] = new ClassifiedChange(
+                    category: ChangeCategory::DB_QUERY_ADDED,
+                    severity: Severity::MEDIUM,
+                    description: "->{$method}() called on relationship in {$key} — adds a DB query",
+                    location: $key,
+                    line: $pair['new']?->getStartLine(),
+                );
+            }
+        }
+    }
+
+    /**
+     * Find calls to ->with() or ->loadMissing() where the receiver is a relationship
+     * (a property access or a known Eloquent relation builder method call).
+     *
+     * @param  list<string>  $targetMethods
+     * @return list<string>
+     */
+    private function findEagerLoadCallsOnRelationships(Node $node, array $targetMethods): array
+    {
+        $found = [];
+
+        foreach ($this->finder->findInstanceOf([$node], Expr\MethodCall::class) as $call) {
+            if (! $call->name instanceof Node\Identifier) {
+                continue;
+            }
+
+            $methodName = $call->name->toString();
+
+            if (! in_array($methodName, $targetMethods, true)) {
+                continue;
+            }
+
+            // Pattern: $model->posts->with(...) or $model->posts->loadMissing(...)
+            if ($call->var instanceof Expr\PropertyFetch) {
+                $found[] = $methodName;
+
+                continue;
+            }
+
+            // Pattern: $this->hasMany(Post::class)->with(...) — Eloquent relation builder chained
+            if ($call->var instanceof Expr\MethodCall
+                && $call->var->name instanceof Node\Identifier
+                && in_array($call->var->name->toString(), self::RELATIONSHIP_METHODS, true)) {
+                $found[] = $methodName;
+            }
+        }
+
+        return array_unique($found);
     }
 
     /**
