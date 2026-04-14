@@ -1,6 +1,7 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
+use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
@@ -355,27 +356,27 @@ test('focus mode does not show DEPS section', function () {
 // ── OutputFormat enum ─────────────────────────────────────────────────────────
 
 test('OutputFormat has LLM case with value llm', function () {
-    expect(\Vistik\LaravelCodeAnalytics\Enums\OutputFormat::LLM->value)->toBe('llm');
+    expect(OutputFormat::LLM->value)->toBe('llm');
 });
 
 test('OutputFormat LLM file extension is txt', function () {
-    expect(\Vistik\LaravelCodeAnalytics\Enums\OutputFormat::LLM->fileExtension())->toBe('txt');
+    expect(OutputFormat::LLM->fileExtension())->toBe('txt');
 });
 
 test('OutputFormat LLM generator returns GenerateLlmReport', function () {
-    $generator = \Vistik\LaravelCodeAnalytics\Enums\OutputFormat::LLM->generator();
+    $generator = OutputFormat::LLM->generator();
 
     expect($generator)->toBeInstanceOf(GenerateLlmReport::class);
 });
 
 test('OutputFormat LLM generator passes focus option to GenerateLlmReport', function () {
-    $generator = \Vistik\LaravelCodeAnalytics\Enums\OutputFormat::LLM->generator(['focus' => ['app/Foo.php']]);
+    $generator = OutputFormat::LLM->generator(['focus' => ['app/Foo.php']]);
 
     // Verify it is a GenerateLlmReport; focus is exercised via generate() behaviour tests above
     expect($generator)->toBeInstanceOf(GenerateLlmReport::class);
 });
 
 test('OutputFormat tryFrom returns LLM for llm string', function () {
-    expect(\Vistik\LaravelCodeAnalytics\Enums\OutputFormat::tryFrom('llm'))
-        ->toBe(\Vistik\LaravelCodeAnalytics\Enums\OutputFormat::LLM);
+    expect(OutputFormat::tryFrom('llm'))
+        ->toBe(OutputFormat::LLM);
 });
