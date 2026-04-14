@@ -46,6 +46,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodChangedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRemovedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRenamedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodSignatureRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\NewPhpDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\OperatorRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\Rule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\SideEffectRule;
@@ -77,6 +78,7 @@ class ChangeClassifier
             new MethodRenamedRule,
             new MethodSignatureRule,
             new ConstructorInjectionRule,
+            new NewPhpDependencyRule,
             new ClassStructureRule,
             new EnumRule,
             new AttributeRule,
