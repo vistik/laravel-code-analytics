@@ -220,9 +220,8 @@ function openPanel(n) {
   }
 
   document.getElementById('reviewBtn').addEventListener('click', function() {
-    if (reviewedNodes.has(n.id)) { unmarkReviewed(n); }
-    else { markReviewed(n); }
-    openPanel(n);
+    if (reviewedNodes.has(n.id)) { unmarkReviewed(n); openPanel(n); }
+    else { markReviewed(n); closePanel(); }
   });
 
   if (n.isConnected) {
