@@ -85,7 +85,7 @@ class LaravelDataMigrationRule implements Rule
             }
 
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::VERY_HIGH,
                 description: "Uses DB::{$method}() for data manipulation in migration — data should be seeded separately",
                 location: $key,
@@ -114,7 +114,7 @@ class LaravelDataMigrationRule implements Rule
             $tableLabel = $tableName ? " on '{$tableName}'" : '';
 
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::MEDIUM,
                 description: "Uses DB::table(){$tableLabel} query builder in migration — data manipulation present",
                 location: $key,
@@ -149,7 +149,7 @@ class LaravelDataMigrationRule implements Rule
             }
 
             $changes[] = new ClassifiedChange(
-                category: ChangeCategory::LARAVEL,
+                category: ChangeCategory::LARAVEL_MIGRATION,
                 severity: Severity::VERY_HIGH,
                 description: "Eloquent model {$className}::{$method}() used in migration — data manipulation present",
                 location: $key,
