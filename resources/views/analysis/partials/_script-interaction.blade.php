@@ -328,7 +328,7 @@ function draw() {
       ctx.strokeStyle = '#161b22'; ctx.lineWidth = 1.5; ctx.stroke();
     }
     // Kind badge (class / interface / trait / enum / type)
-    if (!dim && !n.isConnected && n.kind) {
+    if (!dim && n.kind) {
       const kindMeta = { class: ['C','#388bfd'], abstract: ['A','#79c0ff'], interface: ['I','#bc8cff'], trait: ['T','#f0883e'], enum: ['E','#3fb950'], type: ['T','#d2a8ff'] };
       const [letter, bg] = kindMeta[n.kind] || [null, null];
       if (letter) {
