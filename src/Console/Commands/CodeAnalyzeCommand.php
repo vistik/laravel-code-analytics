@@ -18,7 +18,7 @@ class CodeAnalyzeCommand extends Command
     protected $signature = 'code:analyze
         {repo-path? : Path to the local git repo (defaults to current working directory)}
         {output? : Output file path (HTML, Markdown, or JSON depending on --format)}
-        {--base= : Base branch or commit to diff against (default: main). Use HEAD to see only uncommitted changes}
+        {--base= : Base branch or commit to diff against (default: main). Not needed with --pr= (auto-detected from the PR). Use HEAD to see only uncommitted changes}
         {--from= : Start commit hash for a range diff (e.g. abc1234). Use with --to or omit --to to use HEAD}
         {--to= : End commit hash for a range diff (defaults to HEAD when --from is set)}
         {--pick : Interactively pick two commits from git history to compare}
@@ -44,7 +44,9 @@ class CodeAnalyzeCommand extends Command
 
             $repoPath = $this->argument('repo-path') ?? $config['repo_path'] ?? getcwd();
             $outputPath = $this->option('output') ?? $this->argument('output') ?? $config['output'] ?? null;
-            $baseBranch = $this->option('base') ?? $config['base'] ?? 'main';
+            $prUrl = $this->option('pr');
+            // When --pr= is given, the base is auto-detected from the PR; --base= is only needed for local mode.
+            $baseBranch = $this->option('base') ?? $config['base'] ?? ($prUrl !== null ? null : 'main');
             $title = $this->option('title') ?? $config['title'] ?? null;
             $viewString = $this->option('view') ?? $config['view'] ?? null;
             $view = $viewString !== null
@@ -74,7 +76,6 @@ class CodeAnalyzeCommand extends Command
                 $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($fileGroups));
             }
 
-            $prUrl = $this->option('pr');
             $full = $this->option('full') || ($config['full'] ?? false);
 
             [$fromCommit, $toCommit] = $this->resolveCommitRange($repoPath);

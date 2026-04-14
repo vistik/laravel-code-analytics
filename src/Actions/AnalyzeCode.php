@@ -110,7 +110,7 @@ class AnalyzeCode
     public function execute(
         string $repoPath = '',
         ?string $outputPath = null,
-        string $baseBranch = 'main',
+        ?string $baseBranch = null,
         ?string $prUrl = null,
         bool $full = false,
         ?string $title = null,
@@ -135,13 +135,13 @@ class AnalyzeCode
 
         $t = microtime(true);
         if ($prUrl !== null) {
-            $init = $this->initFromPrUrl($prUrl);
+            $init = $this->initFromPrUrl($prUrl, $full);
             $init['prLinkUrl'] = $prUrl;
         } elseif ($fromCommit !== null) {
             // ── Two-commit range mode ────────────────────────────────────────
             $init = $this->initTwoCommitMode($repoPath, $fromCommit, $toCommit, $title);
         } else {
-            $init = $this->initLocalMode($repoPath, $baseBranch, $title, $full);
+            $init = $this->initLocalMode($repoPath, $baseBranch ?? 'main', $title, $full);
         }
         $this->progress('timing', '  ↳ init: '.$this->elapsed($t));
 
@@ -1095,9 +1095,12 @@ class AnalyzeCode
      * Fetch PR metadata and diff from GitHub, shallow-clone git objects, and
      * populate all internal state so the shared analysis pipeline can proceed.
      *
+     * When $full is true, lists all files at the PR's HEAD commit instead of just
+     * the PR diff — equivalent to --full in local mode.
+     *
      * @return array{files: list<array{path: string, additions: int, deletions: int}>, totalAdditions: int, totalDeletions: int, repoName: string, prTitle: string}
      */
-    private function initFromPrUrl(string $prUrl): array
+    private function initFromPrUrl(string $prUrl, bool $full = false): array
     {
         if (! preg_match('#https?://github\.com/([^/]+/[^/]+)/pull/(\d+)#', $prUrl, $m)) {
             throw new RuntimeException('Invalid GitHub PR URL. Expected: https://github.com/owner/repo/pull/123');
@@ -1124,12 +1127,25 @@ class AnalyzeCode
         $this->branchName = "PR #{$prNumber}";
 
         $this->progress('line', '  Title: '.$prJson['title']);
-        $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
+        $this->progress('line', '  Base: '.$prJson['baseRefName'].'  HEAD: '.substr($this->headCommit, 0, 7));
         $this->progress('timing', '  ↳ '.$this->elapsed($t).' gh pr view');
 
         $t = microtime(true);
-        $this->resolveGitObjectsCache(array_column($prJson['files'], 'path'));
+        $this->resolveGitObjectsCache(array_column($prJson['files'], 'path'), $full);
         $this->progress('timing', '  ↳ '.$this->elapsed($t).' git objects');
+
+        if ($full && $this->repoDir !== null) {
+            $allPaths = $this->listAllFilesAtCommit($this->repoDir, $this->headCommit);
+            $this->diff = '';
+
+            return [
+                'files' => array_map(fn ($p) => ['path' => $p, 'additions' => 0, 'deletions' => 0], $allPaths),
+                'totalAdditions' => 0,
+                'totalDeletions' => 0,
+                'repoName' => basename($this->prRepo),
+                'prTitle' => $prJson['title'],
+            ];
+        }
 
         $this->progress('info', 'Fetching diff...');
         $t = microtime(true);
@@ -1177,13 +1193,15 @@ class AnalyzeCode
         ];
     }
 
-    private function resolveGitObjectsCache(array $changedPaths): void
+    private function resolveGitObjectsCache(array $changedPaths, bool $full = false): void
     {
         if (empty($this->headCommit)) {
             return;
         }
 
-        $persistentDir = storage_path('app/git-objects/'.substr($this->headCommit, 0, 2).'/'.$this->headCommit);
+        // Full mode uses a separate cache directory since it prefetches all blobs.
+        $cacheKey = $full ? $this->headCommit.'-full' : $this->headCommit;
+        $persistentDir = storage_path('app/git-objects/'.substr($this->headCommit, 0, 2).'/'.$cacheKey);
         $alreadyCached = is_dir($persistentDir)
             && trim(shell_exec("git -C {$persistentDir} cat-file -t {$this->headCommit} 2>/dev/null") ?? '') === 'commit';
 
@@ -1195,7 +1213,7 @@ class AnalyzeCode
             mkdir($persistentDir, 0755, true);
             shell_exec("git init --bare {$persistentDir} 2>&1");
             shell_exec("git -C {$persistentDir} remote add origin https://github.com/{$this->prRepo}.git 2>&1");
-            $this->fetchGitObjectsForPr($persistentDir, $changedPaths);
+            $this->fetchGitObjectsForPr($persistentDir, $changedPaths, $full);
         }
 
         if ($this->repoDir !== null) {
@@ -1204,14 +1222,14 @@ class AnalyzeCode
         }
     }
 
-    private function fetchGitObjectsForPr(string $persistentDir, array $changedPaths): void
+    private function fetchGitObjectsForPr(string $persistentDir, array $changedPaths, bool $full = false): void
     {
         $phpPaths = array_values(array_filter($changedPaths, fn ($p) => str_ends_with($p, '.php')));
 
         $this->githubCallCount++;
         shell_exec("git -C {$persistentDir} fetch --depth 1 --filter=blob:none origin {$this->headCommit} 2>&1");
 
-        if (! empty($this->baseCommit)) {
+        if (! $full && ! empty($this->baseCommit)) {
             $this->githubCallCount++;
             shell_exec("git -C {$persistentDir} fetch --depth 1 --filter=blob:none origin {$this->baseCommit} 2>&1");
         }
@@ -1219,15 +1237,38 @@ class AnalyzeCode
         $verify = trim(shell_exec("git -C {$persistentDir} cat-file -t {$this->headCommit} 2>/dev/null") ?? '');
         if ($verify === 'commit') {
             $this->repoDir = $persistentDir;
-            $this->prefetchBlobs($persistentDir, $this->headCommit, $changedPaths);
-            if (! empty($this->baseCommit) && ! empty($phpPaths)) {
-                $this->prefetchBlobs($persistentDir, $this->baseCommit, $phpPaths);
+
+            if ($full) {
+                // Prefetch all PHP blobs for full-repo analysis.
+                $allPaths = $this->listAllFilesAtCommit($persistentDir, $this->headCommit);
+                $allPhpPaths = array_values(array_filter($allPaths, fn ($p) => str_ends_with($p, '.php')));
+                foreach (array_chunk($allPhpPaths, 50) as $chunk) {
+                    $this->prefetchBlobs($persistentDir, $this->headCommit, $chunk);
+                }
+            } else {
+                $this->prefetchBlobs($persistentDir, $this->headCommit, $changedPaths);
+                if (! empty($this->baseCommit) && ! empty($phpPaths)) {
+                    $this->prefetchBlobs($persistentDir, $this->baseCommit, $phpPaths);
+                }
             }
+
             $this->progress('line', '  Cached git objects locally.');
         } else {
             $this->progress('warn', '  Could not fetch git objects; file-level analysis may be limited.');
             shell_exec('rm -rf '.escapeshellarg($persistentDir));
         }
+    }
+
+    /**
+     * List all files present at the given commit in a bare git clone.
+     *
+     * @return list<string>
+     */
+    private function listAllFilesAtCommit(string $repoDir, string $commit): array
+    {
+        $output = trim(shell_exec("git -C {$repoDir} ls-tree --name-only -r ".escapeshellarg($commit).' 2>/dev/null') ?? '');
+
+        return $output !== '' ? array_values(array_filter(explode("\n", $output))) : [];
     }
 
     // ── Git helpers ──────────────────────────────────────────────────────────
