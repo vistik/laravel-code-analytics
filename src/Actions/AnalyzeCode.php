@@ -1327,14 +1327,27 @@ class AnalyzeCode
         }
 
         $isHeadBase = $this->baseCommit === $this->headCommit;
-        $prTitle = $this->logAndResolveDiffTitle($isHeadBase, $baseBranch, $repoName, $title);
+        $hasUncommitted = ! $isHeadBase && trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
+        $prTitle = $this->logAndResolveDiffTitle($isHeadBase, $hasUncommitted, $baseBranch, $repoName, $title);
 
         $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
 
         if (! str_contains($this->diff, 'diff --git')) {
+            if ($hasUncommitted) {
+                // The uncommitted changes cancel out the branch commits vs base — fall back to
+                // analyzing just the uncommitted changes (working tree vs HEAD).
+                $this->progress('warn', "No net changes between working tree and {$baseBranch} (uncommitted changes cancel branch commits). Showing uncommitted changes only.");
+
+                return $this->initHeadDiffMode($repoName, $title);
+            }
+
             $this->progress('warn', $isHeadBase ? 'No uncommitted changes found.' : "No changes found between working tree and {$baseBranch}.");
 
             return ['files' => [], 'totalAdditions' => 0, 'totalDeletions' => 0, 'repoName' => $repoName, 'prTitle' => $prTitle, 'prLinkUrl' => ''];
+        }
+
+        if ($hasUncommitted) {
+            $this->progress('line', '  Including staged and unstaged working tree changes.');
         }
 
         $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat {$baseBranch} 2>/dev/null") ?? '');
@@ -1347,7 +1360,31 @@ class AnalyzeCode
         return compact('files', 'totalAdditions', 'totalDeletions', 'repoName', 'prTitle') + ['prLinkUrl' => ''];
     }
 
-    private function logAndResolveDiffTitle(bool $isHeadBase, string $baseBranch, string $repoName, ?string $title): string
+    private function initHeadDiffMode(string $repoName, ?string $title): array
+    {
+        $this->baseCommit = $this->headCommit;
+        $prTitle = $title ?? "uncommitted changes on {$this->branchName}";
+        $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).' (uncommitted only)');
+
+        $this->diff = shell_exec("git -C {$this->repoPath} diff HEAD 2>/dev/null") ?? '';
+
+        if (! str_contains($this->diff, 'diff --git')) {
+            $this->progress('warn', 'No uncommitted changes found.');
+
+            return ['files' => [], 'totalAdditions' => 0, 'totalDeletions' => 0, 'repoName' => $repoName, 'prTitle' => $prTitle, 'prLinkUrl' => ''];
+        }
+
+        $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat HEAD 2>/dev/null") ?? '');
+        [$files, $totalAdditions, $totalDeletions] = $this->parseNumstatIntoFiles($numstat);
+
+        if (empty($files)) {
+            throw new RuntimeException('No files found in diff output.');
+        }
+
+        return compact('files', 'totalAdditions', 'totalDeletions', 'repoName', 'prTitle') + ['prLinkUrl' => ''];
+    }
+
+    private function logAndResolveDiffTitle(bool $isHeadBase, bool $hasUncommitted, string $baseBranch, string $repoName, ?string $title): string
     {
         if ($isHeadBase) {
             $prTitle = $title ?? "uncommitted changes on {$this->branchName}";
@@ -1357,15 +1394,10 @@ class AnalyzeCode
             return $prTitle;
         }
 
-        $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
         $uncommittedSuffix = $hasUncommitted ? ' + uncommitted' : '';
         $prTitle = $title ?? "{$this->branchName} vs {$baseBranch}{$uncommittedSuffix}";
         $this->progress('info', "Analyzing {$repoName}: {$prTitle}...");
         $this->progress('line', '  HEAD: '.substr($this->headCommit, 0, 7).'  Base: '.substr($this->baseCommit, 0, 7));
-
-        if ($hasUncommitted) {
-            $this->progress('line', '  Including staged and unstaged working tree changes.');
-        }
 
         return $prTitle;
     }
