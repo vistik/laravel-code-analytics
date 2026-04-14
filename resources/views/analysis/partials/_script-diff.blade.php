@@ -2,7 +2,7 @@
 var diffViewMode = localStorage.getItem('diffViewMode') || 'unified';
 var diffAnnotationsData = [];
 
-function renderUnifiedDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
+function renderUnifiedDiff(parsed, hlFn, linkMap, classMap, ifaceIndex) {
   var html = '';
   var oldLn = 0, newLn = 0;
   for (var r = 0; r < parsed.length; r++) {
@@ -12,17 +12,17 @@ function renderUnifiedDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
       var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += '<tr><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-hunk">' + esc + '</td></tr>';
     } else if (row.type === 'ctx') {
-      var h = isPHP ? highlightPHP(row.text, linkMap, classMap, ifaceIndex) : escapeHtml(row.text);
+      var h = hlFn(row.text, linkMap, classMap, ifaceIndex);
       html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '"><td class="diff-ln">' + oldLn + '</td><td class="diff-ln">' + newLn + '</td><td class="diff-ctx"> ' + h + '</td></tr>';
       oldLn++; newLn++;
     } else {
       for (var j = 0; j < row.dels.length; j++) {
-        var h = isPHP ? highlightPHP(row.dels[j], linkMap, classMap, ifaceIndex) : escapeHtml(row.dels[j]);
+        var h = hlFn(row.dels[j], linkMap, classMap, ifaceIndex);
         html += '<tr data-old-ln="' + oldLn + '"><td class="diff-ln diff-ln-del">' + oldLn + '</td><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + h + '</td></tr>';
         oldLn++;
       }
       for (var j = 0; j < row.adds.length; j++) {
-        var h = isPHP ? highlightPHP(row.adds[j], linkMap, classMap, ifaceIndex) : escapeHtml(row.adds[j]);
+        var h = hlFn(row.adds[j], linkMap, classMap, ifaceIndex);
         html += '<tr data-new-ln="' + newLn + '"><td class="diff-ln diff-ln-add"></td><td class="diff-ln diff-ln-add">' + newLn + '</td><td class="diff-add">+' + h + '</td></tr>';
         newLn++;
       }
@@ -31,7 +31,7 @@ function renderUnifiedDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
   return html;
 }
 
-function renderSplitDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
+function renderSplitDiff(parsed, hlFn, linkMap, classMap, ifaceIndex) {
   var html = '';
   var oldLn = 0, newLn = 0;
   for (var r = 0; r < parsed.length; r++) {
@@ -41,7 +41,7 @@ function renderSplitDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
       var esc = row.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += '<tr><td colspan="4" class="diff-hunk">' + esc + '</td></tr>';
     } else if (row.type === 'ctx') {
-      var h = isPHP ? highlightPHP(row.text, linkMap, classMap, ifaceIndex) : escapeHtml(row.text);
+      var h = hlFn(row.text, linkMap, classMap, ifaceIndex);
       html += '<tr data-new-ln="' + newLn + '" data-old-ln="' + oldLn + '">' +
         '<td class="diff-ln">' + oldLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
         '<td class="diff-ln">' + newLn + '</td><td class="diff-ctx diff-code"> ' + h + '</td>' +
@@ -56,13 +56,13 @@ function renderSplitDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
         var trAttrs = (hasDel ? ' data-old-ln="' + (bOld + j) + '"' : '') + (hasAdd ? ' data-new-ln="' + (bNew + j) + '"' : '');
         html += '<tr' + trAttrs + '>';
         if (hasDel) {
-          var dh = isPHP ? highlightPHP(dels[j], linkMap, classMap, ifaceIndex) : escapeHtml(dels[j]);
+          var dh = hlFn(dels[j], linkMap, classMap, ifaceIndex);
           html += '<td class="diff-ln diff-ln-del">' + (bOld + j) + '</td><td class="diff-del diff-code">-' + dh + '</td>';
         } else {
           html += '<td class="diff-ln diff-ln-del"></td><td class="diff-del diff-code diff-empty"></td>';
         }
         if (hasAdd) {
-          var ah = isPHP ? highlightPHP(adds[j], linkMap, classMap, ifaceIndex) : escapeHtml(adds[j]);
+          var ah = hlFn(adds[j], linkMap, classMap, ifaceIndex);
           html += '<td class="diff-ln diff-ln-add">' + (bNew + j) + '</td><td class="diff-add diff-code">+' + ah + '</td>';
         } else {
           html += '<td class="diff-ln diff-ln-add"></td><td class="diff-add diff-code diff-empty"></td>';
@@ -76,7 +76,7 @@ function renderSplitDiff(parsed, isPHP, linkMap, classMap, ifaceIndex) {
   return html;
 }
 
-function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap, ifaceIndex) {
+function renderFullFile(fileContent, parsedDiff, hlFn, linkMap, classMap, ifaceIndex) {
   // Build maps from parsedDiff: which new-file lines are added, and which deleted
   // lines appear before each new-file line.
   var addedLines = {};
@@ -109,10 +109,10 @@ function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap, iface
     var ln = i + 1;
     var dels = deletedBefore[ln] || [];
     for (var d = 0; d < dels.length; d++) {
-      var dh = isPHP ? highlightPHP(dels[d], linkMap, classMap, ifaceIndex) : escapeHtml(dels[d]);
+      var dh = hlFn(dels[d], linkMap, classMap, ifaceIndex);
       html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
     }
-    var h = isPHP ? highlightPHP(lines[i], linkMap, classMap, ifaceIndex) : escapeHtml(lines[i]);
+    var h = hlFn(lines[i], linkMap, classMap, ifaceIndex);
     var isAdded = !!addedLines[ln];
     html += '<tr data-new-ln="' + ln + '">' +
       '<td class="diff-ln' + (isAdded ? ' diff-ln-add' : '') + '">' + ln + '</td>' +
@@ -124,7 +124,7 @@ function renderFullFile(fileContent, parsedDiff, isPHP, linkMap, classMap, iface
   for (var ki = 0; ki < endKeys.length; ki++) {
     var eds = deletedBefore[endKeys[ki]];
     for (var d = 0; d < eds.length; d++) {
-      var dh = isPHP ? highlightPHP(eds[d], linkMap, classMap, ifaceIndex) : escapeHtml(eds[d]);
+      var dh = hlFn(eds[d], linkMap, classMap, ifaceIndex);
       html += '<tr><td class="diff-ln diff-ln-del"></td><td class="diff-del">-' + dh + '</td></tr>';
     }
   }

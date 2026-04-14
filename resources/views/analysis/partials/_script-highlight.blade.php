@@ -114,3 +114,12 @@ function highlightPHP(code, linkMap, classMap, ifaceIndex) {
   }
   return out;
 }
+
+function highlightJS(code, language) {
+  if (typeof hljs === 'undefined') return escapeHtml(code);
+  try {
+    return hljs.highlight(code, { language: language || 'javascript', ignoreIllegals: true }).value;
+  } catch (e) {
+    return escapeHtml(code);
+  }
+}
