@@ -32,6 +32,7 @@ class GenerateJsonReport implements ReportGenerator
             'signal' => $node['_signal'] ?? 0,
             'cycle_id' => $node['cycleId'] ?? null,
             'cycle_boost' => $node['_cycleBoost'] ?? null,
+            'connection_boost' => $node['_connectionBoost'] ?? null,
         ], $sorted);
 
         $cycleGroups = [];
