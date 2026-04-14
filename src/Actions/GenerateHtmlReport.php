@@ -661,6 +661,7 @@ class GenerateHtmlReport implements ReportGenerator
         GraphPayload $payload,
         PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
+        ?LayerStack $layerStack = null,
     ): string {
         $toggles = new FilterTogglesHtml(
             ext: $this->buildExtToggles($payload->nodes, $payload->filterDefaults['hidden_extensions'] ?? []),
@@ -669,7 +670,7 @@ class GenerateHtmlReport implements ReportGenerator
             kind: $this->buildKindToggles($payload->nodes, $payload->filterDefaults['hidden_kinds'] ?? []),
         );
 
-        return $this->buildWrapperHtml($payload, $pr, $toggles, defaultView: $defaultView ?? GraphLayout::Force);
+        return $this->buildWrapperHtml($payload, $pr, $toggles, $layerStack, defaultView: $defaultView ?? GraphLayout::Force);
     }
 
     public function writeFile(string $outputPath, string $content): void
