@@ -27,10 +27,12 @@ class CodeAnalyzeCommand extends Command
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
         {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file, full)}
-        {--format=html : Output format: html, md, json, metrics, metrics-details, or github}
+        {--format=html : Output format: html, md, json, metrics, metrics-details, github, or llm (llm implies --full)}
         {--output= : Output file or directory path (alternative to the positional output argument)}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
+        {--folder=* : Only analyze files under this directory prefix (can be repeated, e.g. --folder=src)}
+        {--ext=* : Only analyze files with this extension (can be repeated, e.g. --ext=php)}
         {--open : Open the generated file in the browser when done}
         {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}';
@@ -54,7 +56,7 @@ class CodeAnalyzeCommand extends Command
                 : GraphLayout::Force;
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
-                ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details, github");
+                ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, metrics-details, github, llm");
             $openFile = $this->option('open') || ($config['open'] ?? false);
             $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
             $githubMetrics = $this->option('github-metrics') || ($config['github_metrics'] ?? false);
@@ -76,11 +78,30 @@ class CodeAnalyzeCommand extends Command
                 $action = new AnalyzeCode(groupResolver: $this->resolveGroupResolver($fileGroups));
             }
 
-            $full = $this->option('full') || ($config['full'] ?? false);
+            $explicitFiles = $this->option('file') ?: ($config['file'] ?? []);
+
+            // LLM format implies --full for the codebase map, but NOT when --file= focus is given
+            // (focus mode needs a diff to produce findings via AST analysis).
+            $full = $this->option('full') || ($config['full'] ?? false) || ($format === OutputFormat::LLM && empty($explicitFiles));
 
             [$fromCommit, $toCommit] = $this->resolveCommitRange($repoPath);
 
-            $filePatterns = $this->option('file') ?: ($config['file'] ?? null) ?: null;
+            $folderPatterns = array_map(
+                fn (string $f) => rtrim($f, '/').'/',
+                $this->option('folder') ?: ($config['folder'] ?? []),
+            );
+            $extPatterns = array_map(
+                fn (string $e) => '*.'.ltrim(ltrim($e, '*'), '.'),
+                $this->option('ext') ?: ($config['ext'] ?? []),
+            );
+            // For LLM format --file becomes a focus (handled in generator, not as a filter).
+            // For all other formats --file is a plain file filter.
+            $focusFiles = $format === OutputFormat::LLM && ! empty($explicitFiles) ? $explicitFiles : null;
+            $filePatterns = array_merge(
+                $format === OutputFormat::LLM ? [] : $explicitFiles,
+                $folderPatterns,
+                $extPatterns,
+            ) ?: null;
 
             $raw = ! $openFile && $outputPath === null;
 
@@ -114,6 +135,7 @@ class CodeAnalyzeCommand extends Command
                 criticalTables: $config['critical_tables'] ?? [],
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
+                focusFiles: $focusFiles,
             );
 
             if (isset($result['content'])) {
