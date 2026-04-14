@@ -456,9 +456,10 @@ function openPanel(n) {
         var dtLabel = depTypeLabel[relevantLink.depType] || relevantLink.depType;
         dtBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + (depTypeBadgeColor[relevantLink.depType] || '#30363d') + ';color:#e6edf3;margin-left:6px;white-space:nowrap">' + dtLabel + '</span>';
       }
+      var cmKindLabel = cm.kind ? ' <span style="font-size:11px;font-weight:400;color:' + (kindColors[cm.kind] || '#8b949e') + '">' + cm.kind + '</span>' : '';
       bodyHtml += '<div class="dep-item" data-node-id="' + cm.id.replace(/"/g, '&quot;') + '">' +
         '<span class="dep-dot" style="background:' + cm.color + ';border:1.5px dashed ' + cm.cycleColor + ';box-sizing:content-box"></span>' +
-        cm.id + dtBadge +
+        cm.id + cmKindLabel + dtBadge +
         '<span style="color:#6e7681;margin-left:auto;font-size:11px;white-space:nowrap">' + dirLabel + '</span>' +
         '</div>';
     }
@@ -473,7 +474,8 @@ function openPanel(n) {
       var dtLabel = depTypeLabel[l.depType] || l.depType;
       var dtColor = depTypeBadgeColor[l.depType] || '#30363d';
       var dtBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + dtColor + ';color:#e6edf3;margin-left:6px;white-space:nowrap">' + dtLabel + '</span>';
-      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + dtBadge + depStat + '</div>';
+      var dKindLabel = d.kind ? ' <span style="font-size:11px;font-weight:400;color:' + (kindColors[d.kind] || '#8b949e') + '">' + d.kind + '</span>' : '';
+      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + dKindLabel + dtBadge + depStat + '</div>';
     }
     bodyHtml += '</div>';
   }
@@ -485,7 +487,8 @@ function openPanel(n) {
       var dtLabel = depTypeLabel[l.depType] || l.depType;
       var dtColor = depTypeBadgeColor[l.depType] || '#30363d';
       var dtBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + dtColor + ';color:#e6edf3;margin-left:6px;white-space:nowrap">' + dtLabel + '</span>';
-      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + dtBadge + depStat + '</div>';
+      var dKindLabel = d.kind ? ' <span style="font-size:11px;font-weight:400;color:' + (kindColors[d.kind] || '#8b949e') + '">' + d.kind + '</span>' : '';
+      bodyHtml += '<div class="dep-item" data-node-id="' + d.id.replace(/"/g, '&quot;') + '"><span class="dep-dot" style="background:' + d.color + '"></span>' + d.id + dKindLabel + dtBadge + depStat + '</div>';
     }
     bodyHtml += '</div>';
   }
