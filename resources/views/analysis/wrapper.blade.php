@@ -210,7 +210,7 @@ tailwind.config = {
   .file-sev-dot span { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
   .file-col-metric { width: 36px; flex-shrink: 0; text-align: center; }
   .file-col-val { font-size: 12px; font-variant-numeric: tabular-nums; color: #c9d1d9; }
-  .file-col-review { width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .file-col-review { width: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 4px; }
   .file-metrics-chips { display: flex; gap: 6px; margin-top: 2px; font-size: 10px; font-variant-numeric: tabular-nums; }
   .file-metric-chip { color: #484f58; white-space: nowrap; }
   .file-review-btn {
@@ -221,6 +221,13 @@ tailwind.config = {
   }
   .file-review-btn:hover { background: rgba(13,53,32,0.5); color: #3fb950; border-color: rgba(35,134,54,0.5); }
   .file-review-btn.reviewed { background: rgba(13,53,32,0.7); color: #3fb950; border-color: rgba(35,134,54,0.6); }
+  .file-review-next-btn {
+    width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent;
+    background: transparent; cursor: pointer; color: #484f58;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; line-height: 1; transition: all 0.15s; padding: 0; flex-shrink: 0;
+  }
+  .file-review-next-btn:hover { background: rgba(13,53,32,0.5); color: #3fb950; border-color: rgba(35,134,54,0.5); }
   .file-row-deleted { background: rgba(19,6,9,0.8); border-left: 2px solid rgba(218,54,51,0.6); padding-left: 14px; }
   .file-row-deleted:hover { background: rgba(28,11,16,0.9); }
   .file-row-deleted .file-name-text { text-decoration: line-through; text-decoration-color: #f85149; color: #8b949e; }
@@ -237,7 +244,8 @@ tailwind.config = {
   /* ── Narrow panel (< 520px) ── */
   .files-panel.narrow .file-col-status,
   .files-panel.narrow .file-metrics-chips { display: none; }
-  .files-panel.narrow .file-col-review { width: 24px; }
+  .files-panel.narrow .file-col-review { width: 48px; }
+  .files-panel.narrow .file-review-next-btn { display: none; }
   .files-panel.narrow .file-col-signal { width: 34px; }
   .files-panel.narrow .file-col-signal .file-col-val { font-size: 13px; }
   .files-panel.narrow .file-col-changes { width: 54px; }
@@ -753,7 +761,7 @@ tailwind.config = {
       var isDeleted = n.status === 'deleted';
       var deletedIcon = isDeleted ? '<svg class="file-deleted-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z"/></svg>' : '';
       html += '<div class="file-row' + (isDeleted ? ' file-row-deleted' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '">' +
-        '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button></div>' +
+        '<div class="file-col file-col-review"><button class="file-review-btn' + (isReviewed ? ' reviewed' : '') + '" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="' + (isReviewed ? 'Unmark reviewed' : 'Mark as reviewed') + '">' + (isReviewed ? '&#10003;' : '&#9744;') + '</button><button class="file-review-next-btn" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" title="Mark as reviewed &amp; open next unreviewed file">&#8594;</button></div>' +
         '<div class="file-col file-col-signal"><span class="file-col-label">Signal</span><span class="file-col-val" style="color:' + rc + '">' + n._signal + '</span></div>' +
         '<div class="file-col file-col-name">' +
           '<div class="file-name-main"><span class="file-domain-dot" style="background:' + (n.domainColor || '#8b949e') + '"></span>' + deletedIcon + '<span class="file-name-text">' + n.id.replace(/</g, '&lt;') + '</span>' + (n.ext ? '<span class="file-ext-badge">.' + n.ext + '</span>' : '') + (n.watched ? ' <span style="color:#d29922;font-size:10px" title="Watched' + (n.watchReason ? ': ' + n.watchReason : '') + '">&#9670;</span>' : '') + '</div>' +
@@ -799,6 +807,29 @@ tailwind.config = {
     }
     updateReviewedBadge();
     renderFileList();
+  }
+
+  function markReviewedAndOpenNext(nodeId) {
+    if (!reviewedFiles.has(nodeId)) {
+      reviewedFiles.add(nodeId);
+      document.getElementById('view').contentWindow.postMessage({ type: 'markFileReviewed', nodeId: nodeId }, '*');
+      updateReviewedBadge();
+      renderFileList();
+    }
+    var next = null;
+    var bestSignal = -Infinity;
+    for (var i = 0; i < changedFiles.length; i++) {
+      var f = changedFiles[i];
+      if (f.id === nodeId) continue;
+      if (reviewedFiles.has(f.id)) continue;
+      if ((f._signal || 0) > bestSignal) {
+        bestSignal = f._signal || 0;
+        next = f;
+      }
+    }
+    if (next) {
+      document.getElementById('view').contentWindow.postMessage({ type: 'openFile', nodeId: next.id, fromFiles: true }, '*');
+    }
   }
 
   // ── Toggle panel ──
@@ -857,6 +888,12 @@ tailwind.config = {
     renderFileList();
   });
   document.getElementById('filesRows').addEventListener('click', function(e) {
+    var nextBtn = e.target.closest('.file-review-next-btn');
+    if (nextBtn) {
+      e.stopPropagation();
+      markReviewedAndOpenNext(nextBtn.dataset.nodeId);
+      return;
+    }
     var btn = e.target.closest('.file-review-btn');
     if (btn) {
       e.stopPropagation();
@@ -910,6 +947,9 @@ tailwind.config = {
       reviewedFiles.add(e.data.nodeId);
       updateReviewedBadge();
       if (filesPanelEl.classList.contains('open')) renderFileList();
+    }
+    if (e.data.type === 'fileReviewedOpenNext') {
+      markReviewedAndOpenNext(e.data.nodeId);
     }
     if (e.data.type === 'fileUnreviewed') {
       reviewedFiles.delete(e.data.nodeId);

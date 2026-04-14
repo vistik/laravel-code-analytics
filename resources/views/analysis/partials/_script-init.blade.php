@@ -195,6 +195,13 @@ function unmarkReviewed(n) {
   if (window.parent !== window) window.parent.postMessage({ type: 'fileUnreviewed', nodeId: n.id }, '*');
 }
 
+function markReviewedAndGoNext(n) {
+  reviewedNodes.add(n.id);
+  updateReviewedCount();
+  clearHidden();
+  if (window.parent !== window) window.parent.postMessage({ type: 'fileReviewedOpenNext', nodeId: n.id }, '*');
+}
+
 document.querySelectorAll('.ext-toggle').forEach(function(cb) {
   cb.addEventListener('change', function() {
     var ext = this.dataset.ext;
