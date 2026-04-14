@@ -128,3 +128,68 @@ it('detects truly removed scheduled job as HIGH', function () {
         ->and($changes[0]->severity)->toBe(Severity::HIGH)
         ->and($changes[0]->description)->toContain('SyncSubscriptionsJob');
 });
+
+it('detects truly removed static scheduled job (Schedule::job) as HIGH', function () {
+    $old = <<<'PHP'
+        <?php
+        Schedule::job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toHaveCount(1)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
+        ->and($changes[0]->description)->toContain('SyncSubscriptionsJob');
+});
+
+it('detects commented-out instance-style scheduled job ($schedule->job) as HIGH', function () {
+    $old = <<<'PHP'
+        <?php
+        $schedule->job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        // $schedule->job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    expect($changes)->toHaveCount(1)
+        ->and($changes[0]->severity)->toBe(Severity::HIGH)
+        ->and($changes[0]->description)->toContain('SyncSubscriptionsJob')
+        ->and($changes[0]->description)->toContain('disabled via comment');
+});
+
+it('does not flag a newly added scheduled job', function () {
+    $old = <<<'PHP'
+        <?php
+        PHP;
+
+    $new = <<<'PHP'
+        <?php
+        Schedule::job(SyncSubscriptionsJob::class)->onOneServer()->dailyAt('04:10');
+        PHP;
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('routes/console.php', 'routes/console.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelConsoleRule)->analyze($file, $comparison);
+
+    $highChanges = array_values(array_filter($changes, fn ($c) => $c->severity === Severity::HIGH));
+
+    expect($highChanges)->toBeEmpty();
+});
