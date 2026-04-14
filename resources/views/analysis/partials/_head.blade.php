@@ -216,6 +216,23 @@ tailwind.config = {
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 
+  /* ── Diff prev/next navigation buttons ── */
+  #diff-nav {
+    position: absolute; bottom: 20px; right: 20px; z-index: 30;
+    display: none; align-items: center; gap: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5); border-radius: 8px;
+  }
+  #diff-nav.visible { display: inline-flex; }
+  #diff-nav button {
+    background: #1c2128; color: #8b949e; border: 1px solid #30363d;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap; border-radius: 0;
+  }
+  #diff-nav button:first-child { border-radius: 8px 0 0 8px; border-right: none; }
+  #diff-nav button:last-child  { border-radius: 0 8px 8px 0; }
+  #diff-nav button:hover { background: #2d333b; color: #c9d1d9; border-color: #484f58; }
+
   /* ── Complexity scroll button ── */
   #complexity-scroll-btn {
     position: absolute; bottom: 20px; right: 20px; z-index: 30;
@@ -228,6 +245,8 @@ tailwind.config = {
   }
   #complexity-scroll-btn:hover { background: #2d333b; color: #c9d1d9; border-color: #484f58; }
   #complexity-scroll-btn.visible { display: inline-flex; }
+  /* Stack complexity button above diff-nav when both are visible */
+  #diff-nav.visible + #complexity-scroll-btn.visible { bottom: 60px; }
 
   /* ── Change bar (JS-generated) ── */
   .change-bar-wrap { padding: 12px 24px; border-bottom: 1px solid #21262d; }

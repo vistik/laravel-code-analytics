@@ -529,6 +529,7 @@ function openPanel(n) {
   }
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
+  updateDiffNav();
 
   // Floating "Methods by Complexity" scroll button
   var complexityScrollBtn = document.getElementById('complexity-scroll-btn');
@@ -712,7 +713,7 @@ function openPanel(n) {
       else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
       else rows = renderUnifiedDiff(parsed, isPHP, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
-      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); }
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); updateDiffNav(); }
     });
   });
 

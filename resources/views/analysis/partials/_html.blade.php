@@ -128,5 +128,9 @@
   <div class="panel-actions" id="panel-actions"></div>
   <div class="change-bar-wrap" id="panel-bar"></div>
   <div class="panel-body" id="panel-body"></div>
+  <div id="diff-nav">
+    <button onclick="scrollToPrevDiff()">&#8593; Prev change</button>
+    <button onclick="scrollToNextDiff()">&#8595; Next change</button>
+  </div>
   <button id="complexity-scroll-btn" onclick="scrollToComplexity()">&#8593; Back</button>
 </div>
