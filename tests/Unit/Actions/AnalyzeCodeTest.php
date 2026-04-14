@@ -521,6 +521,64 @@ describe('execute — no diff', function () {
     });
 });
 
+// ── execute — uncommitted changes progress messages ───────────────────────────
+
+describe('execute — uncommitted changes progress messages', function () {
+    it('shows "Including staged and unstaged working tree changes" when uncommitted changes produce a real diff vs base', function () {
+        $dir = makeTempGitRepo(); // main: README.md committed
+
+        // Commit a file on a feature branch (main stays at initial commit)
+        shell_exec("git -C {$dir} checkout -b feature 2>&1");
+        addAndStageFile($dir, 'committed.php', '<?php class Committed {}');
+        shell_exec("git -C {$dir} commit -m 'committed' 2>&1");
+
+        // Add an uncommitted staged change on top — combined diff vs main is non-empty
+        addAndStageFile($dir, 'staged.php', '<?php class Staged {}');
+
+        $messages = [];
+        (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $lineText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'line')->pluck(1)->all());
+
+        expect($lineText)->toContain('Including staged and unstaged working tree changes');
+    });
+
+    it('does not show "Including staged and unstaged" when there are no uncommitted changes', function () {
+        $dir = makeTempGitRepo(); // main: README.md committed
+
+        // Commit a file — no uncommitted changes
+        addAndStageFile($dir, 'committed.php', '<?php class Committed {}');
+        shell_exec("git -C {$dir} commit -m 'committed' 2>&1");
+
+        $messages = [];
+        (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $lineText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'line')->pluck(1)->all());
+
+        expect($lineText)->not->toContain('Including staged and unstaged working tree changes');
+    });
+});
+
 // ── execute — uncommitted changes cancel branch commits ───────────────────────
 
 describe('execute — uncommitted changes cancel branch commits', function () {
