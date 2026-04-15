@@ -7,7 +7,6 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMdReport;
-use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsDetailsReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 
@@ -17,9 +16,8 @@ enum OutputFormat: string
     case MARKDOWN = 'md';
     case JSON = 'json';
     case METRICS = 'metrics';
-    case METRICS_DETAILS = 'metrics-details';
-    case GITHUB = 'github';
     case LLM = 'llm';
+    case GITHUB = 'github';
 
     /** @param array<string, mixed> $options */
     public function generator(array $options = []): ReportGenerator
@@ -29,9 +27,8 @@ enum OutputFormat: string
             self::MARKDOWN => new GenerateMdReport,
             self::JSON => new GenerateJsonReport,
             self::METRICS => new GenerateMetricsReport,
-            self::METRICS_DETAILS => new GenerateMetricsDetailsReport,
-            self::GITHUB => new GenerateGithubAnnotationsReport($options['metrics'] ?? false),
             self::LLM => new GenerateLlmReport($options['focus'] ?? null),
+            self::GITHUB => new GenerateGithubAnnotationsReport($options['metrics'] ?? false),
         };
     }
 
@@ -42,9 +39,8 @@ enum OutputFormat: string
             self::MARKDOWN => 'md',
             self::JSON => 'json',
             self::METRICS => 'txt',
-            self::METRICS_DETAILS => 'txt',
-            self::GITHUB => 'txt',
             self::LLM => 'txt',
+            self::GITHUB => 'txt',
         };
     }
 }
