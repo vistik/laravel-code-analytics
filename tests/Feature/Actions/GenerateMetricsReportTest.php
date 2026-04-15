@@ -1,6 +1,6 @@
 <?php
 
-use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsDetailsReport;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
@@ -31,7 +31,7 @@ function generateMetrics(array $nodes = []): string
 
 function generateMetricsDetails(array $nodes = []): string
 {
-    return (new GenerateMetricsDetailsReport)->generate(
+    return (new GenerateLlmReport)->generate(
         payload: new GraphPayload(nodes: $nodes, edges: [], fileDiffs: [], analysisData: []),
         pr: new PullRequestContext(prTitle: '', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
     );
@@ -71,7 +71,7 @@ test('circular deps line counts unique cycles not total files', function () {
     expect($output)->toContain('1 cycle(s)  3 file(s)');
 });
 
-// ── GenerateMetricsDetailsReport (inherits summary) ──────────────────────────
+// ── GenerateLlmReport (inherits summary) ─────────────────────────────────────
 
 test('metrics details report also shows circular deps line', function () {
     $output = generateMetricsDetails([

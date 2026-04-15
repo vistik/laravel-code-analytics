@@ -128,7 +128,6 @@ class AnalyzeCode
         array $criticalTables = [],
         ?string $fromCommit = null,
         ?string $toCommit = null,
-        ?array $focusFiles = null,
     ): array {
         $this->onProgress = $onProgress;
         $this->analyzeStart = microtime(true);
@@ -257,7 +256,7 @@ class AnalyzeCode
         $t = microtime(true);
         $this->progress('info', "Generating {$format->value} report...");
 
-        $reportGenerator = $format->generator(['metrics' => $githubMetrics, 'focus' => $focusFiles]);
+        $reportGenerator = $format->generator(['metrics' => $githubMetrics]);
         $content = $reportGenerator->generate(
             layerStack: LayerStack::fromConfig($this->projectType),
             payload: new GraphPayload(
