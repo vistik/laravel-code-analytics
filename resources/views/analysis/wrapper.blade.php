@@ -163,6 +163,23 @@ tailwind.config = {
   .files-search:focus { outline: none; border-color: #388bfd; background: #1c2128; }
   .files-search::placeholder { color: #484f58; }
 
+  /* ── Review progress bar ── */
+  .files-review-progress {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+  }
+  .files-review-progress-bar-wrap {
+    flex: 1; height: 4px; background: #21262d; border-radius: 4px; overflow: hidden;
+  }
+  .files-review-progress-bar {
+    height: 100%; background: #238636; border-radius: 4px; transition: width 0.3s ease;
+  }
+  .files-review-progress-label {
+    font-size: 11px; font-weight: 600; color: #6e7681; min-width: 28px; text-align: right;
+    font-family: 'JetBrains Mono', monospace; transition: color 0.3s;
+  }
+  .files-review-progress-label.done { color: #3fb950; }
+
   /* ── Files list ── */
   .files-scroll { flex: 1 1 0%; overflow-y: auto; min-height: 0; }
   .files-scroll::-webkit-scrollbar { width: 5px; }
@@ -372,6 +389,12 @@ tailwind.config = {
         <option value="cc">CC</option>
         <option value="mi">MI</option>
       </select>
+    </div>
+    <div class="files-review-progress" id="filesReviewProgress">
+      <div class="files-review-progress-bar-wrap">
+        <div class="files-review-progress-bar" id="filesProgressBar" style="width:0%"></div>
+      </div>
+      <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
     </div>
     <div class="files-header-row">
       <div class="file-col file-col-review"></div>
@@ -777,6 +800,20 @@ tailwind.config = {
   }
 
   // ── Show/hide reviewed ──
+  function updateReviewProgress() {
+    var totalSignal = 0, reviewedSignal = 0;
+    changedFiles.forEach(function(n) {
+      var sig = n._signal || 0;
+      totalSignal += sig;
+      if (reviewedFiles.has(n.id)) reviewedSignal += sig;
+    });
+    var pct = totalSignal > 0 ? Math.round(reviewedSignal / totalSignal * 100) : 0;
+    document.getElementById('filesProgressBar').style.width = pct + '%';
+    var label = document.getElementById('filesProgressLabel');
+    label.textContent = pct + '%';
+    label.classList.toggle('done', pct === 100);
+  }
+
   function updateReviewedBadge() {
     var count = reviewedFiles.size;
     var badge = document.getElementById('reviewedBadge');
@@ -787,6 +824,7 @@ tailwind.config = {
     btn.style.color = showReviewed ? '#3fb950' : '#8b949e';
     btn.style.borderColor = showReviewed ? '#238636' : '#30363d';
     btn.style.background = showReviewed ? '#0d3520' : 'none';
+    updateReviewProgress();
   }
 
   function toggleShowReviewed() {
