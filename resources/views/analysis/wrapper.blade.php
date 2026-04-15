@@ -163,6 +163,26 @@ tailwind.config = {
   .files-search:focus { outline: none; border-color: #388bfd; background: #1c2128; }
   .files-search::placeholder { color: #484f58; }
 
+  /* ── Review progress bar ── */
+  .files-review-progress {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+  }
+  .files-review-progress-bar-wrap {
+    height: 4px; flex-shrink: 0; display: flex; gap: 2px; align-items: stretch;
+  }
+  .files-review-progress-segment {
+    flex-shrink: 0; border-radius: 3px; overflow: hidden; min-width: 3px; transition: flex 0.3s ease;
+  }
+  .files-review-progress-segment-fill {
+    height: 100%; transition: width 0.3s ease;
+  }
+  .files-review-progress-label {
+    font-size: 11px; font-weight: 600; color: #6e7681; min-width: 28px; text-align: right;
+    font-family: 'JetBrains Mono', monospace; transition: color 0.3s;
+  }
+  .files-review-progress-label.done { color: #3fb950; }
+
   /* ── Files list ── */
   .files-scroll { flex: 1 1 0%; overflow-y: auto; min-height: 0; }
   .files-scroll::-webkit-scrollbar { width: 5px; }
@@ -372,6 +392,13 @@ tailwind.config = {
         <option value="cc">CC</option>
         <option value="mi">MI</option>
       </select>
+    </div>
+    <div class="files-review-progress" id="filesReviewProgress">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+        <div class="files-review-progress-bar-wrap" id="filesProgressBar"></div>
+        <div id="filesProgressLegend" style="display:flex;gap:2px"></div>
+      </div>
+      <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
     </div>
     <div class="files-header-row">
       <div class="file-col file-col-review"></div>
@@ -664,8 +691,8 @@ tailwind.config = {
   function renderFileList() {
     var filter = (document.getElementById('filesSearch').value || '').toLowerCase();
     var hasTypeFilter = Object.keys(activeTypeFilters).length > 0;
-    var list = changedFiles.filter(function(n) {
-      if (!showReviewed && reviewedFiles.has(n.id)) return false;
+    function matchesFilters(n, includeReviewed) {
+      if (!includeReviewed && reviewedFiles.has(n.id)) return false;
       if (hiddenChangeTypes[n.status]) return false;
       if (hasTypeFilter) {
         var ext = (n.ext || '').toLowerCase();
@@ -675,7 +702,9 @@ tailwind.config = {
       }
       if (!filter) return true;
       return n.id.toLowerCase().indexOf(filter) !== -1 || n.path.toLowerCase().indexOf(filter) !== -1;
-    });
+    }
+    var list = changedFiles.filter(function(n) { return matchesFilters(n, showReviewed); });
+    var progressList = changedFiles.filter(function(n) { return matchesFilters(n, true); });
 
     list.sort(function(a, b) {
       // Watched files always surface above unwatched, regardless of sort criterion
@@ -774,9 +803,66 @@ tailwind.config = {
         '</div>';
     }
     document.getElementById('filesRows').innerHTML = html;
+    updateReviewProgress(progressList);
   }
 
   // ── Show/hide reviewed ──
+  var progressTypeColors = {
+    js:    { fill: '#d4a72c', bg: 'rgba(212,167,44,0.18)' },
+    ts:    { fill: '#3d8fd1', bg: 'rgba(61,143,209,0.18)' },
+    php:   { fill: '#8892bf', bg: 'rgba(136,146,191,0.18)' },
+    other: { fill: '#6e7681', bg: 'rgba(110,118,129,0.15)' },
+  };
+
+  function extToGroup(ext) {
+    if (ext === 'js' || ext === 'jsx') return 'js';
+    if (ext === 'ts' || ext === 'tsx') return 'ts';
+    if (ext === 'php') return 'php';
+    return 'other';
+  }
+
+  function updateReviewProgress(list) {
+    var groups = {};
+    var grandTotal = 0, grandReviewed = 0;
+    list.forEach(function(n) {
+      var key = extToGroup((n.ext || '').toLowerCase());
+      if (!groups[key]) groups[key] = { total: 0, reviewed: 0 };
+      var sig = n._signal || 0;
+      groups[key].total += sig;
+      grandTotal += sig;
+      if (reviewedFiles.has(n.id)) {
+        groups[key].reviewed += sig;
+        grandReviewed += sig;
+      }
+    });
+
+    var order = ['js', 'ts', 'php', 'other'];
+    var barHtml = '', legendHtml = '';
+    order.forEach(function(key) {
+      if (!groups[key] || !groups[key].total) return;
+      var g = groups[key];
+      var c = progressTypeColors[key];
+      var fillPct = g.total > 0 ? (g.reviewed / g.total * 100).toFixed(1) : '0.0';
+      barHtml += '<div class="files-review-progress-segment"'
+               + ' style="flex:' + g.total + ';background:' + c.bg + '"'
+               + ' title="' + key.toUpperCase() + ': ' + fillPct + '% reviewed">'
+               + '<div class="files-review-progress-segment-fill"'
+               + ' style="width:' + fillPct + '%;background:' + c.fill + '"></div>'
+               + '</div>';
+      legendHtml += '<span style="flex:' + g.total + ';min-width:0;overflow:hidden;display:flex;align-items:center;gap:3px;white-space:nowrap">'
+                  + '<span style="font-size:9px;font-family:\'JetBrains Mono\',monospace;font-weight:600;color:' + c.fill + ';opacity:0.8">' + key.toUpperCase() + '</span>'
+                  + '<span style="font-size:9px;font-family:\'JetBrains Mono\',monospace;color:' + c.fill + ';opacity:0.6">' + fillPct + '%</span>'
+                  + '</span>';
+    });
+    document.getElementById('filesProgressBar').innerHTML = barHtml;
+    document.getElementById('filesProgressLegend').innerHTML = legendHtml;
+
+    var pct = grandTotal > 0 ? (grandReviewed / grandTotal * 100).toFixed(1) : '0.0';
+    var label = document.getElementById('filesProgressLabel');
+    label.textContent = pct + '%';
+    label.classList.toggle('done', grandTotal > 0 && grandReviewed >= grandTotal);
+  }
+
   function updateReviewedBadge() {
     var count = reviewedFiles.size;
     var badge = document.getElementById('reviewedBadge');
