@@ -687,8 +687,8 @@ tailwind.config = {
   function renderFileList() {
     var filter = (document.getElementById('filesSearch').value || '').toLowerCase();
     var hasTypeFilter = Object.keys(activeTypeFilters).length > 0;
-    var list = changedFiles.filter(function(n) {
-      if (!showReviewed && reviewedFiles.has(n.id)) return false;
+    function matchesFilters(n, includeReviewed) {
+      if (!includeReviewed && reviewedFiles.has(n.id)) return false;
       if (hiddenChangeTypes[n.status]) return false;
       if (hasTypeFilter) {
         var ext = (n.ext || '').toLowerCase();
@@ -698,7 +698,9 @@ tailwind.config = {
       }
       if (!filter) return true;
       return n.id.toLowerCase().indexOf(filter) !== -1 || n.path.toLowerCase().indexOf(filter) !== -1;
-    });
+    }
+    var list = changedFiles.filter(function(n) { return matchesFilters(n, showReviewed); });
+    var progressList = changedFiles.filter(function(n) { return matchesFilters(n, true); });
 
     list.sort(function(a, b) {
       // Watched files always surface above unwatched, regardless of sort criterion
@@ -797,12 +799,13 @@ tailwind.config = {
         '</div>';
     }
     document.getElementById('filesRows').innerHTML = html;
+    updateReviewProgress(progressList);
   }
 
   // ── Show/hide reviewed ──
-  function updateReviewProgress() {
+  function updateReviewProgress(list) {
     var totalSignal = 0, reviewedSignal = 0;
-    changedFiles.forEach(function(n) {
+    list.forEach(function(n) {
       var sig = n._signal || 0;
       totalSignal += sig;
       if (reviewedFiles.has(n.id)) reviewedSignal += sig;
@@ -824,7 +827,6 @@ tailwind.config = {
     btn.style.color = showReviewed ? '#3fb950' : '#8b949e';
     btn.style.borderColor = showReviewed ? '#238636' : '#30363d';
     btn.style.background = showReviewed ? '#0d3520' : 'none';
-    updateReviewProgress();
   }
 
   function toggleShowReviewed() {
