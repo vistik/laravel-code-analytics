@@ -169,10 +169,13 @@ tailwind.config = {
     padding: 6px 16px; border-bottom: 1px solid #21262d; flex-shrink: 0;
   }
   .files-review-progress-bar-wrap {
-    flex: 1; height: 4px; background: #21262d; border-radius: 4px; overflow: hidden;
+    height: 4px; flex-shrink: 0; display: flex; gap: 2px; align-items: stretch;
   }
-  .files-review-progress-bar {
-    height: 100%; background: #238636; border-radius: 4px; transition: width 0.3s ease;
+  .files-review-progress-segment {
+    flex-shrink: 0; border-radius: 3px; overflow: hidden; min-width: 3px; transition: flex 0.3s ease;
+  }
+  .files-review-progress-segment-fill {
+    height: 100%; transition: width 0.3s ease;
   }
   .files-review-progress-label {
     font-size: 11px; font-weight: 600; color: #6e7681; min-width: 28px; text-align: right;
@@ -391,8 +394,9 @@ tailwind.config = {
       </select>
     </div>
     <div class="files-review-progress" id="filesReviewProgress">
-      <div class="files-review-progress-bar-wrap">
-        <div class="files-review-progress-bar" id="filesProgressBar" style="width:0%"></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+        <div class="files-review-progress-bar-wrap" id="filesProgressBar"></div>
+        <div id="filesProgressLegend" style="display:flex;gap:2px"></div>
       </div>
       <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
     </div>
@@ -803,18 +807,60 @@ tailwind.config = {
   }
 
   // ── Show/hide reviewed ──
+  var progressTypeColors = {
+    js:    { fill: '#d4a72c', bg: 'rgba(212,167,44,0.18)' },
+    ts:    { fill: '#3d8fd1', bg: 'rgba(61,143,209,0.18)' },
+    php:   { fill: '#8892bf', bg: 'rgba(136,146,191,0.18)' },
+    other: { fill: '#6e7681', bg: 'rgba(110,118,129,0.15)' },
+  };
+
+  function extToGroup(ext) {
+    if (ext === 'js' || ext === 'jsx') return 'js';
+    if (ext === 'ts' || ext === 'tsx') return 'ts';
+    if (ext === 'php') return 'php';
+    return 'other';
+  }
+
   function updateReviewProgress(list) {
-    var totalSignal = 0, reviewedSignal = 0;
+    var groups = {};
+    var grandTotal = 0, grandReviewed = 0;
     list.forEach(function(n) {
+      var key = extToGroup((n.ext || '').toLowerCase());
+      if (!groups[key]) groups[key] = { total: 0, reviewed: 0 };
       var sig = n._signal || 0;
-      totalSignal += sig;
-      if (reviewedFiles.has(n.id)) reviewedSignal += sig;
+      groups[key].total += sig;
+      grandTotal += sig;
+      if (reviewedFiles.has(n.id)) {
+        groups[key].reviewed += sig;
+        grandReviewed += sig;
+      }
     });
-    var pct = totalSignal > 0 ? Math.round(reviewedSignal / totalSignal * 100) : 0;
-    document.getElementById('filesProgressBar').style.width = pct + '%';
+
+    var order = ['js', 'ts', 'php', 'other'];
+    var barHtml = '', legendHtml = '';
+    order.forEach(function(key) {
+      if (!groups[key] || !groups[key].total) return;
+      var g = groups[key];
+      var c = progressTypeColors[key];
+      var fillPct = g.total > 0 ? (g.reviewed / g.total * 100).toFixed(1) : '0.0';
+      barHtml += '<div class="files-review-progress-segment"'
+               + ' style="flex:' + g.total + ';background:' + c.bg + '"'
+               + ' title="' + key.toUpperCase() + ': ' + fillPct + '% reviewed">'
+               + '<div class="files-review-progress-segment-fill"'
+               + ' style="width:' + fillPct + '%;background:' + c.fill + '"></div>'
+               + '</div>';
+      legendHtml += '<span style="flex:' + g.total + ';min-width:0;overflow:hidden;display:flex;align-items:center;gap:3px;white-space:nowrap">'
+                  + '<span style="font-size:9px;font-family:\'JetBrains Mono\',monospace;font-weight:600;color:' + c.fill + ';opacity:0.8">' + key.toUpperCase() + '</span>'
+                  + '<span style="font-size:9px;font-family:\'JetBrains Mono\',monospace;color:' + c.fill + ';opacity:0.6">' + fillPct + '%</span>'
+                  + '</span>';
+    });
+    document.getElementById('filesProgressBar').innerHTML = barHtml;
+    document.getElementById('filesProgressLegend').innerHTML = legendHtml;
+
+    var pct = grandTotal > 0 ? (grandReviewed / grandTotal * 100).toFixed(1) : '0.0';
     var label = document.getElementById('filesProgressLabel');
     label.textContent = pct + '%';
-    label.classList.toggle('done', pct === 100);
+    label.classList.toggle('done', grandTotal > 0 && grandReviewed >= grandTotal);
   }
 
   function updateReviewedBadge() {
