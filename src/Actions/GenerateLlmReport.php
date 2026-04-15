@@ -10,14 +10,30 @@ use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 class GenerateLlmReport extends GenerateMetricsReport implements ReportGenerator
 {
+    /** @param list<string>|null $focusPatterns */
+    public function __construct(private readonly ?array $focusPatterns = null) {}
+
     public function generate(
         GraphPayload $payload,
         PullRequestContext $pr,
         ?GraphLayout $defaultView = null,
         ?LayerStack $layerStack = null,
     ): string {
-        $output = parent::generate($payload, $pr, $defaultView, $layerStack);
-        $metricsData = $payload->metricsData;
+        $focusedPayload = $this->focusPatterns !== null
+            ? new GraphPayload(
+                nodes: $payload->nodes,
+                edges: $payload->edges,
+                fileDiffs: $payload->fileDiffs,
+                analysisData: $payload->analysisData,
+                metricsData: $this->filterByFocus($payload->metricsData),
+                fileContents: $payload->fileContents,
+                filterDefaults: $payload->filterDefaults,
+                riskScore: $payload->riskScore,
+            )
+            : $payload;
+
+        $output = parent::generate($focusedPayload, $pr, $defaultView, $layerStack);
+        $metricsData = $focusedPayload->metricsData;
 
         if (empty($metricsData)) {
             return $output;
@@ -94,22 +110,72 @@ class GenerateLlmReport extends GenerateMetricsReport implements ReportGenerator
             $idToPath[$node['id']] = $node['path'];
         }
 
-        $depsBySource = [];
+        $outgoing = [];
+        $incoming = [];
         foreach ($edges as [$src, $tgt]) {
             $srcPath = $idToPath[$src] ?? $src;
             $tgtPath = $idToPath[$tgt] ?? $tgt;
-            $depsBySource[$srcPath][] = $tgtPath;
+            $outgoing[$srcPath][] = $tgtPath;
+            $incoming[$tgtPath][] = $srcPath;
+        }
+
+        // When focus patterns are set, only show entries for matching files.
+        // We still use the full graph so <- incoming edges are captured.
+        $subjects = array_keys($outgoing);
+        if ($this->focusPatterns !== null) {
+            $subjects = array_values(array_filter(
+                $subjects,
+                fn ($f) => $this->matchesFocus($f),
+            ));
+            // Also include focus files that only appear as targets (only incoming edges).
+            foreach (array_keys($incoming) as $file) {
+                if ($this->matchesFocus($file) && ! in_array($file, $subjects, true)) {
+                    $subjects[] = $file;
+                }
+            }
+        }
+
+        if (empty($subjects)) {
+            return '';
         }
 
         $lines = ['Dependencies:'];
-        foreach ($depsBySource as $src => $targets) {
-            $lines[] = '  '.$src.':';
-            foreach (array_unique($targets) as $target) {
-                $lines[] = '    '.$target;
+        foreach ($subjects as $file) {
+            $lines[] = '  '.$file.':';
+            foreach (array_unique($outgoing[$file] ?? []) as $dep) {
+                $lines[] = '    -> '.$dep;
+            }
+            foreach (array_unique($incoming[$file] ?? []) as $dep) {
+                $lines[] = '    <- '.$dep;
             }
         }
 
         return implode("\n", $lines)."\n";
+    }
+
+    private function matchesFocus(string $path): bool
+    {
+        if ($this->focusPatterns === null) {
+            return true;
+        }
+        foreach ($this->focusPatterns as $pattern) {
+            if (str_contains($path, $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param array<string, mixed> $data
+     *  @return array<string, mixed> */
+    private function filterByFocus(array $data): array
+    {
+        if ($this->focusPatterns === null) {
+            return $data;
+        }
+
+        return array_filter($data, fn ($path) => $this->matchesFocus($path), ARRAY_FILTER_USE_KEY);
     }
 
     private function methodDelta(int|float $after, int|float|null $before): string

@@ -92,7 +92,14 @@ class CodeAnalyzeCommand extends Command
                 fn (string $e) => '*.'.ltrim(ltrim($e, '*'), '.'),
                 $this->option('ext') ?: ($config['ext'] ?? []),
             );
-            $filePatterns = array_merge($explicitFiles, $folderPatterns, $extPatterns) ?: null;
+            // For the LLM format, --file= acts as a display focus rather than a graph filter so
+            // that incoming edges (files that depend on the focused file) are also captured.
+            $focusFiles = $format === OutputFormat::LLM && ! empty($explicitFiles) ? $explicitFiles : null;
+            $filePatterns = array_merge(
+                $focusFiles !== null ? [] : $explicitFiles,
+                $folderPatterns,
+                $extPatterns,
+            ) ?: null;
 
             $raw = ! $openFile && $outputPath === null;
 
@@ -126,6 +133,7 @@ class CodeAnalyzeCommand extends Command
                 criticalTables: $config['critical_tables'] ?? [],
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
+                focusFiles: $focusFiles,
             );
 
             if (isset($result['content'])) {

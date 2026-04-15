@@ -27,7 +27,7 @@ enum OutputFormat: string
             self::MARKDOWN => new GenerateMdReport,
             self::JSON => new GenerateJsonReport,
             self::METRICS => new GenerateMetricsReport,
-            self::LLM => new GenerateLlmReport,
+            self::LLM => new GenerateLlmReport($options['focus'] ?? null),
             self::GITHUB => new GenerateGithubAnnotationsReport($options['metrics'] ?? false),
         };
     }
