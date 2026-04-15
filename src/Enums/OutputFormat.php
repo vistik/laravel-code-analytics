@@ -5,8 +5,8 @@ namespace Vistik\LaravelCodeAnalytics\Enums;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateGithubAnnotationsReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateHtmlReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
-use Vistik\LaravelCodeAnalytics\Actions\GenerateMdReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateMdReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 
