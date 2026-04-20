@@ -1,11 +1,7 @@
 # Laravel Code Analytics
-
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/vistik/laravel-code-analytics.svg?style=flat-square)](https://packagist.org/packages/vistik/laravel-code-analytics)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/vistik/laravel-code-analytics/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/vistik/laravel-code-analytics/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/vistik/laravel-code-analytics/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/vistik/laravel-code-analytics/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/vistik/laravel-code-analytics.svg?style=flat-square)](https://packagist.org/packages/vistik/laravel-code-analytics)
-
 Laravel Code Analytics is a powerful tool designed to provide insights into your codebase by analyzing changes, dependencies, and architectural patterns. It helps maintain code health through risk scoring, metric tracking, and visual representations of your application structure.
+
+Example of a report here: [https://vistik.github.io/laravel-code-analytics/pr-78.html](https://vistik.github.io/laravel-code-analytics/pr-78.html)
 
 ## Features
 - **Code Change Analysis:** Analyze git diffs to identify high-risk changes.
@@ -22,11 +18,6 @@ composer require vistik/laravel-code-analytics
 ```
 
 You can publish and run the migrations with:
-
-```bash
-php artisan vendor:publish --tag="laravel-code-analytics-migrations"
-php artisan migrate
-```
 
 You can publish the config file with:
 
