@@ -172,6 +172,7 @@ tailwind.config = {
   }
   .panel-header .file-path { font-size: 11.5px; color: #6e7681; margin-top: 4px; word-break: break-all; }
   .panel-header .badge-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .sev-dot-btn:hover { background: #21262d !important; color: #c9d1d9 !important; }
 
   /* ── Panel actions (JS-generated) ── */
   .panel-actions {
@@ -274,32 +275,32 @@ tailwind.config = {
 
   /* ── Analysis rows (JS-generated) ── */
   .analysis-row {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 5px 6px; font-size: 13px; color: #c9d1d9;
-    border-radius: 6px; margin: 0 -6px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 3px 6px; font-size: 12px; color: #c9d1d9;
+    border-radius: 4px; margin: 0 -6px;
   }
   .analysis-row.clickable { cursor: pointer; }
   .analysis-row.clickable:hover { background: #1c2128; }
-  .analysis-row.clickable .analysis-location { color: #58a6ff; }
-  .analysis-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-  .analysis-label { flex: 1; min-width: 0; }
-  .analysis-desc { display: block; font-size: 13px; color: #6e7681; line-height: 1.5; margin-top: 2px; }
-  .analysis-location { color: #6e7681; font-size: 12.5px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+  .analysis-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .analysis-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .analysis-location { color: #58a6ff; font-size: 11px; margin-left: auto; white-space: nowrap; flex-shrink: 0; padding-left: 8px; }
   .analysis-toggle {
     background: transparent; border: 1px solid #30363d; color: #58a6ff;
-    padding: 3px 11px; border-radius: 6px; font-size: 13px; cursor: pointer;
-    margin-top: 8px; font-family: inherit; transition: background 0.15s;
+    padding: 3px 11px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    margin-top: 6px; font-family: inherit; transition: background 0.15s; display: block;
   }
   .analysis-toggle:hover { background: #1c2128; }
 
   /* ── Diff viewer (JS-generated) ── */
   .diff-section { border-top: 1px solid #21262d; }
+  .diff-section-primary { border-top: none; border-bottom: 1px solid #21262d; }
   .diff-section h4 {
     font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600;
     color: #6e7681; padding: 12px 24px 8px;
     position: sticky; top: 0; background: #161b22; z-index: 1;
     display: flex; align-items: center;
   }
+  .diff-section-primary h4 { color: #c9d1d9; }
   .diff-view-controls { margin-left: auto; display: flex; gap: 4px; }
   .diff-view-btn {
     background: none; border: 1px solid #30363d; color: #6e7681;
