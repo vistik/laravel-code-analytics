@@ -23,7 +23,7 @@ enum OutputFormat: string
     public function generator(array $options = []): ReportGenerator
     {
         return match ($this) {
-            self::HTML => new GenerateHtmlReport,
+            self::HTML => new GenerateHtmlReport(aiReview: $options['aiReview'] ?? null),
             self::MARKDOWN => new GenerateMdReport,
             self::JSON => new GenerateJsonReport,
             self::METRICS => new GenerateMetricsReport,
