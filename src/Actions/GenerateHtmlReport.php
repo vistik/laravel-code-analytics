@@ -25,6 +25,7 @@ class GenerateHtmlReport implements ReportGenerator
     public function __construct(
         private readonly PhpMetricsScorerInterface $metricsScorer = new WeightedDegradationScorer,
         private readonly PhpMetricsBadgeDeciderInterface $metricsBadgeDecider = new HotspotRatioBadgeDecider,
+        private readonly ?string $aiReview = null,
     ) {}
 
     /** Generate HTML string for a single layout. */
@@ -744,6 +745,7 @@ class GenerateHtmlReport implements ReportGenerator
             'wrapperMetricsJson' => json_encode($payload->metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
             'jsLayoutData' => implode(",\n    ", $jsEntries),
             'defaultView' => $defaultView->value,
+            'aiReviewMarkdown' => $this->aiReview ?? '',
         ])->render();
     }
 }

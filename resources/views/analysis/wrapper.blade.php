@@ -337,6 +337,52 @@ tailwind.config = {
   }
   .findings-panel-resize:hover::after, .findings-panel-resize.active::after { background: #388bfd; }
 
+  /* ── AI Review modal ── */
+  .ai-review-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(1,4,9,0.72); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .ai-review-overlay.open { opacity: 1; pointer-events: all; }
+  .ai-review-panel {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    display: flex; flex-direction: column;
+    width: 680px; max-width: calc(100vw - 48px); max-height: calc(100vh - 80px);
+    box-shadow: 0 32px 96px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.04) inset;
+    transform: scale(0.96) translateY(8px);
+    transition: transform 0.22s cubic-bezier(0.22,1,0.36,1);
+  }
+  .ai-review-overlay.open .ai-review-panel { transform: scale(1) translateY(0); }
+  .ai-review-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px 10px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(28,33,40,0.7) 0%, rgba(22,27,34,0) 100%);
+  }
+  .ai-review-panel-header h3 { font-size: 13.5px; font-weight: 600; color: #e6edf3; letter-spacing: -0.01em; display:flex; align-items:center; gap:8px; }
+  .ai-review-close {
+    background: none; border: none; color: #6e7681; font-size: 18px;
+    cursor: pointer; line-height: 1; padding: 4px; border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .ai-review-close:hover { color: #e6edf3; background: #21262d; }
+  .ai-review-scroll { flex: 1 1 0%; overflow-y: auto; min-height: 0; padding: 18px 20px 24px; }
+  .ai-review-scroll::-webkit-scrollbar { width: 5px; }
+  .ai-review-scroll::-webkit-scrollbar-track { background: transparent; }
+  .ai-review-scroll::-webkit-scrollbar-thumb { background: #2d333b; border-radius: 10px; }
+  .ai-review-body { font-size: 13px; color: #c9d1d9; line-height: 1.65; }
+  .ai-review-body h2 { font-size: 14px; font-weight: 600; color: #e6edf3; margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #21262d; }
+  .ai-review-body h2:first-child { margin-top: 0; }
+  .ai-review-body h3 { font-size: 12.5px; font-weight: 600; color: #e6edf3; margin: 14px 0 6px; }
+  .ai-review-body p { margin: 0 0 10px; }
+  .ai-review-body ul, .ai-review-body ol { margin: 0 0 10px; padding-left: 18px; }
+  .ai-review-body li { margin-bottom: 4px; }
+  .ai-review-body strong { color: #e6edf3; font-weight: 600; }
+  .ai-review-body code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #21262d; color: #79c0ff; padding: 1px 5px; border-radius: 4px; }
+  .ai-review-body a { color: #58a6ff; text-decoration: none; }
+  .ai-review-body a:hover { text-decoration: underline; }
+
   /* ── Global scrollbars ── */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -358,6 +404,11 @@ tailwind.config = {
     <button class="tab" id="findingsTab" onclick="toggleFindingsPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-.25-6.25a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 1.5 0v-3.5z"/></svg>Findings
     </button>
+    @if($aiReviewMarkdown)
+    <button class="tab" id="aiReviewTab" onclick="toggleAiReviewPanel()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>AI Review
+    </button>
+    @endif
   </div>
   <div class="topbar-badges">
     {!! $riskBadgeHtml !!}
@@ -454,6 +505,20 @@ tailwind.config = {
     </div>
     <div class="cycles-scroll" id="cyclesScroll"></div>
   </div>
+  @if($aiReviewMarkdown)
+  <div class="ai-review-overlay" id="aiReviewOverlay" onclick="closeAiReviewOnBackdrop(event)">
+    <div class="ai-review-panel" id="aiReviewPanel">
+      <div class="ai-review-panel-header">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="#79c0ff" style="flex-shrink:0"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+          AI Review
+        </h3>
+        <button class="ai-review-close" onclick="toggleAiReviewPanel()">&times;</button>
+      </div>
+      <div class="ai-review-scroll"><div class="ai-review-body" id="aiReviewBody"></div></div>
+    </div>
+  </div>
+  @endif
 </div>
 <script>
   {!! $wrapperSeverityJs !!}
@@ -567,6 +632,64 @@ tailwind.config = {
       document.getElementById('cyclesTab').classList.add('active');
     }
   }
+
+  @if($aiReviewMarkdown)
+  (function() {
+    var aiReviewMd = {!! json_encode($aiReviewMarkdown) !!};
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function inlineFmt(s) {
+      s = escHtml(s);
+      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      return s;
+    }
+    function mdToHtml(md) {
+      var lines = md.split('\n'), html = '', inUl = false, inOl = false;
+      function closeList() {
+        if (inUl) { html += '</ul>'; inUl = false; }
+        if (inOl) { html += '</ol>'; inOl = false; }
+      }
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (/^## /.test(line)) { closeList(); html += '<h2>' + inlineFmt(line.slice(3)) + '</h2>'; }
+        else if (/^### /.test(line)) { closeList(); html += '<h3>' + inlineFmt(line.slice(4)) + '</h3>'; }
+        else if (/^[-*] /.test(line)) { if (!inUl) { closeList(); html += '<ul>'; inUl = true; } html += '<li>' + inlineFmt(line.slice(2)) + '</li>'; }
+        else if (/^\d+\. /.test(line)) { if (!inOl) { closeList(); html += '<ol>'; inOl = true; } html += '<li>' + inlineFmt(line.replace(/^\d+\. /, '')) + '</li>'; }
+        else if (line.trim() === '') { closeList(); }
+        else { closeList(); html += '<p>' + inlineFmt(line) + '</p>'; }
+      }
+      closeList();
+      return html;
+    }
+
+    document.getElementById('aiReviewBody').innerHTML = mdToHtml(aiReviewMd);
+  })();
+
+  function toggleAiReviewPanel() {
+    var overlay = document.getElementById('aiReviewOverlay');
+    var isOpen = overlay.classList.contains('open');
+    if (isOpen) {
+      overlay.classList.remove('open');
+      document.getElementById('aiReviewTab').classList.remove('active');
+    } else {
+      overlay.classList.add('open');
+      document.getElementById('aiReviewTab').classList.add('active');
+    }
+  }
+  function closeAiReviewOnBackdrop(e) {
+    if (e.target === document.getElementById('aiReviewOverlay')) toggleAiReviewPanel();
+  }
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      var overlay = document.getElementById('aiReviewOverlay');
+      if (overlay && overlay.classList.contains('open')) toggleAiReviewPanel();
+    }
+  });
+  @endif
 
   const layouts = {
     {!! $jsLayoutData !!}
