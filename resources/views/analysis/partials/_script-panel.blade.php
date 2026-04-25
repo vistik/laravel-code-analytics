@@ -194,14 +194,55 @@ function openPanel(n) {
       (reviewedNodes.has(n.id) ? '<span class="badge" style="background:#0d3520;color:#3fb950;border:1px solid #238636">&#10003; Reviewed</span>' : '') +
       (n.isConnected ? '' : '<span class="badge badge-add">+' + n.add + '</span><span class="badge badge-del">&minus;' + n.del + '</span>') +
       '<span class="badge" style="color:' + (n.isConnected ? (groupColor[n.group] || '#8b949e') : n.color) + ';background:none">' + (groupLabel[n.group] || n.group) + '</span>' +
-      (n.veryHighCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.very_high + ';flex-shrink:0;display:inline-block"></span>' + n.veryHighCount + '</span>' : '') +
-      (n.highCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.high + ';flex-shrink:0;display:inline-block"></span>' + n.highCount + '</span>' : '') +
-      (n.mediumCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.medium + ';flex-shrink:0;display:inline-block"></span>' + n.mediumCount + '</span>' : '') +
-      (n.lowCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.low + ';flex-shrink:0;display:inline-block"></span>' + n.lowCount + '</span>' : '') +
-      (n.infoCount > 0 ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e"><span style="width:8px;height:8px;border-radius:50%;background:' + sevColors.info + ';flex-shrink:0;display:inline-block"></span>' + n.infoCount + '</span>' : '') +
+      (n.veryHighCount > 0 ? '<button onclick="var e=document.getElementById(\'code-analysis-section\'),b=document.getElementById(\'panel-body\');if(e&&b)b.scrollTop=e.offsetTop;" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-family:inherit" class="sev-dot-btn"><span style="width:10px;height:10px;border-radius:50%;background:' + sevColors.very_high + ';flex-shrink:0;display:inline-block"></span>' + n.veryHighCount + '</button>' : '') +
+      (n.highCount > 0 ? '<button onclick="var e=document.getElementById(\'code-analysis-section\'),b=document.getElementById(\'panel-body\');if(e&&b)b.scrollTop=e.offsetTop;" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-family:inherit" class="sev-dot-btn"><span style="width:10px;height:10px;border-radius:50%;background:' + sevColors.high + ';flex-shrink:0;display:inline-block"></span>' + n.highCount + '</button>' : '') +
+      (n.mediumCount > 0 ? '<button onclick="var e=document.getElementById(\'code-analysis-section\'),b=document.getElementById(\'panel-body\');if(e&&b)b.scrollTop=e.offsetTop;" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-family:inherit" class="sev-dot-btn"><span style="width:10px;height:10px;border-radius:50%;background:' + sevColors.medium + ';flex-shrink:0;display:inline-block"></span>' + n.mediumCount + '</button>' : '') +
+      (n.lowCount > 0 ? '<button onclick="var e=document.getElementById(\'code-analysis-section\'),b=document.getElementById(\'panel-body\');if(e&&b)b.scrollTop=e.offsetTop;" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-family:inherit" class="sev-dot-btn"><span style="width:10px;height:10px;border-radius:50%;background:' + sevColors.low + ';flex-shrink:0;display:inline-block"></span>' + n.lowCount + '</button>' : '') +
+      (n.infoCount > 0 ? '<button onclick="var e=document.getElementById(\'code-analysis-section\'),b=document.getElementById(\'panel-body\');if(e&&b)b.scrollTop=e.offsetTop;" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-family:inherit" class="sev-dot-btn"><span style="width:10px;height:10px;border-radius:50%;background:' + sevColors.info + ';flex-shrink:0;display:inline-block"></span>' + n.infoCount + '</button>' : '') +
       (n.watched ? '<span class="badge" style="background:#d29922;color:#000">&#9670; Watched</span>' : '') +
       (n.cycleId != null ? '<button class="badge" data-open-cycles="' + n.id.replace(/"/g,'&quot;') + '" style="background:' + hexAlpha(n.cycleColor,0.15) + ';color:' + n.cycleColor + ';border:1px solid ' + hexAlpha(n.cycleColor,0.5) + ';cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;line-height:1.5;appearance:none">&#8635; Cycle ' + n.cycleId + '</button>' : '') +
     '</div>';
+
+  function metricColor(val, warn, bad) { return val >= bad ? '#f85149' : val >= warn ? '#d29922' : '#3fb950'; }
+  var m = metricsData[n.path];
+  var metricsStripHtml = '';
+  if (m) {
+    var bStrip = m.before || {};
+    function metricChip(label, val, unit, warnThresh, badThresh, lowBad, beforeVal) {
+      if (val == null) return '';
+      var numVal = parseFloat(val);
+      var display = unit === '%' ? val + unit : val;
+      var color = lowBad ? metricColor(warnThresh - numVal + warnThresh, warnThresh, badThresh) : metricColor(numVal, warnThresh, badThresh);
+      if (unit === '%') { color = numVal < 65 ? '#f85149' : numVal < 85 ? '#d29922' : '#3fb950'; }
+      var dHtml = '';
+      if (beforeVal != null) {
+        var dv = numVal - parseFloat(beforeVal);
+        if (Math.abs(dv) >= 0.0005) {
+          var improved = lowBad ? dv > 0 : dv < 0;
+          var absDv = Math.abs(dv);
+          var deltaAmt = unit === '%'
+            ? (absDv < 1 ? absDv.toFixed(1).replace(/\.?0+$/, '') : Math.round(absDv)) + '%'
+            : (absDv < 1 ? absDv.toFixed(2).replace(/\.?0+$/, '') : Math.round(absDv));
+          dHtml = '<span style="color:' + (improved ? '#3fb950' : '#f85149') + ';font-size:11px;margin-left:2px">' + (dv > 0 ? '&#8593;' : '&#8595;') + deltaAmt + '</span>';
+        }
+      }
+      return '<div style="flex:1;text-align:center;padding:2px 4px;min-width:0">' +
+        '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">' + label + '</div>' +
+        '<div style="font-size:16px;font-weight:700;color:' + color + ';line-height:1;white-space:nowrap">' + display + dHtml + '</div>' +
+        '</div>';
+    }
+    var chips = [
+      metricChip('CC', m.cc, '', 10, 20, false, bStrip.cc),
+      metricChip('MI', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, bStrip.mi != null ? Math.round(bStrip.mi) : null),
+      m.lloc != null ? metricChip('LOC', m.lloc, '', 200, 500, false, bStrip.lloc) : '',
+      m.bugs != null ? metricChip('Bugs', m.bugs.toFixed(2), '', 0.1, 0.5, false, bStrip.bugs) : '',
+      m.coupling != null ? metricChip('Ce', m.coupling, '', 10, 20, false, bStrip.coupling) : '',
+    ].filter(Boolean);
+    if (chips.length) {
+      var sep = '<div style="width:1px;background:#21262d;flex-shrink:0;margin:2px 0"></div>';
+      metricsStripHtml = '<div style="width:100%;display:flex;align-items:stretch;padding-bottom:10px;border-bottom:1px solid #21262d;margin-bottom:4px">' + chips.join(sep) + '</div>';
+    }
+  }
 
   var isReviewed = reviewedNodes.has(n.id);
   var reviewBtn = '<button class="btn ' + (isReviewed ? 'btn-reviewed' : 'btn-review') + '" id="reviewBtn">' +
@@ -212,10 +253,12 @@ function openPanel(n) {
   if (n.isConnected) {
     var fileUrl = REPO ? 'https://github.com/' + REPO + '/blob/' + HEAD_COMMIT + '/' + n.path : '';
     document.getElementById('panel-actions').innerHTML =
+      metricsStripHtml +
       (fileUrl ? '<a class="btn btn-secondary" href="' + fileUrl + '" target="_blank" rel="noopener">' + ghSvg + 'View file on GitHub</a>' : '') +
       reviewBtn + reviewNextBtn;
   } else {
     document.getElementById('panel-actions').innerHTML =
+      metricsStripHtml +
       (PR_URL ? '<a class="btn btn-primary" href="' + ghFileUrl + '" target="_blank" rel="noopener">' + ghSvg + 'View diff on GitHub</a>' : '') +
       reviewBtn + reviewNextBtn;
   }
@@ -244,175 +287,94 @@ function openPanel(n) {
   const usedBy = usedByLinks.map(l => l.source);
   let bodyHtml = '';
 
-  // Code Metrics section (PHP via phpmetrics, JS/TS via complexity-report)
-  var m = metricsData[n.path];
-  if (m) {
-    function metricColor(val, warn, bad) { return val >= bad ? '#f85149' : val >= warn ? '#d29922' : '#3fb950'; }
-    function metricCard(label, val, unit, warnThresh, badThresh, lowBad, beforeVal) {
-      if (val == null) return '';
-      var numVal = parseFloat(val);
-      var display = unit === '%' ? val + unit : val;
-      var color = lowBad ? metricColor(warnThresh - numVal + warnThresh, warnThresh, badThresh) : metricColor(numVal, warnThresh, badThresh);
-      if (unit === '%') { color = numVal < 65 ? '#f85149' : numVal < 85 ? '#d29922' : '#3fb950'; }
-      var deltaHtml = '';
-      if (beforeVal != null) {
-        var numBefore = parseFloat(beforeVal);
-        var delta = numVal - numBefore;
-        var improved = lowBad ? delta > 0 : delta < 0;
-        var deltaColor = Math.abs(delta) >= 0.0005 ? (improved ? '#3fb950' : '#f85149') : '#484f58';
-        var arrow = Math.abs(delta) >= 0.0005 ? (delta > 0 ? '\u2191' : '\u2193') : '\u2192';
-        var absDelta = Math.abs(delta);
-        var pct = numBefore !== 0 ? Math.round(Math.abs(delta / numBefore) * 100) : null;
-        var deltaDisplay = Math.abs(delta) >= 0.0005
-          ? arrow + (absDelta < 1 ? absDelta.toFixed(2).replace(/\.?0+$/, '') : Math.round(absDelta)) + (pct != null ? ' (' + pct + '%)' : '')
-          : arrow;
-        deltaHtml = '<span style="font-size:11.5px;color:' + deltaColor + '">' + deltaDisplay + '</span>';
-      }
-      return '<div style="background:#21262d;border-radius:6px;padding:8px 10px">' +
-        '<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">' + label + '</div>' +
-        '<div style="font-size:20px;font-weight:700;color:' + color + ';line-height:1;display:flex;align-items:baseline;gap:4px">' + display + deltaHtml + '</div>' +
-        '</div>';
+  // Methods by complexity (full metric cards shown as compact strip above buttons)
+  if (m && m.method_metrics && m.method_metrics.length > 0) {
+    // Build set of added new-line numbers so we can mark each method as new/modified
+    var addedNewLines = new Set();
+    var rawDiffForMethods = fileDiffs[n.path];
+    if (rawDiffForMethods) {
+      var tmpNl = 0;
+      rawDiffForMethods.split('\n').forEach(function(dl) {
+        if (dl.startsWith('@@')) {
+          var dhm = dl.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
+          if (dhm) tmpNl = parseInt(dhm[1]);
+        } else if (dl.startsWith('+')) { addedNewLines.add(tmpNl++); }
+        else if (dl.startsWith('-')) { /* deleted \u2013 no new line */ }
+        else if (!dl.startsWith('\\')) { tmpNl++; }
+      });
     }
-    var b = m.before || {};
-    var maxCc = null, avgCc = null, medianCc = null;
-    var bMaxCc = null, bAvgCc = null, bMedianCc = null;
-    if (m.method_metrics && m.method_metrics.length > 0) {
-      var mmCcVals = m.method_metrics.map(function(mm) { return mm.cc; });
-      maxCc = Math.max.apply(null, mmCcVals);
-      avgCc = parseFloat((mmCcVals.reduce(function(a, c) { return a + c; }, 0) / mmCcVals.length).toFixed(1));
-      var mmSorted = mmCcVals.slice().sort(function(a, c) { return a - c; });
-      var mmMid = Math.floor(mmSorted.length / 2);
-      medianCc = mmSorted.length % 2 !== 0 ? mmSorted[mmMid] : parseFloat(((mmSorted[mmMid - 1] + mmSorted[mmMid]) / 2).toFixed(1));
-    }
-    if (m.before_method_metrics && m.before_method_metrics.length > 0) {
-      var bmCcVals = m.before_method_metrics.map(function(mm) { return mm.cc; });
-      bMaxCc = Math.max.apply(null, bmCcVals);
-      bAvgCc = parseFloat((bmCcVals.reduce(function(a, c) { return a + c; }, 0) / bmCcVals.length).toFixed(1));
-      var bmSorted = bmCcVals.slice().sort(function(a, c) { return a - c; });
-      var bmMid = Math.floor(bmSorted.length / 2);
-      bMedianCc = bmSorted.length % 2 !== 0 ? bmSorted[bmMid] : parseFloat(((bmSorted[bmMid - 1] + bmSorted[bmMid]) / 2).toFixed(1));
-    }
-    var metricsLabel = /\.(js|ts|jsx|tsx|vue|mjs|cjs)$/.test(n.path) ? 'JS Metrics' : 'PHP Metrics';
-    bodyHtml += '<div class="deps-section"><h4>' + metricsLabel + '</h4>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">' +
-      metricCard('Cyclomatic Complexity', m.cc, '', 10, 20, false, b.cc) +
-      metricCard('Maintainability', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, b.mi != null ? Math.round(b.mi) : null) +
-      metricCard('Est. Bugs', m.bugs != null ? m.bugs.toFixed(3) : null, '', 0.1, 0.5, false, b.bugs) +
-      metricCard('Coupling (Ce)', m.coupling, '', 10, 20, false, b.coupling) +
-      (m.lloc != null ? metricCard('Lines of Code', m.lloc, '', 200, 500, false, b.lloc) : '') +
-      (m.methods != null ? metricCard('Methods', m.methods, '', 10, 20, false, b.methods) : '') +
-      (maxCc != null ? metricCard('Max CC / Method', maxCc, '', 10, 20, false, bMaxCc) : '') +
-      (avgCc != null && medianCc != null ? (function() {
-        var avgColor = metricColor(avgCc, 10, 20);
-        var medColor = metricColor(medianCc, 10, 20);
-        var avgDelta = bAvgCc != null ? (function() {
-          var d = avgCc - bAvgCc; if (d === 0) return '';
-          return '<span style="color:' + (d > 0 ? '#f85149' : '#3fb950') + ';font-size:11.5px">' + (d > 0 ? '\u2191' : '\u2193') + Math.abs(d).toFixed(1).replace(/\.?0+$/, '') + '</span>';
-        })() : '';
-        var medDelta = bMedianCc != null ? (function() {
-          var d = medianCc - bMedianCc; if (d === 0) return '';
-          return '<span style="color:' + (d > 0 ? '#f85149' : '#3fb950') + ';font-size:11.5px">' + (d > 0 ? '\u2191' : '\u2193') + Math.abs(d).toFixed(1).replace(/\.?0+$/, '') + '</span>';
-        })() : '';
-        return '<div style="background:#21262d;border-radius:6px;padding:8px 10px">' +
-          '<div style="font-size:11px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Avg / Median CC</div>' +
-          '<div style="display:flex;gap:10px;align-items:baseline">' +
-          '<span style="font-size:20px;font-weight:700;color:' + avgColor + '">' + avgCc + avgDelta + '</span>' +
-          '<span style="font-size:13px;color:#484f58">/</span>' +
-          '<span style="font-size:20px;font-weight:700;color:' + medColor + '">' + medianCc + medDelta + '</span>' +
-          '</div>' +
-          '</div>';
-      })() : '') +
-      '</div>';
-    if (m.method_metrics && m.method_metrics.length > 0) {
-      // Build set of added new-line numbers so we can mark each method as new/modified
-      var addedNewLines = new Set();
-      var rawDiffForMethods = fileDiffs[n.path];
-      if (rawDiffForMethods) {
-        var tmpNl = 0;
-        rawDiffForMethods.split('\n').forEach(function(dl) {
-          if (dl.startsWith('@@')) {
-            var dhm = dl.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
-            if (dhm) tmpNl = parseInt(dhm[1]);
-          } else if (dl.startsWith('+')) { addedNewLines.add(tmpNl++); }
-          else if (dl.startsWith('-')) { /* deleted – no new line */ }
-          else if (!dl.startsWith('\\')) { tmpNl++; }
-        });
+    function methodDiffStatus(mth) {
+      if (!mth.line) return null;
+      if (addedNewLines.has(mth.line)) return 'new';
+      for (var l = mth.line + 1; l <= mth.line + mth.lloc - 1; l++) {
+        if (addedNewLines.has(l)) return 'modified';
       }
-      function methodDiffStatus(mth) {
-        if (!mth.line) return null;
-        if (addedNewLines.has(mth.line)) return 'new';
-        for (var l = mth.line + 1; l <= mth.line + mth.lloc - 1; l++) {
-          if (addedNewLines.has(l)) return 'modified';
-        }
-        return null;
-      }
+      return null;
+    }
 
-      var methodsSorted = m.method_metrics.slice().sort(function(a, b) { return b.cc - a.cc; });
-      var beforeMethodMap = {};
-      if (m.before_method_metrics) {
-        for (var bmi = 0; bmi < m.before_method_metrics.length; bmi++) {
-          beforeMethodMap[m.before_method_metrics[bmi].name] = m.before_method_metrics[bmi];
-        }
+    var methodsSorted = m.method_metrics.slice().sort(function(a, b) { return b.cc - a.cc; });
+    var beforeMethodMap = {};
+    if (m.before_method_metrics) {
+      for (var bmi = 0; bmi < m.before_method_metrics.length; bmi++) {
+        beforeMethodMap[m.before_method_metrics[bmi].name] = m.before_method_metrics[bmi];
       }
-      var hasBefore = Object.keys(beforeMethodMap).length > 0;
-      function methodDelta(val, beforeVal, higherIsBad) {
-        if (beforeVal == null) return '';
-        var diff = val - beforeVal;
-        if (diff === 0) return '';
-        var sign = diff > 0 ? '+' : '';
-        var bad = higherIsBad ? diff > 0 : diff < 0;
-        var color = bad ? '#f85149' : '#3fb950';
-        return '<span style="color:' + color + ';font-size:10.5px;margin-left:3px">' + sign + diff + '</span>';
-      }
-      var methodStatuses = methodsSorted.map(function(mth) { return methodDiffStatus(mth); });
-      var modifiedMethodCount = methodStatuses.filter(function(s) { return s !== null; }).length;
-      var unmodifiedMethodCount = methodsSorted.length - modifiedMethodCount;
-      bodyHtml += '<div id="methods-by-complexity" style="margin-top:10px">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
-        '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px">Methods by Complexity</div>' +
-        (modifiedMethodCount > 0 ? '<button id="methods-filter-btn" style="font-size:11px;color:#8b949e;background:none;border:1px solid #30363d;border-radius:4px;padding:2px 7px;cursor:pointer;line-height:1.5">Modified only</button>' : '') +
-        '</div>' +
-        '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-        '<thead><tr>' +
-        '<th style="text-align:left;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Method</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">CC</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Lines</th>' +
-        '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 0 6px 0">Params</th>' +
-        '</tr></thead><tbody>';
-      for (var mi2 = 0; mi2 < methodsSorted.length; mi2++) {
-        var mth = methodsSorted[mi2];
-        var bm = beforeMethodMap[mth.name] || null;
-        var ccColor = mth.cc > 10 ? '#f85149' : mth.cc > 5 ? '#d29922' : '#3fb950';
-        var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
-        var status = methodStatuses[mi2];
-        var statusBadge = status === 'new'
-          ? '<span style="color:#3fb950;font-size:10.5px;font-weight:500;margin-left:5px">new</span>'
-          : status === 'modified'
-          ? '<span style="color:#d29922;font-size:10.5px;font-weight:500;margin-left:5px">mod</span>'
-          : '';
-        var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
-        var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
-        var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
-        bodyHtml += '<tr' + hasLine + ' data-method-status="' + (status || 'unmodified') + '"' + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
-          '<td style="padding:4px 8px 4px 0;color:#c9d1d9;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
-          '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
-          '<td style="padding:4px 8px 4px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
-          '<td style="padding:4px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
-          '</tr>';
-      }
-      bodyHtml += '</tbody></table>' +
-        (unmodifiedMethodCount > 0 ? '<div id="methods-filter-hint" style="display:none;font-size:11.5px;color:#6e7681;margin-top:6px;cursor:pointer">+' + unmodifiedMethodCount + ' unedited method' + (unmodifiedMethodCount !== 1 ? 's' : '') + '</div>' : '') +
-        '</div>';
     }
-    bodyHtml += '</div>';
+    var hasBefore = Object.keys(beforeMethodMap).length > 0;
+    function methodDelta(val, beforeVal, higherIsBad) {
+      if (beforeVal == null) return '';
+      var diff = val - beforeVal;
+      if (diff === 0) return '';
+      var sign = diff > 0 ? '+' : '';
+      var bad = higherIsBad ? diff > 0 : diff < 0;
+      var color = bad ? '#f85149' : '#3fb950';
+      return '<span style="color:' + color + ';font-size:10.5px;margin-left:3px">' + sign + diff + '</span>';
+    }
+    var methodStatuses = methodsSorted.map(function(mth) { return methodDiffStatus(mth); });
+    var modifiedMethodCount = methodStatuses.filter(function(s) { return s !== null; }).length;
+    var unmodifiedMethodCount = methodsSorted.length - modifiedMethodCount;
+    bodyHtml += '<div class="deps-section"><div id="methods-by-complexity">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+      '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px">Methods by Complexity</div>' +
+      (modifiedMethodCount > 0 ? '<button id="methods-filter-btn" style="font-size:11px;color:#8b949e;background:none;border:1px solid #30363d;border-radius:4px;padding:2px 7px;cursor:pointer;line-height:1.5">Modified only</button>' : '') +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+      '<thead><tr>' +
+      '<th style="text-align:left;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Method</th>' +
+      '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">CC</th>' +
+      '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Lines</th>' +
+      '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 0 6px 0">Params</th>' +
+      '</tr></thead><tbody>';
+    for (var mi2 = 0; mi2 < methodsSorted.length; mi2++) {
+      var mth = methodsSorted[mi2];
+      var bm = beforeMethodMap[mth.name] || null;
+      var ccColor = mth.cc > 10 ? '#f85149' : mth.cc > 5 ? '#d29922' : '#3fb950';
+      var hasLine = mth.line ? ' data-method-line="' + mth.line + '"' : '';
+      var status = methodStatuses[mi2];
+      var statusBadge = status === 'new'
+        ? '<span style="color:#3fb950;font-size:10.5px;font-weight:500;margin-left:5px">new</span>'
+        : status === 'modified'
+        ? '<span style="color:#d29922;font-size:10.5px;font-weight:500;margin-left:5px">mod</span>'
+        : '';
+      var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
+      var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
+      var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
+      bodyHtml += '<tr' + hasLine + ' data-method-status="' + (status || 'unmodified') + '"' + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
+        '<td style="padding:4px 8px 4px 0;color:#c9d1d9;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
+        '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
+        '<td style="padding:4px 8px 4px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
+        '<td style="padding:4px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
+        '</tr>';
+    }
+    bodyHtml += '</tbody></table>' +
+      (unmodifiedMethodCount > 0 ? '<div id="methods-filter-hint" style="display:none;font-size:11.5px;color:#6e7681;margin-top:6px;cursor:pointer">+' + unmodifiedMethodCount + ' unedited method' + (unmodifiedMethodCount !== 1 ? 's' : '') + '</div>' : '') +
+      '</div></div>';
   }
 
   // Code Analysis section
   var analysisEntries = analysisData[n.path];
   if (analysisEntries && analysisEntries.length > 0) {
     var sorted = analysisEntries.slice().sort(function(a, b) { return (sevOrder[a.severity] ?? 4) - (sevOrder[b.severity] ?? 4); });
-    var showCount = sorted.length > 10 ? 10 : sorted.length;
-    bodyHtml += '<div class="deps-section"><h4>Code Analysis (' + sorted.length + ' changes)</h4>';
+    bodyHtml += '<div class="deps-section" id="code-analysis-section"><h4>Code Analysis (' + sorted.length + ')</h4>';
     for (var ai = 0; ai < sorted.length; ai++) {
       var entry = sorted[ai];
       var dotColor = sevColors[entry.severity] || sevColors.info;
@@ -421,16 +383,18 @@ function openPanel(n) {
       var lineAttr = entry.line ? ' data-line="' + entry.line + '"' : '';
       var locAttr = entry.location ? ' data-location="' + (entry.location || '').replace(/"/g, '&quot;') + '"' : '';
       var sevAttr = ' data-severity="' + (entry.severity || 'info') + '"';
-      var label = (entry.shortDescription || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      var desc = (entry.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      bodyHtml += '<div class="analysis-row" data-analysis-idx="' + ai + '"' + lineAttr + locAttr + sevAttr + hiddenStyle + '>' +
+      var rawLabel = entry.shortDescription || entry.description || '';
+      var label = rawLabel.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var desc = (entry.description || '').replace(/"/g, '&quot;');
+      var titleAttr = desc ? ' title="' + desc + '"' : '';
+      bodyHtml += '<div class="analysis-row" data-analysis-idx="' + ai + '"' + lineAttr + locAttr + sevAttr + titleAttr + hiddenStyle + '>' +
         '<span class="analysis-dot" style="background:' + dotColor + '"></span>' +
-        '<span class="analysis-label">' + label + (desc ? '<span class="analysis-desc">' + desc + '</span>' : '') + '</span>' +
+        '<span class="analysis-label">' + label + '</span>' +
         (locText ? '<span class="analysis-location">' + locText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>' : '') +
         '</div>';
     }
     if (sorted.length > 10) {
-      bodyHtml += '<button class="analysis-toggle" id="analysisToggle" data-expanded="false">Show all ' + sorted.length + ' changes</button>';
+      bodyHtml += '<button class="analysis-toggle" id="analysisToggle" data-expanded="false">Show all ' + sorted.length + ' findings</button>';
     }
     bodyHtml += '</div>';
   }
@@ -497,7 +461,8 @@ function openPanel(n) {
     bodyHtml += '</div>';
   }
 
-  // Render diff
+  // Render diff (built separately so it can be placed at top of panel)
+  var diffHtml = '';
   var parsedDiff = parsedDiffs[n.path];
   if (parsedDiff) {
     var isPHP = n.path.endsWith('.php');
@@ -518,7 +483,7 @@ function openPanel(n) {
     var fullBtn = fullContent
       ? '<button class="diff-view-btn' + (activeMode === 'full' ? ' active' : '') + '" data-view="full">Full file</button>'
       : '';
-    bodyHtml += '<div class="diff-section">' +
+    diffHtml = '<div class="diff-section diff-section-primary">' +
       '<h4>Diff<span class="diff-view-controls">' +
       '<button class="diff-view-btn' + (activeMode === 'unified' ? ' active' : '') + '" data-view="unified">Unified</button>' +
       '<button class="diff-view-btn' + (activeMode === 'split' ? ' active' : '') + '" data-view="split">Split</button>' +
@@ -531,12 +496,12 @@ function openPanel(n) {
     var connLinkMap = connIsPHP ? buildFileLinkMap(n) : null;
     var connClassMap = connIsPHP ? classNameIndex : null;
     var connRows = renderFullFile(fileContents[n.path], [], connIsPHP, connLinkMap, connClassMap, implementorsIndex);
-    bodyHtml += '<div class="diff-section">' +
+    diffHtml = '<div class="diff-section diff-section-primary">' +
       '<h4>Source</h4>' +
       '<table class="diff-table full">' + connRows + '</table></div>';
   }
 
-  document.getElementById('panel-body').innerHTML = bodyHtml;
+  document.getElementById('panel-body').innerHTML = diffHtml + bodyHtml;
   updateDiffNav();
 
   // Floating "Methods by Complexity" scroll button
@@ -636,7 +601,7 @@ function openPanel(n) {
         rows[ri].style.display = expanded ? 'none' : 'flex';
       }
       this.setAttribute('data-expanded', expanded ? 'false' : 'true');
-      this.textContent = expanded ? 'Show all ' + rows.length + ' changes' : 'Show fewer';
+      this.textContent = expanded ? 'Show all ' + rows.length + ' findings' : 'Show fewer';
     });
   }
 
@@ -652,8 +617,7 @@ function openPanel(n) {
       scrollToDiffRow(l ? findDiffRowByLine(l) : findDiffRowByLocation(loc));
     });
     var severity = row.getAttribute('data-severity') || 'info';
-    var descSpan = row.querySelectorAll('span')[1];
-    var description = descSpan ? descSpan.textContent : '';
+    var description = row.getAttribute('title') || (row.querySelector('.analysis-label') ? row.querySelector('.analysis-label').textContent : '');
     diffAnnotationsData.push({ line: line, location: location, severity: severity, description: description });
   });
 
@@ -701,6 +665,27 @@ function openPanel(n) {
   };
   placeCallerBadges();
 
+  var placeIfComplexityBadges = function() {
+    if (!n.path.endsWith('.php')) return;
+    document.querySelectorAll('.diff-table tr[data-new-ln]').forEach(function(row) {
+      var cell = row.querySelector('td:last-child');
+      if (!cell || cell.querySelector('.if-cc-badge')) return;
+      var text = cell.textContent;
+      var match = text.match(/\b(elseif|if)\s*\(/);
+      if (!match) return;
+      var pos = match.index + match[0].length - 1;
+      var cc = computeIfComplexity(text, pos, text.length);
+      var col = cc >= 4 ? '#f85149' : cc >= 2 ? '#d29922' : '#3fb950';
+      var badge = document.createElement('span');
+      badge.className = 'if-cc-badge';
+      badge.title = 'Condition complexity: ' + cc;
+      badge.style.cssText = 'margin-left:12px;font-size:10px;font-family:monospace;opacity:0.85;white-space:nowrap;vertical-align:middle';
+      badge.innerHTML = '<span style="color:' + col + ';font-weight:700">CC:' + cc + '</span>';
+      cell.appendChild(badge);
+    });
+  };
+  placeIfComplexityBadges();
+
   // Wire diff view toggle
   document.querySelectorAll('.diff-view-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -724,7 +709,7 @@ function openPanel(n) {
       else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       else rows = renderUnifiedDiff(parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
-      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); updateDiffNav(); }
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); placeIfComplexityBadges(); updateDiffNav(); }
     });
   });
 
