@@ -68,6 +68,28 @@ tailwind.config = {
   .tooltip .removed { color: #f85149; }
   .tooltip .hint { color: #6e7681; font-size: 11px; margin-top: 6px; }
 
+  /* ── Coverage gutter tooltip ── */
+  #coverage-tooltip {
+    display: none; position: fixed; z-index: 200;
+    background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 14px; min-width: 440px; max-width: 640px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.65);
+    font-size: 11px; line-height: 1.5; color: #c9d1d9;
+  }
+  #coverage-tooltip .cov-header { font-weight: 600; margin-bottom: 5px; font-size: 12px; }
+  #coverage-tooltip .cov-tests { max-height: 220px; overflow-y: auto; }
+  #coverage-tooltip .cov-group-header {
+    color: #58a6ff; font-weight: 600; margin-top: 7px; margin-bottom: 2px;
+    font-size: 11px;
+  }
+  #coverage-tooltip .cov-group-header:first-child { margin-top: 0; }
+  #coverage-tooltip .cov-test {
+    font-family: monospace; color: #8b949e; padding-left: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 1px 0 1px 10px;
+  }
+  #coverage-tooltip .cov-test:hover { color: #c9d1d9; overflow: visible; white-space: normal; word-break: break-all; }
+
   /* ── Toggle switches ── */
   .toggle { position: relative; width: 34px; height: 18px; flex-shrink: 0; cursor: pointer; }
   .toggle input { opacity: 0; width: 0; height: 0; }

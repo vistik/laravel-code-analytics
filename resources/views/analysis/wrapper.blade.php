@@ -784,6 +784,11 @@ tailwind.config = {
       if (m.lloc != null) {
         chips.push('<span class="file-metric-chip">loc ' + m.lloc + '</span>');
       }
+      if (n.coverage != null) {
+        var covPct = Math.round(n.coverage * 100);
+        var covColor = covPct < 50 ? '#f85149' : covPct < 80 ? '#d29922' : '#3fb950';
+        chips.push('<span class="file-metric-chip" style="color:' + covColor + '" title="Statement coverage from Clover report">cov ' + covPct + '%</span>');
+      }
       if (chips.length) chipsHtml = '<div class="file-metrics-chips">' + chips.join('<span style="color:#30363d">|</span>') + '</div>';
       var tipRows = buildSignalTipRows(n, filesMetrics[n.path] || null);
       if (tipRows) signalTips[n.id] = tipRows;

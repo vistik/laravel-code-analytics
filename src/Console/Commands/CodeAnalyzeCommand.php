@@ -35,7 +35,9 @@ class CodeAnalyzeCommand extends Command
         {--ext=* : Only analyze files with this extension (can be repeated, e.g. --ext=php)}
         {--open : Open the generated file in the browser when done}
         {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
-        {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}';
+        {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
+        {--coverage= : Path to a Clover XML coverage report — overlays per-line coverage on the diff and uses coverage as a signal}
+        {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — like --coverage but also shows which tests cover each line}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -134,7 +136,17 @@ class CodeAnalyzeCommand extends Command
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
                 focusFiles: $focusFiles,
+                coveragePath: $this->option('coverage'),
+                coverageXmlDir: $this->option('coverage-xml'),
             );
+
+            if ($this->output->isVerbose() && ! empty($result['files'])) {
+                foreach ($result['files'] as $layoutValue => $file) {
+                    $bytes = file_exists($file) ? filesize($file) : 0;
+                    $label = count($result['files']) > 1 ? "[{$layoutValue}] " : '';
+                    $this->line("{$label}Report: {$file} (".number_format($bytes / 1048576, 1).' MB)');
+                }
+            }
 
             if (isset($result['content'])) {
                 $this->output->write($result['content']);
