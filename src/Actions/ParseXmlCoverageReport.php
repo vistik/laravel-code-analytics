@@ -80,6 +80,7 @@ class ParseXmlCoverageReport
                     }
                     $this->diagnostics[] = 'children of root: '.implode(', ', $children ?: ['(none)']);
                 }
+
                 continue;
             }
 
