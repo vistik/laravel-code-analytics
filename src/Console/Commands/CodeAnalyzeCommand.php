@@ -36,8 +36,7 @@ class CodeAnalyzeCommand extends Command
         {--open : Open the generated file in the browser when done}
         {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
-        {--coverage= : Path to a Clover XML coverage report — overlays per-line coverage on the diff and uses coverage as a signal}
-        {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — like --coverage but also shows which tests cover each line}';
+        {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — overlays per-line coverage on the diff and uses coverage as a signal}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -136,7 +135,6 @@ class CodeAnalyzeCommand extends Command
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
                 focusFiles: $focusFiles,
-                coveragePath: $this->option('coverage'),
                 coverageXmlDir: $this->option('coverage-xml'),
             );
 

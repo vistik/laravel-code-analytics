@@ -129,7 +129,6 @@ class AnalyzeCode
         ?string $fromCommit = null,
         ?string $toCommit = null,
         ?array $focusFiles = null,
-        ?string $coveragePath = null,
         ?string $coverageXmlDir = null,
     ): array {
         $this->onProgress = $onProgress;
@@ -240,19 +239,14 @@ class AnalyzeCode
         }
 
         $lineCoverageData = [];
-        if ($coverageXmlDir !== null || $coveragePath !== null) {
+        if ($coverageXmlDir !== null) {
             $t = microtime(true);
-            if ($coverageXmlDir !== null) {
-                $xmlParser = new ParseXmlCoverageReport;
-                $parsed = $xmlParser->parse($coverageXmlDir, $repoPath);
-                foreach ($xmlParser->diagnostics as $diag) {
-                    $this->progress('warn', "  [coverage] {$diag}");
-                }
-                $source = basename(rtrim($coverageXmlDir, '/'));
-            } else {
-                $parsed = (new ParseCloverReport)->parse($coveragePath, $repoPath);
-                $source = basename($coveragePath);
+            $xmlParser = new ParseXmlCoverageReport;
+            $parsed = $xmlParser->parse($coverageXmlDir, $repoPath);
+            foreach ($xmlParser->diagnostics as $diag) {
+                $this->progress('warn', "  [coverage] {$diag}");
             }
+            $source = basename(rtrim($coverageXmlDir, '/'));
             $lineCoverageData = $parsed['lineCoverage'];
             $matchedCount = 0;
             foreach ($nodes as &$node) {
