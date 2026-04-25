@@ -24,7 +24,7 @@ it('detects if statement added', function () {
 
     expect($ifChanges)->toHaveCount(1)
         ->and($ifChanges[0]->category)->toBe(ChangeCategory::CONDITIONAL)
-        ->and($ifChanges[0]->severity)->toBe(Severity::MEDIUM);
+        ->and($ifChanges[0]->severity)->toBe(Severity::LOW);
 });
 
 it('detects if condition changed', function () {

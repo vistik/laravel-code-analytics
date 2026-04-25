@@ -75,7 +75,7 @@ class ControlFlowRule implements Rule
         if ($countDiff > 0) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::CONDITIONAL,
-                severity: Severity::MEDIUM,
+                severity: Severity::LOW,
                 description: "{$countDiff} if statement(s) added in {$key}",
                 location: $key,
             );
