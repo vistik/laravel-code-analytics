@@ -1494,10 +1494,13 @@ class AnalyzeCode
     {
         $this->repoPath = rtrim(realpath($repoPath) ?: $repoPath, '/');
 
-        $gitDir = trim(shell_exec("git -C {$this->repoPath} rev-parse --git-dir 2>/dev/null") ?? '');
-        if ($gitDir === '') {
+        // Normalize to the actual git root so that file-path resolution is correct
+        // even when the command is invoked from a subdirectory of the repository.
+        $gitRoot = trim(shell_exec("git -C {$this->repoPath} rev-parse --show-toplevel 2>/dev/null") ?? '');
+        if ($gitRoot === '') {
             throw new RuntimeException("Not a git repository: {$this->repoPath}");
         }
+        $this->repoPath = rtrim($gitRoot, '/');
 
         $this->headCommit = trim(shell_exec("git -C {$this->repoPath} rev-parse HEAD 2>/dev/null") ?? '');
         $this->branchName = trim(shell_exec("git -C {$this->repoPath} rev-parse --abbrev-ref HEAD 2>/dev/null") ?? 'HEAD');
@@ -1570,7 +1573,7 @@ class AnalyzeCode
         }
 
         $isHeadBase = $this->baseCommit === $this->headCommit;
-        $hasUncommitted = ! $isHeadBase && trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
+        $hasUncommitted = trim(shell_exec("git -C {$this->repoPath} status --porcelain 2>/dev/null") ?? '') !== '';
         $prTitle = $this->logAndResolveDiffTitle($isHeadBase, $hasUncommitted, $baseBranch, $repoName, $title);
 
         $this->diff = shell_exec("git -C {$this->repoPath} diff {$baseBranch} 2>/dev/null") ?? '';
@@ -1591,6 +1594,9 @@ class AnalyzeCode
 
         if ($hasUncommitted) {
             $this->progress('line', '  Including staged and unstaged working tree changes.');
+            if (! $isHeadBase) {
+                $this->progress('line', '  Tip: use --base=HEAD to analyze only uncommitted changes.');
+            }
         }
 
         $numstat = trim(shell_exec("git -C {$this->repoPath} diff --numstat {$baseBranch} 2>/dev/null") ?? '');
