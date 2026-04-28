@@ -837,11 +837,22 @@ class AnalyzeCode
             return $fileReports;
         }
 
-        return (new LaravelMigrationModelCorrelator)->correlate(
+        [$fileReports, $pairs] = (new LaravelMigrationModelCorrelator)->correlate(
             $fileReports,
             $headContents,
             $this->repoDir !== null ? null : $this->repoPath,
         );
+
+        foreach ($pairs as [$migrationPath, $modelPath]) {
+            $migrationNodeId = $this->pathToNode[$migrationPath] ?? null;
+            $modelNodeId = $this->pathToNode[$modelPath] ?? null;
+
+            if ($migrationNodeId !== null && $modelNodeId !== null) {
+                $this->addEdge($migrationNodeId, $modelNodeId, PhpDependencyExtractor::MIGRATION_MODEL);
+            }
+        }
+
+        return $fileReports;
     }
 
     private function enrichNodesWithAnalysis(array $nodes, array $fileReports): array

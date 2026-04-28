@@ -26,7 +26,7 @@ it('links a migration to a model in the same PR', function () {
         $modelPath => '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { }',
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result, $pairs] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     $migrationChanges = $result[$migrationPath]->changes;
     $link = collect($migrationChanges)->first(fn ($c) => $c->category === ChangeCategory::MIGRATION_MODEL_LINK);
@@ -36,6 +36,8 @@ it('links a migration to a model in the same PR', function () {
         ->and($link->description)->toContain('users')
         ->and($link->description)->toContain($modelPath)
         ->and($link->description)->toContain('also updated in this PR');
+
+    expect($pairs)->toContain([$migrationPath, $modelPath]);
 });
 
 it('flags a migration when the model is not in the PR', function () {
@@ -52,7 +54,7 @@ it('flags a migration when the model is not in the PR', function () {
         $modelPath => '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { }',
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result, $pairs] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     $migrationChanges = $result[$migrationPath]->changes;
     $link = collect($migrationChanges)->first(fn ($c) => $c->category === ChangeCategory::MIGRATION_MODEL_LINK);
@@ -62,6 +64,8 @@ it('flags a migration when the model is not in the PR', function () {
         ->and($link->description)->toContain('users')
         ->and($link->description)->toContain($modelPath)
         ->and($link->description)->toContain('check related model');
+
+    expect($pairs)->toContain([$migrationPath, $modelPath]);
 });
 
 it('detects model table via explicit $table property', function () {
@@ -78,7 +82,7 @@ it('detects model table via explicit $table property', function () {
         $modelPath => '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $table = "account_users"; }',
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     $link = collect($result[$migrationPath]->changes)->first(fn ($c) => $c->category === ChangeCategory::MIGRATION_MODEL_LINK);
 
@@ -100,7 +104,7 @@ it('falls back to Laravel naming convention when no $table property', function (
         $modelPath => '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class BlogPost extends Model { }',
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     $link = collect($result[$migrationPath]->changes)->first(fn ($c) => $c->category === ChangeCategory::MIGRATION_MODEL_LINK);
 
@@ -120,11 +124,12 @@ it('does not emit when no model corresponds to the migration table', function ()
         // No model file for this pivot table
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result, $pairs] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     $link = collect($result[$migrationPath]->changes)->first(fn ($c) => $c->category === ChangeCategory::MIGRATION_MODEL_LINK);
 
     expect($link)->toBeNull();
+    expect($pairs)->toBeEmpty();
 });
 
 it('ignores non-migration files', function () {
@@ -141,7 +146,7 @@ it('ignores non-migration files', function () {
         $modelPath => '<?php class User extends Model { }',
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     expect($result[$servicePath]->changes)->toBeEmpty();
     expect($result[$modelPath]->changes)->toBeEmpty();
@@ -167,7 +172,7 @@ it('preserves existing changes on the migration report', function () {
         $modelPath => '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { }',
     ];
 
-    $result = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
+    [$result] = (new LaravelMigrationModelCorrelator)->correlate($fileReports, $headContents, null);
 
     $changes = $result[$migrationPath]->changes;
 
