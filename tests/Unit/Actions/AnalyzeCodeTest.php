@@ -475,6 +475,32 @@ describe('classifyFile', function () {
 
 // ── execute — error cases ─────────────────────────────────────────────────────
 
+describe('execute — git root normalization', function () {
+    it('resolves file contents correctly when invoked from a subdirectory of the repo', function () {
+        $dir = makeTempGitRepo();
+
+        // Stage a PHP file at the root level
+        addAndStageFile($dir, 'app/Foo.php', '<?php class Foo {}');
+
+        // Run analysis pointing at a subdirectory — the tool must normalize to the git root
+        // so that the file at app/Foo.php can be resolved.
+        $subdir = $dir.'/app';
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $subdir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        // app/Foo.php must appear in the JSON output even though we passed a subdirectory
+        $data = json_decode($result['content'] ?? '{}', true);
+        $paths = array_column($data['files'] ?? [], 'path');
+        expect($paths)->toContain('app/Foo.php');
+    });
+});
+
 describe('execute — error cases', function () {
     it('throws RuntimeException when path is not a git repository', function () {
         $dir = sys_get_temp_dir().'/not-a-git-repo-'.uniqid();
@@ -535,6 +561,30 @@ describe('execute — uncommitted changes progress messages', function () {
 
         // Add an uncommitted staged change on top — combined diff vs main is non-empty
         addAndStageFile($dir, 'staged.php', '<?php class Staged {}');
+
+        $messages = [];
+        (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            baseBranch: 'main',
+            format: OutputFormat::JSON,
+            onProgress: function (string $level, string $message) use (&$messages) {
+                $messages[] = [$level, $message];
+            },
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $lineText = implode(' ', collect($messages)->filter(fn ($m) => $m[0] === 'line')->pluck(1)->all());
+
+        expect($lineText)->toContain('Including staged and unstaged working tree changes');
+    });
+
+    it('shows "Including staged and unstaged working tree changes" when on main with only uncommitted changes (isHeadBase = true)', function () {
+        $dir = makeTempGitRepo(); // main: README.md committed, HEAD == main
+
+        // Add a staged (uncommitted) file directly on main — isHeadBase will be true
+        addAndStageFile($dir, 'uncommitted.php', '<?php class Uncommitted {}');
 
         $messages = [];
         (new AnalyzeCode)->execute(
