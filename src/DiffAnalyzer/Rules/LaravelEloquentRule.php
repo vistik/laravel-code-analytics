@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Scalar;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Return_;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
@@ -72,6 +73,7 @@ class LaravelEloquentRule implements Rule
         $this->analyzeEagerLoading($comparison, $changes);
         $this->analyzeRelationshipEagerLoading($comparison, $changes);
         $this->analyzeSoftDeletes($file, $comparison, $changes);
+        $this->analyzePrunable($comparison, $changes);
         $this->analyzeTransactions($comparison, $changes);
 
         return $changes;
@@ -202,38 +204,91 @@ class LaravelEloquentRule implements Rule
                 continue;
             }
 
-            if ($pair['old'] !== null && $pair['new'] !== null) {
-                $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::LARAVEL,
-                    severity: Severity::MEDIUM,
-                    description: "Model casts changed in {$key}",
-                    location: $key,
-                    line: $pair['new']->getStartLine(),
-                );
-            }
+            $oldEntries = $pair['old'] !== null ? ($this->extractCastEntries($pair['old']) ?? []) : [];
+            $newEntries = $pair['new'] !== null ? ($this->extractCastEntries($pair['new']) ?? []) : [];
+
+            $this->diffCastEntries($oldEntries, $newEntries, $key, $changes);
         }
 
-        // Also check $casts property
         foreach ($comparison['properties'] as $key => $pair) {
             if (! str_ends_with($key, '::$casts')) {
                 continue;
             }
 
-            if ($pair['old'] !== null && $pair['new'] !== null) {
-                $oldVal = $this->printer->prettyPrint([$pair['old']]);
-                $newVal = $this->printer->prettyPrint([$pair['new']]);
+            $oldEntries = $pair['old'] !== null ? ($this->extractCastEntries($pair['old']) ?? []) : [];
+            $newEntries = $pair['new'] !== null ? ($this->extractCastEntries($pair['new']) ?? []) : [];
 
-                if ($oldVal !== $newVal) {
-                    $changes[] = new ClassifiedChange(
-                        category: ChangeCategory::LARAVEL,
-                        severity: Severity::MEDIUM,
-                        description: 'Model $casts property changed on '.$this->getClassName($key),
-                        location: $key,
-                        line: $pair['new']->getStartLine(),
-                    );
+            $this->diffCastEntries($oldEntries, $newEntries, $key, $changes);
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $oldEntries
+     * @param  array<string, string>  $newEntries
+     * @param  list<ClassifiedChange>  $changes
+     */
+    private function diffCastEntries(array $oldEntries, array $newEntries, string $location, array &$changes): void
+    {
+        $className = $this->getClassName($location);
+
+        foreach ($newEntries as $field => $type) {
+            if (! array_key_exists($field, $oldEntries)) {
+                $changes[] = new ClassifiedChange(
+                    category: ChangeCategory::LARAVEL,
+                    severity: Severity::MEDIUM,
+                    description: "Cast added for '{$field}' ({$type}) on {$className}",
+                    location: $location,
+                );
+            } elseif ($oldEntries[$field] !== $type) {
+                $changes[] = new ClassifiedChange(
+                    category: ChangeCategory::LARAVEL,
+                    severity: Severity::HIGH,
+                    description: "Cast changed for '{$field}': {$oldEntries[$field]} → {$type} on {$className}",
+                    location: $location,
+                );
+            }
+        }
+    }
+
+    /**
+     * Extract cast entries as field => pretty-printed-type pairs.
+     * Returns null when the array is too dynamic to analyse statically.
+     *
+     * @return array<string, string>|null
+     */
+    private function extractCastEntries(Node $node): ?array
+    {
+        $array = null;
+
+        if ($node instanceof Stmt\Property) {
+            foreach ($node->props as $prop) {
+                if ($prop->default instanceof Expr\Array_) {
+                    $array = $prop->default;
+                    break;
+                }
+            }
+        } elseif ($node instanceof Stmt\ClassMethod) {
+            foreach ($node->stmts ?? [] as $stmt) {
+                if ($stmt instanceof Return_ && $stmt->expr instanceof Expr\Array_) {
+                    $array = $stmt->expr;
+                    break;
                 }
             }
         }
+
+        if ($array === null) {
+            return null;
+        }
+
+        $entries = [];
+        foreach ($array->items as $item) {
+            if ($item === null || ! $item->key instanceof Scalar\String_) {
+                continue;
+            }
+            $entries[$item->key->value] = $this->printer->prettyPrintExpr($item->value);
+        }
+
+        return $entries;
     }
 
     /**
@@ -465,6 +520,35 @@ class LaravelEloquentRule implements Rule
                     location: $name,
                     line: $pair['new']->getStartLine(),
                 );
+            }
+        }
+    }
+
+    /**
+     * @param  list<ClassifiedChange>  $changes
+     */
+    private function analyzePrunable(array $comparison, array &$changes): void
+    {
+        $prunableTraits = ['Prunable', 'MassPrunable'];
+
+        foreach ($comparison['classes'] ?? [] as $name => $pair) {
+            if ($pair['old'] === null || $pair['new'] === null) {
+                continue;
+            }
+
+            $oldTraits = $this->extractTraitNames($pair['old']);
+            $newTraits = $this->extractTraitNames($pair['new']);
+
+            foreach ($prunableTraits as $trait) {
+                if (! in_array($trait, $oldTraits, true) && in_array($trait, $newTraits, true)) {
+                    $changes[] = new ClassifiedChange(
+                        category: ChangeCategory::LARAVEL,
+                        severity: Severity::HIGH,
+                        description: "{$trait} added to {$name} — model records will be automatically deleted",
+                        location: $name,
+                        line: $pair['new']->getStartLine(),
+                    );
+                }
             }
         }
     }
