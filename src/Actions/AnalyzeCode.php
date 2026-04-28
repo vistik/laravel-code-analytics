@@ -541,6 +541,7 @@ class AnalyzeCode
     private function processPhpDependencies(array $phpFiles, array $headContents): array
     {
         $fileReferences = [];
+        $commandSignatureIndex = $this->buildCommandSignatureIndex();
         foreach ($phpFiles as $node) {
             $content = $headContents[$node['path']] ?? null;
             if ($content === null || $content === '') {
@@ -549,6 +550,7 @@ class AnalyzeCode
             $references = $this->extractReferences($content);
             $this->matchReferences($references, $node['id']);
             $this->matchViewReferences($content, $node['id'], $node['path']);
+            $this->matchScheduleReferences($content, $node['id'], $commandSignatureIndex);
             $fileReferences[$node['path']] = $references;
         }
 
@@ -675,6 +677,61 @@ class AnalyzeCode
             explode("\n", $output),
             fn ($p) => str_ends_with($p, '.blade.php')
         ));
+    }
+
+    /**
+     * @return array<string, string>  artisan command name → relative file path
+     */
+    private function buildCommandSignatureIndex(): array
+    {
+        $paths = $this->listCommandFiles();
+        if (empty($paths)) {
+            return [];
+        }
+
+        $contents = $this->readBulkFileContents($paths);
+        $index = [];
+
+        foreach ($contents as $path => $content) {
+            if ($content === null || $content === '') {
+                continue;
+            }
+            if (preg_match('/\$signature\s*=\s*[\'"]([^\'"]+)[\'"]/m', $content, $m)) {
+                $commandName = explode(' ', trim($m[1]))[0];
+                if ($commandName !== '') {
+                    $index[$commandName] = $path;
+                }
+            }
+        }
+
+        return $index;
+    }
+
+    /** @return list<string> */
+    private function listCommandFiles(): array
+    {
+        if ($this->repoDir !== null) {
+            $output = trim(shell_exec("git -C {$this->repoDir} ls-tree -r {$this->headCommit} --name-only 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                explode("\n", $output),
+                fn ($p) => str_contains($p, '/Commands/') && str_ends_with($p, '.php'),
+            ));
+        }
+
+        if ($this->repoPath !== '') {
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files -- 'app/Console/Commands/*.php' 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(array_map('trim', explode("\n", $output))));
+        }
+
+        return [];
     }
 
     /**
@@ -2411,6 +2468,39 @@ class AnalyzeCode
                 if (isset($this->pathToNode[$viewPath])) {
                     $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
                 }
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $commandSignatureIndex  command-name → relative-file-path
+     */
+    private function matchScheduleReferences(string $content, string $sourceNodeId, array $commandSignatureIndex): void
+    {
+        if (empty($commandSignatureIndex)) {
+            return;
+        }
+
+        $pattern = '/(?:Schedule::command|\$schedule->command)\s*\(\s*[\'"]([^\'"]+)[\'"]/m';
+        if (! preg_match_all($pattern, $content, $matches)) {
+            return;
+        }
+
+        foreach ($matches[1] as $signature) {
+            $commandName = explode(' ', trim($signature))[0];
+            $commandPath = $commandSignatureIndex[$commandName] ?? null;
+            if ($commandPath === null) {
+                continue;
+            }
+
+            if (isset($this->pathToNode[$commandPath])) {
+                $this->addEdge($sourceNodeId, $this->pathToNode[$commandPath], PhpDependencyExtractor::STATIC_CALL);
+                continue;
+            }
+
+            $targetId = $this->ensureConnectedBladeNode($commandPath);
+            if ($targetId !== null) {
+                $this->addEdge($sourceNodeId, $targetId, PhpDependencyExtractor::STATIC_CALL);
             }
         }
     }

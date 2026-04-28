@@ -1458,3 +1458,191 @@ describe('applyFilePatternFilter — path/substring patterns', function () {
         ]);
     });
 });
+
+// ── execute — schedule command links ─────────────────────────────────────────
+
+describe('execute — schedule command links', function () {
+    it('adds the command class as a connected node when routes/console.php schedules it by signature', function () {
+        $dir = makeTempGitRepo();
+
+        // Commit the command file — it will not be in the diff
+        addAndStageFile($dir, 'app/Console/Commands/ProcessData.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class ProcessData extends Command {
+    protected $signature = \'app:process-data\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        // Stage routes/console.php — this IS the diff
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:process-data\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/ProcessData.php')
+            ->and($paths)->toContain('routes/console.php');
+    });
+
+    it('creates a dependency edge from the schedule file to the command class', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Console/Commands/RunReport.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class RunReport extends Command {
+    protected $signature = \'app:run-report\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:run-report\')->everyHour();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+
+    it('links via legacy $schedule->command() style', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Console/Commands/SyncUsers.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class SyncUsers extends Command {
+    protected $signature = \'users:sync\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+class Kernel extends ConsoleKernel {
+    protected function schedule(\Illuminate\Console\Scheduling\Schedule $schedule) {
+        $schedule->command(\'users:sync\')->daily();
+    }
+}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/SyncUsers.php');
+    });
+
+    it('links command with arguments in signature by base command name', function () {
+        $dir = makeTempGitRepo();
+
+        // Signature contains arguments and options — only the base name before the first space is the command name
+        addAndStageFile($dir, 'app/Console/Commands/ImportData.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class ImportData extends Command {
+    protected $signature = \'app:import {file} {--queue=}\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:import\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/ImportData.php');
+    });
+
+    it('links command when it is also in the diff (not just a connected node)', function () {
+        $dir = makeTempGitRepo();
+
+        // Both files staged — the command file is a diff node, not a connected node
+        addAndStageFile($dir, 'app/Console/Commands/Cleanup.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class Cleanup extends Command {
+    protected $signature = \'app:cleanup\';
+    public function handle(): void {}
+}');
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:cleanup\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/Cleanup.php')
+            ->and($paths)->toContain('routes/console.php')
+            ->and($content['dependencies'])->not->toBeEmpty();
+    });
+
+    it('does not error when a scheduled command signature has no matching class', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'nonexistent:command\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        // The schedule file itself should still appear; no crash
+        expect($paths)->toContain('routes/console.php');
+    });
+
+    it('links multiple scheduled commands in the same file', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Console/Commands/Foo.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class Foo extends Command {
+    protected $signature = \'app:foo\';
+    public function handle(): void {}
+}');
+        addAndStageFile($dir, 'app/Console/Commands/Bar.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class Bar extends Command {
+    protected $signature = \'app:bar\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add commands' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:foo\')->daily();
+Schedule::command(\'app:bar\')->weekly();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/Foo.php')
+            ->and($paths)->toContain('app/Console/Commands/Bar.php');
+    });
+});
