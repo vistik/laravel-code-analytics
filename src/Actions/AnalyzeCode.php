@@ -222,9 +222,19 @@ class AnalyzeCode
         $fileDiffs = $this->extractFileDiffs();
 
         $t = microtime(true);
-        $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs, $headContents) : [];
         if ($includeFileContents) {
-            $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
+            if (! empty($fileDiffs)) {
+                // Diff mode: collect contents of changed files only.
+                $fileContents = $this->collectFileContents($fileDiffs, $headContents);
+                $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
+            } else {
+                // Full/repo mode: no diff — collect contents for every analyzed node.
+                $allNodePaths = array_fill_keys(array_column($nodes, 'path'), '');
+                $fileContents = $this->collectFileContents($allNodePaths, $headContents);
+                $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading full-repo file contents');
+            }
+        } else {
+            $fileContents = [];
         }
 
         // Always load file contents for connected nodes so their code can be viewed in the panel.
