@@ -1645,4 +1645,56 @@ Schedule::command(\'app:bar\')->weekly();');
         expect($paths)->toContain('app/Console/Commands/Foo.php')
             ->and($paths)->toContain('app/Console/Commands/Bar.php');
     });
+
+    it('finds commands in non-standard paths outside app/Console/Commands/', function () {
+        $dir = makeTempGitRepo();
+
+        // Command lives in a domain-style directory, not app/Console/Commands/
+        addAndStageFile($dir, 'app/Domain/Billing/Commands/ChargeSubscription.php', '<?php
+namespace App\Domain\Billing\Commands;
+use Illuminate\Console\Command;
+class ChargeSubscription extends Command {
+    protected $signature = \'billing:charge-subscriptions\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'billing:charge-subscriptions\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Domain/Billing/Commands/ChargeSubscription.php');
+    });
+
+    it('finds commands nested in subdirectories of app/Console/Commands/', function () {
+        $dir = makeTempGitRepo();
+
+        // Command is nested one level deeper than the standard path
+        addAndStageFile($dir, 'app/Console/Commands/Reporting/GenerateMonthlyReport.php', '<?php
+namespace App\Console\Commands\Reporting;
+use Illuminate\Console\Command;
+class GenerateMonthlyReport extends Command {
+    protected $signature = \'reports:monthly\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'reports:monthly\')->monthly();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/Reporting/GenerateMonthlyReport.php');
+    });
 });

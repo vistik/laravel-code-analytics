@@ -723,12 +723,15 @@ class AnalyzeCode
         }
 
         if ($this->repoPath !== '') {
-            $output = trim(shell_exec("git -C {$this->repoPath} ls-files -- 'app/Console/Commands/*.php' 2>/dev/null") ?? '');
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files 2>/dev/null") ?? '');
             if (empty($output)) {
                 return [];
             }
 
-            return array_values(array_filter(array_map('trim', explode("\n", $output))));
+            return array_values(array_filter(
+                array_map('trim', explode("\n", $output)),
+                fn ($p) => str_contains($p, '/Commands/') && str_ends_with($p, '.php'),
+            ));
         }
 
         return [];
