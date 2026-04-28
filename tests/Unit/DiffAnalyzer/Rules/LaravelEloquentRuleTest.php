@@ -256,6 +256,167 @@ it('does not flag ->with() on a static model call', function () {
     expect($found)->toBeEmpty();
 });
 
+it('detects $casts property field added', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $casts = ["is_admin" => "boolean"]; }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/User.php', 'app/Models/User.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, "Cast added for 'is_admin'"),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('detects multiple $casts fields added at once', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $casts = ["is_admin" => "boolean", "settings" => "array"]; }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/User.php', 'app/Models/User.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'Cast added for'),
+    ));
+
+    expect($found)->toHaveCount(2)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM)
+        ->and($found[1]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('detects $casts property field modified', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $casts = ["is_admin" => "boolean", "settings" => "array"]; }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $casts = ["is_admin" => "integer", "settings" => "array"]; }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/User.php', 'app/Models/User.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, "Cast changed for 'is_admin'"),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($found[0]->severity)->toBe(Severity::HIGH)
+        ->and($found[0]->description)->toContain('boolean')
+        ->and($found[0]->description)->toContain('integer');
+});
+
+it('does not flag unchanged $casts fields', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $casts = ["is_admin" => "boolean", "settings" => "array"]; }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $casts = ["is_admin" => "boolean", "settings" => "array", "score" => "float"]; }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/User.php', 'app/Models/User.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'Cast'),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->description)->toContain("'score'");
+});
+
+it('detects casts() method field added', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected function casts(): array { return ["is_admin" => "boolean"]; } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/User.php', 'app/Models/User.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, "Cast added for 'is_admin'"),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('detects casts() method field modified', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected function casts(): array { return ["is_admin" => "boolean"]; } }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected function casts(): array { return ["is_admin" => "boolean", "settings" => "array"]; } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/User.php', 'app/Models/User.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, "Cast added for 'settings'"),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($found[0]->severity)->toBe(Severity::MEDIUM);
+});
+
+it('detects Prunable trait added', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class Post extends Model { }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; use Illuminate\Database\Eloquent\Prunable; class Post extends Model { use Prunable; }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/Post.php', 'app/Models/Post.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'Prunable added'),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($found[0]->severity)->toBe(Severity::HIGH);
+});
+
+it('detects MassPrunable trait added', function () {
+    $old = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class Post extends Model { }';
+    $new = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; use Illuminate\Database\Eloquent\MassPrunable; class Post extends Model { use MassPrunable; }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Models/Post.php', 'app/Models/Post.php', FileStatus::MODIFIED);
+
+    $changes = (new LaravelEloquentRule)->analyze($file, $comparison);
+
+    $found = array_values(array_filter(
+        $changes,
+        fn ($c) => str_contains($c->description, 'MassPrunable added'),
+    ));
+
+    expect($found)->toHaveCount(1)
+        ->and($found[0]->category)->toBe(ChangeCategory::LARAVEL)
+        ->and($found[0]->severity)->toBe(Severity::HIGH);
+});
+
 it('returns no changes for identical model', function () {
     $code = '<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class User extends Model { protected $fillable = ["name", "email"]; public function posts() { return $this->hasMany(Post::class); } }';
 
