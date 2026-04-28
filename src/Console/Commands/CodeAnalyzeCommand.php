@@ -2,14 +2,25 @@
 
 namespace Vistik\LaravelCodeAnalytics\Console\Commands;
 
+use Closure;
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\RequestException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use RuntimeException;
+use Throwable;
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
+use Vistik\LaravelCodeAnalytics\Ai\Agents\CodeReviewAgent;
+use Vistik\LaravelCodeAnalytics\Ai\Tools\RunCodeAnalysis;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
+use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 use function Laravel\Prompts\select;
 
@@ -36,7 +47,8 @@ class CodeAnalyzeCommand extends Command
         {--open : Open the generated file in the browser when done}
         {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
-        {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — overlays per-line coverage on the diff and uses coverage as a signal}';
+        {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — overlays per-line coverage on the diff and uses coverage as a signal}
+        {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -113,6 +125,8 @@ class CodeAnalyzeCommand extends Command
                 };
             };
 
+            $onPayloadReady = $this->buildOnPayloadReady($format, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity, $focusFiles);
+
             $result = $action->execute(
                 repoPath: $repoPath,
                 outputPath: $outputPath,
@@ -136,6 +150,7 @@ class CodeAnalyzeCommand extends Command
                 toCommit: $toCommit,
                 focusFiles: $focusFiles,
                 coverageXmlDir: $this->option('coverage-xml'),
+                onPayloadReady: $onPayloadReady,
             );
 
             if ($this->output->isVerbose() && ! empty($result['files'])) {
@@ -243,5 +258,69 @@ class CodeAnalyzeCommand extends Command
     private function resolveGroupResolver(array $fileGroups): FileGroupResolver
     {
         return new ArrayFileGroupResolver($fileGroups);
+    }
+
+    /**
+     * Returns an onPayloadReady closure when --review is set for HTML format,
+     * null otherwise. The closure pre-computes LLM/JSON text from the payload
+     * (avoiding a second analysis run) then runs the AI agent.
+     *
+     * @param  list<string>|null  $filePatterns
+     * @param  list<string>|null  $focusFiles
+     */
+    private function buildOnPayloadReady(
+        OutputFormat $format,
+        string $repoPath,
+        ?string $baseBranch,
+        ?string $prUrl,
+        bool $full,
+        ?array $filePatterns,
+        ?string $fromCommit,
+        ?string $toCommit,
+        ?Severity $minSeverity,
+        ?array $focusFiles,
+    ): ?Closure {
+        if (! $this->option('review') || $format !== OutputFormat::HTML) {
+            return null;
+        }
+
+        return function (GraphPayload $payload, PullRequestContext $pr, LayerStack $layerStack) use ($focusFiles, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity): array {
+            $llm = (new GenerateLlmReport($focusFiles))->generate($payload, $pr, null, $layerStack);
+            $json = (new GenerateJsonReport)->generate($payload, $pr, null, $layerStack);
+
+            $tool = (new RunCodeAnalysis(
+                repoPath: $repoPath,
+                baseBranch: $baseBranch,
+                prUrl: $prUrl,
+                full: $full,
+                filePatterns: $filePatterns,
+                fromCommit: $fromCommit,
+                toCommit: $toCommit,
+                minSeverity: $minSeverity,
+            ))->withPrecomputed($llm, $json);
+
+            $this->info('Generating AI review...');
+
+            try {
+                $reviewText = (string) (new CodeReviewAgent($tool))->prompt('Review these changes.');
+            } catch (RequestException $e) {
+                $status = $e->response->status();
+                $this->warn(match (true) {
+                    $status === 401 || $status === 403 => 'AI review skipped: authentication failed. Ensure Ollama is running locally (or the correct API key is set for a remote provider).',
+                    $status === 404 => 'AI review skipped: model not found. Run `ollama pull llama3.1:8b` to install it, or override with --model=<name>.',
+                    default => "AI review skipped: HTTP {$status}.",
+                });
+
+                return [];
+            } catch (ProviderOverloadedException $e) {
+                throw new RuntimeException($e->getMessage(), previous: $e);
+            } catch (Throwable $e) {
+                $this->warn('AI review skipped: '.$e->getMessage());
+
+                return [];
+            }
+
+            return ['aiReview' => $reviewText];
+        };
     }
 }

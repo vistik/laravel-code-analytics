@@ -748,6 +748,27 @@ function openPanel(n) {
   };
   placeCallerBadges();
 
+  var placeIfComplexityBadges = function() {
+    if (!n.path.endsWith('.php')) return;
+    document.querySelectorAll('.diff-table tr[data-new-ln]').forEach(function(row) {
+      var cell = row.querySelector('td:last-child');
+      if (!cell || cell.querySelector('.if-cc-badge')) return;
+      var text = cell.textContent;
+      var match = text.match(/\b(elseif|if)\s*\(/);
+      if (!match) return;
+      var pos = match.index + match[0].length - 1;
+      var cc = computeIfComplexity(text, pos, text.length);
+      var col = cc >= 4 ? '#f85149' : cc >= 2 ? '#d29922' : '#3fb950';
+      var badge = document.createElement('span');
+      badge.className = 'if-cc-badge';
+      badge.title = 'Condition complexity: ' + cc;
+      badge.style.cssText = 'margin-left:12px;font-size:10px;font-family:monospace;opacity:0.85;white-space:nowrap;vertical-align:middle';
+      badge.innerHTML = '<span style="color:' + col + ';font-weight:700">CC:' + cc + '</span>';
+      cell.appendChild(badge);
+    });
+  };
+  placeIfComplexityBadges();
+
   // Wire diff view toggle
   document.querySelectorAll('.diff-view-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -771,7 +792,7 @@ function openPanel(n) {
       else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       else rows = renderUnifiedDiff(parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
-      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); updateDiffNav(); }
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); placeIfComplexityBadges(); updateDiffNav(); }
     });
   });
 
