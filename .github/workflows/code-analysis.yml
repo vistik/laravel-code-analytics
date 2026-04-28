@@ -35,10 +35,13 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          coverage: none
+          coverage: pcov
 
       - name: Install composer dependencies
         uses: ramsey/composer-install@v4
+
+      - name: Run tests with coverage
+        run: vendor/bin/pest --coverage-xml build/coverage
 
       - name: Annotate PR with very high severity findings
         run: |
@@ -46,6 +49,7 @@ jobs:
             --base=${{ steps.merge_base.outputs.sha }} \
             --format=github \
             --min-severity=very_high \
+            --coverage-xml=build/coverage \
             --no-ansi \
             . 2>&1 || true
 
@@ -57,6 +61,7 @@ jobs:
             --base=${{ steps.merge_base.outputs.sha }} \
             --full-files \
             --format=html \
+            --coverage-xml=build/coverage \
             --title="$REPORT_TITLE" \
             --no-ansi \
             . report.html
@@ -67,6 +72,7 @@ jobs:
           SUMMARY=$(./testbench code:analyze \
             --base=${{ steps.merge_base.outputs.sha }} \
             --format=metrics \
+            --coverage-xml=build/coverage \
             --no-ansi \
             . 2>&1 || true)
           echo "summary<<EOF" >> $GITHUB_OUTPUT

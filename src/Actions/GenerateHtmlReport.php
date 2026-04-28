@@ -123,6 +123,35 @@ class GenerateHtmlReport implements ReportGenerator
             JSON_UNESCAPED_SLASHES | JSON_HEX_TAG,
         );
 
+        // Deduplicate test names into a shared index so each string is stored once.
+        // Line entries become: 0 (uncovered) or [idx, ...] (covered, indices into testIndex).
+        $testIndex = [];
+        $testMap = [];
+        $compressedCoverage = [];
+        foreach ($payload->lineCoverageData as $path => $lines) {
+            $compressedLines = [];
+            foreach ($lines as $nr => $entry) {
+                if (empty($entry['tests'])) {
+                    $compressedLines[$nr] = 0;
+                } else {
+                    $indices = [];
+                    foreach ($entry['tests'] as $test) {
+                        if (! isset($testMap[$test])) {
+                            $testMap[$test] = count($testIndex);
+                            $testIndex[] = $test;
+                        }
+                        $indices[] = $testMap[$test];
+                    }
+                    $compressedLines[$nr] = $indices;
+                }
+            }
+            if (! empty($compressedLines)) {
+                $compressedCoverage[$path] = $compressedLines;
+            }
+        }
+        $lineCoverageJson = json_encode((object) $compressedCoverage, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+        $testIndexJson = json_encode($testIndex, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+
         $graphIndex = (new GraphIndexBuilder)->build(
             nodes: $payload->nodes,
             edges: $payload->edges,
@@ -162,6 +191,8 @@ class GenerateHtmlReport implements ReportGenerator
             'filterDefaultsJson' => $filterDefaultsJson,
             'graphIndexJson' => $graphIndexJson,
             'parsedDiffsJson' => $parsedDiffsJson,
+            'lineCoverageJson' => $lineCoverageJson,
+            'testIndexJson' => $testIndexJson,
         ])->render();
     }
 
@@ -708,6 +739,7 @@ class GenerateHtmlReport implements ReportGenerator
             fileContents: $payload->fileContents,
             filterDefaults: $payload->filterDefaults,
             riskScore: null,
+            lineCoverageData: $payload->lineCoverageData,
         );
 
         $jsEntries = [];

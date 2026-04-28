@@ -47,6 +47,7 @@ class CodeAnalyzeCommand extends Command
         {--open : Open the generated file in the browser when done}
         {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
+        {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — overlays per-line coverage on the diff and uses coverage as a signal}
         {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
@@ -148,8 +149,17 @@ class CodeAnalyzeCommand extends Command
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
                 focusFiles: $focusFiles,
+                coverageXmlDir: $this->option('coverage-xml'),
                 onPayloadReady: $onPayloadReady,
             );
+
+            if ($this->output->isVerbose() && ! empty($result['files'])) {
+                foreach ($result['files'] as $layoutValue => $file) {
+                    $bytes = file_exists($file) ? filesize($file) : 0;
+                    $label = count($result['files']) > 1 ? "[{$layoutValue}] " : '';
+                    $this->line("{$label}Report: {$file} (".number_format($bytes / 1048576, 1).' MB)');
+                }
+            }
 
             if (isset($result['content'])) {
                 $this->output->write($result['content']);

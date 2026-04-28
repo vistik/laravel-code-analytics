@@ -129,6 +129,7 @@ class AnalyzeCode
         ?string $fromCommit = null,
         ?string $toCommit = null,
         ?array $focusFiles = null,
+        ?string $coverageXmlDir = null,
         ?Closure $onPayloadReady = null,
     ): array {
         $this->onProgress = $onProgress;
@@ -238,6 +239,53 @@ class AnalyzeCode
             $nodes = $this->enrichNodesWithKind($nodes, $connectedContents);
         }
 
+        $lineCoverageData = [];
+        if ($coverageXmlDir !== null) {
+            $t = microtime(true);
+            $xmlParser = new ParseXmlCoverageReport;
+            $parsed = $xmlParser->parse($coverageXmlDir, $repoPath);
+            foreach ($xmlParser->diagnostics as $diag) {
+                $this->progress('warn', "  [coverage] {$diag}");
+            }
+            $source = basename(rtrim($coverageXmlDir, '/'));
+            $lineCoverageData = $parsed['lineCoverage'];
+            $matchedCount = 0;
+            foreach ($nodes as &$node) {
+                if (isset($parsed['fileCoverage'][$node['path']])) {
+                    $node['coverage'] = $parsed['fileCoverage'][$node['path']];
+                    $matchedCount++;
+                }
+            }
+            unset($node);
+
+            // Bump severity by one level for findings on lines with zero coverage.
+            $severityBump = ['info' => 'low', 'low' => 'medium', 'medium' => 'high', 'high' => 'very_high'];
+            foreach ($analysisData as $path => &$findings) {
+                $fileCov = $lineCoverageData[$path] ?? null;
+                if ($fileCov === null) {
+                    continue;
+                }
+                foreach ($findings as &$finding) {
+                    $line = $finding['line'] ?? null;
+                    if ($line !== null && isset($fileCov[$line]) && $fileCov[$line]['count'] === 0) {
+                        $finding['severity'] = $severityBump[$finding['severity']] ?? $finding['severity'];
+                    }
+                }
+                unset($finding);
+            }
+            unset($findings);
+
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' parsing coverage report ('.count($parsed['fileCoverage']).' files)');
+            $this->progress('info', "Coverage: {$matchedCount}/{$fileCount} diff files matched in {$source}");
+            if ($matchedCount === 0 && count($parsed['fileCoverage']) > 0) {
+                $sampleCovPath = array_key_first($parsed['fileCoverage']);
+                $sampleNodePath = $nodes[0]['path'] ?? '(none)';
+                $this->progress('warn', "  Coverage path mismatch — coverage has: {$sampleCovPath}");
+                $this->progress('warn', "  Diff node path looks like:             {$sampleNodePath}");
+                $this->progress('warn', "  Repo path used:                        {$repoPath}");
+            }
+        }
+
         $t = microtime(true);
         $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap);
         $this->progress('timing', '  ↳ '.$this->elapsed($t).' computing signal scores');
@@ -268,6 +316,7 @@ class AnalyzeCode
             fileContents: $fileContents,
             filterDefaults: $this->resolveFilterDefaults($filterDefaults),
             riskScore: $riskResult,
+            lineCoverageData: $lineCoverageData,
         );
         $pr = new PullRequestContext(
             prTitle: $prTitle,
