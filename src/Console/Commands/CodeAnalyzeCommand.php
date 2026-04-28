@@ -34,6 +34,7 @@ class CodeAnalyzeCommand extends Command
         {--to= : End commit hash for a range diff (defaults to HEAD when --from is set)}
         {--pick : Interactively pick two commits from git history to compare}
         {--pr= : GitHub PR URL to analyze remotely (e.g. https://github.com/owner/repo/pull/123)}
+        {--repo= : GitHub repo URL to analyze all files (e.g. https://github.com/owner/repo). Use --base= to target a specific branch}
         {--full : Analyze all tracked files instead of just the diff}
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
@@ -59,8 +60,10 @@ class CodeAnalyzeCommand extends Command
             $repoPath = $this->argument('repo-path') ?? $config['repo_path'] ?? getcwd();
             $outputPath = $this->option('output') ?? $this->argument('output') ?? $config['output'] ?? null;
             $prUrl = $this->option('pr');
+            $repoUrl = $this->option('repo') ?? $config['repo'] ?? null;
             // When --pr= is given, the base is auto-detected from the PR; --base= is only needed for local mode.
-            $baseBranch = $this->option('base') ?? $config['base'] ?? ($prUrl !== null ? null : 'main');
+            // When --repo= is given, --base= selects the branch (defaults to the repo's default branch).
+            $baseBranch = $this->option('base') ?? $config['base'] ?? ($prUrl !== null || $repoUrl !== null ? null : 'main');
             $title = $this->option('title') ?? $config['title'] ?? null;
             $viewString = $this->option('view') ?? $config['view'] ?? null;
             $view = $viewString !== null
@@ -131,6 +134,7 @@ class CodeAnalyzeCommand extends Command
                 outputPath: $outputPath,
                 baseBranch: $baseBranch,
                 prUrl: $prUrl ?: null,
+                repoUrl: $repoUrl,
                 full: $full,
                 title: $title,
                 view: $view,
