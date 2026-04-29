@@ -142,7 +142,7 @@ function buildFileLinkMap(node) {
 }
 
 // ── Panel navigation breadcrumbs ──────────────────────────────────────────────
-var navStack = [];      // [{node}] — history of panels opened via link-clicks
+var navStack = [];      // [{node}] - history of panels opened via link-clicks
 var navSkipPush = false; // set true when re-opening a node via breadcrumb click
 
 function clearNavStack() {
@@ -208,7 +208,7 @@ function openPanel(n) {
   var metricsStripHtml = '';
   if (m) {
     var bStrip = m.before || {};
-    function metricChip(label, val, unit, warnThresh, badThresh, lowBad, beforeVal) {
+    function metricChip(label, val, unit, warnThresh, badThresh, lowBad, beforeVal, tooltip) {
       if (val == null) return '';
       var numVal = parseFloat(val);
       var display = unit === '%' ? val + unit : val;
@@ -226,17 +226,18 @@ function openPanel(n) {
           dHtml = '<span style="color:' + (improved ? '#3fb950' : '#f85149') + ';font-size:11px;margin-left:2px">' + (dv > 0 ? '&#8593;' : '&#8595;') + deltaAmt + '</span>';
         }
       }
-      return '<div style="flex:1;text-align:center;padding:2px 4px;min-width:0">' +
+      var tipAttr = tooltip ? ' data-tooltip="' + tooltip + '"' : '';
+      return '<div style="flex:1;text-align:center;padding:2px 4px;min-width:0;cursor:default"' + tipAttr + '>' +
         '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">' + label + '</div>' +
         '<div style="font-size:16px;font-weight:700;color:' + color + ';line-height:1;white-space:nowrap">' + display + dHtml + '</div>' +
         '</div>';
     }
     var chips = [
-      metricChip('CC', m.cc, '', 10, 20, false, bStrip.cc),
-      metricChip('MI', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, bStrip.mi != null ? Math.round(bStrip.mi) : null),
-      m.lloc != null ? metricChip('LOC', m.lloc, '', 200, 500, false, bStrip.lloc) : '',
-      m.bugs != null ? metricChip('Bugs', m.bugs.toFixed(2), '', 0.1, 0.5, false, bStrip.bugs) : '',
-      m.coupling != null ? metricChip('Ce', m.coupling, '', 10, 20, false, bStrip.coupling) : '',
+      metricChip('CC', m.cc, '', 10, 20, false, bStrip.cc, 'Cyclomatic Complexity - number of independent paths through the code. Lower is simpler (good <=10, warning <=20).'),
+      metricChip('MI', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, bStrip.mi != null ? Math.round(bStrip.mi) : null, 'Maintainability Index - 0-100 scale of how easy the code is to maintain. Higher is better (good >=85, warning >=65).'),
+      m.lloc != null ? metricChip('LOC', m.lloc, '', 200, 500, false, bStrip.lloc, 'Logical Lines of Code - number of executable statements, excluding blanks and comments.') : '',
+      m.bugs != null ? metricChip('Bugs', m.bugs.toFixed(2), '', 0.1, 0.5, false, bStrip.bugs, 'Bug estimate - predicted defect count based on Halstead complexity metrics.') : '',
+      m.coupling != null ? metricChip('Ce', m.coupling, '', 10, 20, false, bStrip.coupling, 'Efferent Coupling - number of classes this file depends on. Lower reduces ripple-effect from changes.') : '',
     ].filter(Boolean);
     if (chips.length) {
       var sep = '<div style="width:1px;background:#21262d;flex-shrink:0;margin:2px 0"></div>';
@@ -556,7 +557,7 @@ function openPanel(n) {
     if (inDiff || fileContents[n.path]) {
       row.addEventListener('click', function() {
         if (!document.querySelector('.diff-table tr[data-new-ln="' + ln + '"]')) {
-          // Line not visible in current view — switch to Full file first
+          // Line not visible in current view - switch to Full file first
           var fullBtn = document.querySelector('.diff-view-btn[data-view="full"]');
           if (fullBtn) fullBtn.click();
         }

@@ -3,6 +3,7 @@
 <div class="diff-annotation-tip" id="diffTip"></div>
 <div id="caller-popup"></div>
 <div class="tooltip" id="tooltip"></div>
+<div id="metric-tooltip"></div>
 
 <!-- ── Title bar ── -->
 <div id="titleCard" class="fixed top-4 left-4 z-[5] max-w-[580px] bg-surface/95 border border-border-default/60 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,.5),0_0_0_1px_rgba(255,255,255,.04)_inset] backdrop-blur-sm" style="font-size:14px">
