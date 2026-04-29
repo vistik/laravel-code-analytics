@@ -1345,6 +1345,39 @@ class HomeController {}');
         expect($content['dependencies'])->not->toBeEmpty();
     });
 
+    it('adds a non-diff blade file as a connected node when a changed blade partial @includes it', function () {
+        $dir = makeTempGitRepo();
+
+        // The included layout exists before the diff — it is NOT a diff node
+        addAndStageFile($dir, 'resources/views/layouts/app.blade.php', '<html>{{ $slot }}</html>');
+        shell_exec("git -C {$dir} commit -m 'add layout' 2>&1");
+
+        // Stage the partial — it IS in the diff, and it @includes the layout
+        addAndStageFile($dir, 'resources/views/partials/_script-panel.blade.php', "@extends('layouts.app')\n<script>/* panel */</script>");
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('resources/views/partials/_script-panel.blade.php')
+            ->and($paths)->toContain('resources/views/layouts/app.blade.php');
+
+        // The connected layout has zero additions/deletions
+        $layoutFile = collect($content['files'])->firstWhere('path', 'resources/views/layouts/app.blade.php');
+        expect($layoutFile['additions'])->toBe(0)
+            ->and($layoutFile['deletions'])->toBe(0);
+
+        // An edge exists from the partial to the layout
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+
     it('handles multiple non-diff blade files referencing the same changed blade', function () {
         $dir = makeTempGitRepo();
 

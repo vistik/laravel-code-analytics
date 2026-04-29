@@ -2324,6 +2324,11 @@ class AnalyzeCode
                 $targetId = $this->graph->nodeIdForPath($viewPath);
                 if ($targetId !== null) {
                     $this->graph->addEdge($sourceNodeId, $targetId);
+                } else {
+                    $targetNodeId = $this->ensureConnectedBladeNode($viewPath);
+                    if ($targetNodeId !== null) {
+                        $this->graph->addEdge($sourceNodeId, $targetNodeId);
+                    }
                 }
             }
         }
