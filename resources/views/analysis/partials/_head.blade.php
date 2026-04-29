@@ -53,6 +53,16 @@ tailwind.config = {
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #484f58; }
 
+  /* ── Metric chip tooltip ── */
+  #metric-tooltip {
+    position: fixed; pointer-events: none; z-index: 100;
+    background: #1c2128; border: 1px solid rgba(48,54,61,0.8);
+    border-radius: 8px; padding: 7px 11px;
+    font-size: 12px; line-height: 1.5; color: #8b949e;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04) inset;
+    max-width: 260px; display: none; white-space: normal;
+  }
+
   /* ── Hover tooltip (JS-positioned) ── */
   .tooltip {
     position: absolute; pointer-events: none;
