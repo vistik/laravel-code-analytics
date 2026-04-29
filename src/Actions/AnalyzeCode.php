@@ -2481,6 +2481,11 @@ class AnalyzeCode
             foreach ((new BladeDependencyRule)->resolve($content) as $viewPath) {
                 if (isset($this->pathToNode[$viewPath])) {
                     $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+                } else {
+                    $targetNodeId = $this->ensureConnectedBladeNode($viewPath);
+                    if ($targetNodeId !== null) {
+                        $this->addEdge($sourceNodeId, $targetNodeId);
+                    }
                 }
             }
         }
