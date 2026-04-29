@@ -1,6 +1,7 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\Psr4Resolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -172,60 +173,60 @@ describe('matchesWatchPattern', function () {
     });
 });
 
-// ── pathToFqcn ────────────────────────────────────────────────────────────────
+// ── Psr4Resolver::fqcnForPath ────────────────────────────────────────────────
 
-describe('pathToFqcn', function () {
+describe('Psr4Resolver::fqcnForPath', function () {
     it('converts app path to App namespace FQCN', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'app/Models/User.php'))->toBe('App\\Models\\User');
+        expect((new Psr4Resolver)->fqcnForPath('app/Models/User.php'))->toBe('App\\Models\\User');
     });
 
     it('converts nested app path correctly', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'app/Http/Controllers/UserController.php'))
+        expect((new Psr4Resolver)->fqcnForPath('app/Http/Controllers/UserController.php'))
             ->toBe('App\\Http\\Controllers\\UserController');
     });
 
     it('converts database/factories path to Database\\Factories FQCN', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'database/factories/UserFactory.php'))
+        expect((new Psr4Resolver)->fqcnForPath('database/factories/UserFactory.php'))
             ->toBe('Database\\Factories\\UserFactory');
     });
 
     it('converts tests path to Tests namespace FQCN', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'tests/Feature/UserTest.php'))
+        expect((new Psr4Resolver)->fqcnForPath('tests/Feature/UserTest.php'))
             ->toBe('Tests\\Feature\\UserTest');
     });
 
     it('returns null for unrecognised paths', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'some/unknown/path.php'))->toBeNull();
+        expect((new Psr4Resolver)->fqcnForPath('some/unknown/path.php'))->toBeNull();
     });
 
     it('returns null for non-PHP files', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'resources/js/app.js'))->toBeNull();
+        expect((new Psr4Resolver)->fqcnForPath('resources/js/app.js'))->toBeNull();
     });
 });
 
-// ── fqcnToPath ────────────────────────────────────────────────────────────────
+// ── Psr4Resolver::pathForFqcn ────────────────────────────────────────────────
 
-describe('fqcnToPath', function () {
+describe('Psr4Resolver::pathForFqcn', function () {
     it('converts App namespace FQCN to app path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'App\\Models\\User'))->toBe('app/Models/User.php');
+        expect((new Psr4Resolver)->pathForFqcn('App\\Models\\User'))->toBe('app/Models/User.php');
     });
 
     it('converts Database\\Factories FQCN to database/factories path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'Database\\Factories\\UserFactory'))
+        expect((new Psr4Resolver)->pathForFqcn('Database\\Factories\\UserFactory'))
             ->toBe('database/factories/UserFactory.php');
     });
 
     it('converts Database\\Seeders FQCN to database/seeders path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'Database\\Seeders\\DatabaseSeeder'))
+        expect((new Psr4Resolver)->pathForFqcn('Database\\Seeders\\DatabaseSeeder'))
             ->toBe('database/seeders/DatabaseSeeder.php');
     });
 
     it('converts Tests FQCN to tests path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'Tests\\Unit\\FooTest'))->toBe('tests/Unit/FooTest.php');
+        expect((new Psr4Resolver)->pathForFqcn('Tests\\Unit\\FooTest'))->toBe('tests/Unit/FooTest.php');
     });
 
     it('returns null for unknown namespaces', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'SomeVendor\\Package\\SomeClass'))->toBeNull();
+        expect((new Psr4Resolver)->pathForFqcn('SomeVendor\\Package\\SomeClass'))->toBeNull();
     });
 });
 
@@ -1088,9 +1089,9 @@ function computeSignalScoresWithEdges(array $nodes, array $edges, int $baseScore
 
     $obj = new AnalyzeCode(fileSignalScorer: $scorer);
 
-    $edgesProp = new ReflectionProperty($obj, 'edges');
-    $edgesProp->setAccessible(true);
-    $edgesProp->setValue($obj, $edges);
+    $graphProp = new ReflectionProperty($obj, 'graph');
+    $graphProp->setAccessible(true);
+    $graphProp->getValue($obj)->edges = $edges;
 
     $method = new ReflectionMethod($obj, 'computeSignalScores');
     $method->setAccessible(true);
