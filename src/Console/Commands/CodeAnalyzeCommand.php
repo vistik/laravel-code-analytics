@@ -44,8 +44,10 @@ class CodeAnalyzeCommand extends Command
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--folder=* : Only analyze files under this directory prefix (can be repeated, e.g. --folder=src)}
         {--ext=* : Only analyze files with this extension (can be repeated, e.g. --ext=php)}
-        {--open : Open the generated file in the browser when done}
-        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
+        {--open : Open the generated file in the browser when done (enabled by default)}
+        {--no-open : Do not open the generated file in the browser}
+        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (enabled by default)}
+        {--no-full-files : Do not embed full file contents in the report}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
         {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}';
 
@@ -69,8 +71,8 @@ class CodeAnalyzeCommand extends Command
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, llm, github");
-            $openFile = $this->option('open') || ($config['open'] ?? false);
-            $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
+            $openFile = ! $this->option('no-open') && ($this->option('open') || ($config['open'] ?? true));
+            $includeFileContents = ! $this->option('no-full-files') && ($this->option('full-files') || ($config['full_files'] ?? true));
             $githubMetrics = $this->option('github-metrics') || ($config['github_metrics'] ?? false);
 
             if ($openFile && $outputPath === null) {
