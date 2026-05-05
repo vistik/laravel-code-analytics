@@ -480,11 +480,11 @@ tailwind.config = {
       <input type="text" class="files-search" id="findingsSearch" placeholder="Filter findings...">
       <select id="findingsSevFilter" class="bg-overlay border border-border-default text-[#c9d1d9] text-[11.5px] px-2 py-1 rounded-md cursor-pointer font-sans shrink-0 focus:outline-none focus:border-accent">
         <option value="">All severities</option>
-        <option value="very_high">Very High</option>
-        <option value="high">High</option>
-        <option value="medium">Medium</option>
-        <option value="low">Low</option>
-        <option value="info">Info</option>
+        <option value="very_high">Very High+</option>
+        <option value="high">High+</option>
+        <option value="medium">Medium+</option>
+        <option value="low">Low+</option>
+        <option value="info">Info+</option>
       </select>
       <select id="findingsTypeFilter" class="bg-overlay border border-border-default text-[#c9d1d9] text-[11.5px] px-2 py-1 rounded-md cursor-pointer font-sans shrink-0 focus:outline-none focus:border-accent">
         <option value="">All types</option>
@@ -1351,7 +1351,7 @@ tailwind.config = {
       var list = allFindings.filter(function(f) {
         var isDone = doneFindings.has(findingKey(f));
         if (isDone && !showDone) return false;
-        if (sevFilter && f.severity !== sevFilter) return false;
+        if (sevFilter && sevScores[f.severity] < sevScores[sevFilter]) return false;
         if (typeFilter && f.category !== typeFilter) return false;
         if (!filter) return true;
         return f.description.toLowerCase().indexOf(filter) !== -1
