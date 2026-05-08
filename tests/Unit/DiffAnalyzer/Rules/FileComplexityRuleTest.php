@@ -120,10 +120,10 @@ it('flags total flog good -> warn as LOW', function () {
 
     // warn flog file: each method has ~6 calls → each B=6, flog=6.0, 6 methods → total ≈ 36
     $calls = implode(' ', array_map(fn ($i) => "\$this->m{$i}();", range(1, 6)));
-    $warnFlogFile = "<?php class Foo {" . implode('', array_map(
+    $warnFlogFile = '<?php class Foo {'.implode('', array_map(
         fn ($i) => " public function m{$i}(): void { {$calls} }",
         range(1, 6)
-    )) . ' }';
+    )).' }';
 
     $comparison = (new AstComparer)->compare($goodFlogFile, $warnFlogFile);
     $file = new FileDiff('app/Foo.php', 'app/Foo.php', FileStatus::MODIFIED);

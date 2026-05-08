@@ -114,12 +114,12 @@ class FileComplexityRule implements Rule
     {
         return match ([$from, $to]) {
             ['good', 'warn'] => Severity::LOW,
-            ['good', 'bad']  => Severity::HIGH,
-            ['warn', 'bad']  => Severity::MEDIUM,
+            ['good', 'bad'] => Severity::HIGH,
+            ['warn', 'bad'] => Severity::MEDIUM,
             ['warn', 'good'] => Severity::INFO,
-            ['bad', 'warn']  => Severity::INFO,
-            ['bad', 'good']  => Severity::LOW,
-            default          => Severity::INFO,
+            ['bad', 'warn'] => Severity::INFO,
+            ['bad', 'good'] => Severity::LOW,
+            default => Severity::INFO,
         };
     }
 }
