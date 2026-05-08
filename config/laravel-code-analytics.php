@@ -305,6 +305,7 @@ return [
         'cc' => ['warn' => 5,  'bad' => 10],
         'lloc' => ['warn' => 20, 'bad' => 50],
         'params' => ['warn' => 3,  'bad' => 5],
+        'flog' => ['warn' => 10, 'bad' => 20],
     ],
 
     'watched_files' => [

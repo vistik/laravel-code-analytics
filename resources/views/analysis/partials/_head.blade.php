@@ -236,6 +236,9 @@ tailwind.config = {
   #diff-nav button:last-child  { border-radius: 0 8px 8px 0; }
   #diff-nav button:hover { background: #2d333b; color: #c9d1d9; border-color: #484f58; }
 
+  /* ── Metric chip tooltips ── */
+  .mc-tip { cursor: default; }
+
   /* ── Complexity scroll button ── */
   #complexity-scroll-btn {
     position: absolute; bottom: 20px; right: 20px; z-index: 30;
