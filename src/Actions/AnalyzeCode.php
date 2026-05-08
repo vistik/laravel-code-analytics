@@ -1944,6 +1944,7 @@ class AnalyzeCode
         foreach ($methodMetrics as $path => $methods) {
             if (isset($metricsData[$path]) && ! empty($methods)) {
                 $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
+                $metricsData[$path]['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
             }
         }
 
@@ -1952,6 +1953,7 @@ class AnalyzeCode
             foreach ($beforeMethodMetrics as $path => $methods) {
                 if (isset($metricsData[$path]) && ! empty($methods)) {
                     $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
+                    $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
                 }
             }
         }

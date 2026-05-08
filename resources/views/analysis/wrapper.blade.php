@@ -442,6 +442,8 @@ tailwind.config = {
         <option value="name">Name</option>
         <option value="cc">CC</option>
         <option value="mi">MI</option>
+        <option value="ce">Ce</option>
+        <option value="flog">Flog</option>
       </select>
     </div>
     <div class="files-review-progress" id="filesReviewProgress">
@@ -764,6 +766,8 @@ tailwind.config = {
       case 'name': return n.id.toLowerCase();
       case 'cc': var m = filesMetrics[n.path]; return m && m.cc != null ? m.cc : -1;
       case 'mi': var m = filesMetrics[n.path]; return m && m.mi != null ? m.mi : 999;
+      case 'ce': var m = filesMetrics[n.path]; return m && m.coupling != null ? m.coupling : -1;
+      case 'flog': var m = filesMetrics[n.path]; return m && m.flog != null ? m.flog : -1;
       case 'status': return n.status;
       default: return 0;
     }
@@ -867,7 +871,7 @@ tailwind.config = {
 
       var isReviewed = reviewedFiles.has(n.id);
       var b = m.before || null;
-      var ccArrow = '', miArrow = '';
+      var ccArrow = '', miArrow = '', flogArrow = '';
       if (b != null) {
         if (b.cc != null && m.cc != null) {
           var ccDelta = m.cc - b.cc;
@@ -880,6 +884,12 @@ tailwind.config = {
           miArrow = miDelta > 0 ? '<span style="color:#3fb950;font-size:9px;margin-left:2px">\u2191</span>'
                   : miDelta < 0 ? '<span style="color:#f85149;font-size:9px;margin-left:2px">\u2193</span>'
                   : '';
+        }
+        if (b.flog != null && m.flog != null) {
+          var flogDelta = Math.round((m.flog - b.flog) * 10) / 10;
+          flogArrow = flogDelta > 0 ? '<span style="color:#f85149;font-size:9px;margin-left:2px">\u2191</span>'
+                    : flogDelta < 0 ? '<span style="color:#3fb950;font-size:9px;margin-left:2px">\u2193</span>'
+                    : '';
         }
       }
 
@@ -902,7 +912,11 @@ tailwind.config = {
       }
       if (m.coupling != null) {
         var cplColor = m.coupling > 15 ? '#f85149' : m.coupling > 8 ? '#d29922' : '#484f58';
-        chips.push('<span class="file-metric-chip" style="color:' + cplColor + '">cpl ' + m.coupling + '</span>');
+        chips.push('<span class="file-metric-chip" style="color:' + cplColor + '">ce ' + m.coupling + '</span>');
+      }
+      if (m.flog != null) {
+        var flogChipColor = m.flog >= 60 ? '#f85149' : m.flog >= 30 ? '#d29922' : '#484f58';
+        chips.push('<span class="file-metric-chip" style="color:' + flogChipColor + '">flog ' + m.flog + flogArrow + '</span>');
       }
       if (m.lloc != null) {
         chips.push('<span class="file-metric-chip">loc ' + m.lloc + '</span>');

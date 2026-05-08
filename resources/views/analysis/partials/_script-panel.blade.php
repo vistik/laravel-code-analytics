@@ -208,7 +208,16 @@ function openPanel(n) {
   var metricsStripHtml = '';
   if (m) {
     var bStrip = m.before || {};
-    function metricChip(label, val, unit, warnThresh, badThresh, lowBad, beforeVal, tooltip) {
+    var W = '<span style="color:#d29922">', B = '<span style="color:#f85149">', E = '</span>';
+    var metricTooltips = {
+      'CC':   'Cyclomatic Complexity - number of independent paths through the code. Higher means harder to test and understand.<br><br>' + W + 'Warn >= 10' + E + '<br>' + B + 'Bad >= 20' + E,
+      'MI':   'Maintainability Index - composite score (0-100) for how easy the code is to maintain. Higher is better.<br><br>' + W + 'Warn &lt; 85%' + E + '<br>' + B + 'Bad &lt; 65%' + E,
+      'LOC':  'Logical Lines of Code - number of executable statements.<br><br>' + W + 'Warn >= 200' + E + '<br>' + B + 'Bad >= 500' + E,
+      'Bugs': 'Estimated bug count derived from Halstead complexity metrics.<br><br>' + W + 'Warn >= 0.1' + E + '<br>' + B + 'Bad >= 0.5' + E,
+      'Ce':   'Efferent Coupling - number of classes this class depends on. High coupling makes code fragile and hard to change independently.<br><br>' + W + 'Warn >= 10' + E + '<br>' + B + 'Bad >= 20' + E,
+      'Flog': 'Flog (ABC score) - sum of per-method sqrt(A&sup2; + B&sup2; + C&sup2;) where A = Assignments, B = Branches, C = Conditions. Measures how much work the class does in total.<br><br>' + W + 'Warn >= 30' + E + '<br>' + B + 'Bad >= 60' + E,
+    };
+    function metricChip(label, val, unit, warnThresh, badThresh, lowBad, beforeVal) {
       if (val == null) return '';
       var numVal = parseFloat(val);
       var display = unit === '%' ? val + unit : val;
@@ -226,18 +235,19 @@ function openPanel(n) {
           dHtml = '<span style="color:' + (improved ? '#3fb950' : '#f85149') + ';font-size:11px;margin-left:2px">' + (dv > 0 ? '&#8593;' : '&#8595;') + deltaAmt + '</span>';
         }
       }
-      var tipAttr = tooltip ? ' data-tooltip="' + tooltip + '"' : '';
-      return '<div style="flex:1;text-align:center;padding:2px 4px;min-width:0;cursor:default"' + tipAttr + '>' +
+      var tip = metricTooltips[label] ? ' data-tip-html="' + metricTooltips[label].replace(/"/g, '&quot;') + '"' : '';
+      return '<div class="mc-tip" style="flex:1;text-align:center;padding:2px 4px;min-width:0"' + tip + '>' +
         '<div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">' + label + '</div>' +
         '<div style="font-size:16px;font-weight:700;color:' + color + ';line-height:1;white-space:nowrap">' + display + dHtml + '</div>' +
         '</div>';
     }
     var chips = [
-      metricChip('CC', m.cc, '', 10, 20, false, bStrip.cc, 'Cyclomatic Complexity - number of independent paths through the code. Lower is simpler (good <=10, warning <=20).'),
-      metricChip('MI', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, bStrip.mi != null ? Math.round(bStrip.mi) : null, 'Maintainability Index - 0-100 scale of how easy the code is to maintain. Higher is better (good >=85, warning >=65).'),
-      m.lloc != null ? metricChip('LOC', m.lloc, '', 200, 500, false, bStrip.lloc, 'Logical Lines of Code - number of executable statements, excluding blanks and comments.') : '',
-      m.bugs != null ? metricChip('Bugs', m.bugs.toFixed(2), '', 0.1, 0.5, false, bStrip.bugs, 'Bug estimate - predicted defect count based on Halstead complexity metrics.') : '',
-      m.coupling != null ? metricChip('Ce', m.coupling, '', 10, 20, false, bStrip.coupling, 'Efferent Coupling - number of classes this file depends on. Lower reduces ripple-effect from changes.') : '',
+      metricChip('CC', m.cc, '', 10, 20, false, bStrip.cc),
+      metricChip('MI', m.mi != null ? Math.round(m.mi) : null, '%', 85, 65, true, bStrip.mi != null ? Math.round(bStrip.mi) : null),
+      m.lloc != null ? metricChip('LOC', m.lloc, '', 200, 500, false, bStrip.lloc) : '',
+      m.bugs != null ? metricChip('Bugs', m.bugs.toFixed(2), '', 0.1, 0.5, false, bStrip.bugs) : '',
+      m.coupling != null ? metricChip('Ce', m.coupling, '', 10, 20, false, bStrip.coupling) : '',
+      m.flog != null ? metricChip('Flog', m.flog, '', 30, 60, false, bStrip.flog != null ? bStrip.flog : null) : '',
     ].filter(Boolean);
     if (chips.length) {
       var sep = '<div style="width:1px;background:#21262d;flex-shrink:0;margin:2px 0"></div>';
@@ -313,7 +323,7 @@ function openPanel(n) {
       return null;
     }
 
-    var methodsSorted = m.method_metrics.slice().sort(function(a, b) { return b.cc - a.cc; });
+    var methodsSorted = m.method_metrics.slice().sort(function(a, b) { return (b.flog || 0) - (a.flog || 0) || b.cc - a.cc; });
     var beforeMethodMap = {};
     if (m.before_method_metrics) {
       for (var bmi = 0; bmi < m.before_method_metrics.length; bmi++) {
@@ -323,7 +333,7 @@ function openPanel(n) {
     var hasBefore = Object.keys(beforeMethodMap).length > 0;
     function methodDelta(val, beforeVal, higherIsBad) {
       if (beforeVal == null) return '';
-      var diff = val - beforeVal;
+      var diff = Math.round((val - beforeVal) * 10) / 10;
       if (diff === 0) return '';
       var sign = diff > 0 ? '+' : '';
       var bad = higherIsBad ? diff > 0 : diff < 0;
@@ -335,12 +345,13 @@ function openPanel(n) {
     var unmodifiedMethodCount = methodsSorted.length - modifiedMethodCount;
     bodyHtml += '<div class="deps-section"><div id="methods-by-complexity">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
-      '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px">Methods by Complexity</div>' +
+      '<div style="font-size:11.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.4px">Methods by Flog</div>' +
       (modifiedMethodCount > 0 ? '<button id="methods-filter-btn" style="font-size:11px;color:#8b949e;background:none;border:1px solid #30363d;border-radius:4px;padding:2px 7px;cursor:pointer;line-height:1.5">Modified only</button>' : '') +
       '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
       '<thead><tr>' +
       '<th style="text-align:left;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Method</th>' +
+      '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Flog</th>' +
       '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">CC</th>' +
       '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 8px 6px 0">Lines</th>' +
       '<th style="text-align:right;color:#6e7681;font-weight:500;padding:3px 0 6px 0">Params</th>' +
@@ -356,12 +367,16 @@ function openPanel(n) {
         : status === 'modified'
         ? '<span style="color:#d29922;font-size:10.5px;font-weight:500;margin-left:5px">mod</span>'
         : '';
+      var flogVal = mth.flog != null ? mth.flog : null;
+      var flogColor = flogVal != null ? (flogVal > (methodThresholds.flog && methodThresholds.flog.bad || 20) ? '#f85149' : flogVal > (methodThresholds.flog && methodThresholds.flog.warn || 10) ? '#d29922' : '#3fb950') : '#8b949e';
       var ccDelta = hasBefore ? (bm ? methodDelta(mth.cc, bm.cc, true) : (status === 'new' ? '' : '')) : '';
+      var flogDelta = hasBefore ? (bm && bm.flog != null ? methodDelta(mth.flog, bm.flog, true) : '') : '';
       var llocDelta = hasBefore ? (bm ? methodDelta(mth.lloc, bm.lloc, true) : '') : '';
       var paramsDelta = hasBefore ? (bm ? methodDelta(mth.params, bm.params, true) : '') : '';
       bodyHtml += '<tr' + hasLine + ' data-method-status="' + (status || 'unmodified') + '"' + (mth.line ? ' style="cursor:pointer"' : '') + '>' +
         '<td style="padding:4px 8px 4px 0;color:#c9d1d9;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="' + mth.name + '">' + mth.name + statusBadge + '</td>' +
-        '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + ';font-weight:600">' + mth.cc + ccDelta + '</td>' +
+        '<td style="padding:4px 8px 4px 0;text-align:right;color:' + flogColor + ';font-weight:600">' + (flogVal != null ? flogVal : '—') + flogDelta + '</td>' +
+        '<td style="padding:4px 8px 4px 0;text-align:right;color:' + ccColor + '">' + mth.cc + ccDelta + '</td>' +
         '<td style="padding:4px 8px 4px 0;text-align:right;color:#8b949e">' + mth.lloc + llocDelta + '</td>' +
         '<td style="padding:4px 0;text-align:right;color:#8b949e">' + mth.params + paramsDelta + '</td>' +
         '</tr>';
@@ -538,10 +553,12 @@ function openPanel(n) {
       if (!cell) return;
       var sep = '<span style="color:#484f58"> &middot; </span>';
       var badge = document.createElement('span');
-      badge.title = mth.name + '(): CC=' + mth.cc + ', ' + mth.lloc + ' lines, ' + mth.params + ' params';
+      var flogStr = mth.flog != null ? ' | Flog=' + mth.flog : '';
+      badge.title = mth.name + '(): CC=' + mth.cc + ', ' + mth.lloc + ' lines, ' + mth.params + ' params' + flogStr;
       badge.style.cssText = 'margin-left:12px;font-size:10px;font-family:monospace;opacity:0.85;white-space:nowrap;vertical-align:middle';
       badge.innerHTML =
-        '<span style="color:' + mthColor('cc', mth.cc) + ';font-weight:700">CC:' + mth.cc + '</span>' +
+        (mth.flog != null ? '<span style="color:' + mthColor('flog', mth.flog) + ';font-weight:700">F:' + mth.flog + '</span>' + sep : '') +
+        '<span style="color:' + mthColor('cc', mth.cc) + '">CC:' + mth.cc + '</span>' +
         sep +
         '<span style="color:' + mthColor('lloc', mth.lloc) + '">' + mth.lloc + 'L</span>' +
         sep +
@@ -630,6 +647,7 @@ function openPanel(n) {
       if (mth.cc > t.cc.warn)        diffAnnotationsData.push({ line: mth.line, severity: mth.cc > t.cc.bad         ? 'high' : 'medium', description: mth.name + '(): CC ' + mth.cc + ' \u2013 high cyclomatic complexity' });
       if (mth.lloc > t.lloc.warn)    diffAnnotationsData.push({ line: mth.line, severity: mth.lloc > t.lloc.bad     ? 'high' : 'medium', description: mth.name + '(): ' + mth.lloc + ' lines \u2013 long method' });
       if (mth.params > t.params.warn) diffAnnotationsData.push({ line: mth.line, severity: mth.params > t.params.bad ? 'high' : 'medium', description: mth.name + '(): ' + mth.params + ' params \u2013 too many parameters' });
+      if (t.flog && mth.flog != null && mth.flog > t.flog.warn) diffAnnotationsData.push({ line: mth.line, severity: mth.flog > t.flog.bad ? 'high' : 'medium', description: mth.name + '(): Flog ' + mth.flog + ' \u2013 high ABC complexity' });
     });
   }
   placeAnnotationDots();
@@ -726,3 +744,30 @@ function closePanel() {
     window.parent.postMessage({ type: 'panelClosed' }, '*');
   }
 }
+
+// ── Metric chip tooltip engine ────────────────────────────────────────────────
+(function() {
+  var tip = null;
+  var activeChip = null;
+
+  function ensureTip() {
+    if (tip) return;
+    tip = document.createElement('div');
+    tip.style.cssText = 'position:fixed;display:none;background:#1c2128;border:1px solid #30363d;border-radius:6px;padding:8px 10px;font-size:12.5px;color:#c9d1d9;line-height:1.55;width:230px;z-index:9999;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.5);';
+    document.body.appendChild(tip);
+  }
+
+  document.addEventListener('mouseover', function(e) {
+    var chip = e.target.closest && e.target.closest('[data-tip-html]');
+    if (chip === activeChip) return;
+    activeChip = chip;
+    if (!chip) { if (tip) tip.style.display = 'none'; return; }
+    ensureTip();
+    tip.innerHTML = chip.getAttribute('data-tip-html');
+    var r = chip.getBoundingClientRect();
+    tip.style.top = (r.bottom + 8) + 'px';
+    tip.style.right = (window.innerWidth - r.right) + 'px';
+    tip.style.left = 'auto';
+    tip.style.display = 'block';
+  });
+}());
