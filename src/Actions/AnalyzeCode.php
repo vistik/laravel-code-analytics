@@ -651,7 +651,7 @@ class AnalyzeCode
     }
 
     /**
-     * @return array<string, string>  artisan command name → relative file path
+     * @return array<string, string> artisan command name → relative file path
      */
     private function buildCommandSignatureIndex(): array
     {
@@ -2359,6 +2359,7 @@ class AnalyzeCode
 
             if (isset($this->pathToNode[$commandPath])) {
                 $this->addEdge($sourceNodeId, $this->pathToNode[$commandPath], PhpDependencyExtractor::STATIC_CALL);
+
                 continue;
             }
 

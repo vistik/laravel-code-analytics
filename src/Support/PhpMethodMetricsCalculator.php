@@ -117,14 +117,14 @@ class PhpMethodMetricsCalculator
             case $node instanceof Stmt\Foreach_:
             case $node instanceof Stmt\While_:
             case $node instanceof Stmt\Do_:
-            case $node instanceof Expr\BinaryOp\LogicalAnd:
-            case $node instanceof Expr\BinaryOp\LogicalOr:
-            case $node instanceof Expr\BinaryOp\LogicalXor:
-            case $node instanceof Expr\BinaryOp\BooleanAnd:
-            case $node instanceof Expr\BinaryOp\BooleanOr:
+            case $node instanceof BinaryOp\LogicalAnd:
+            case $node instanceof BinaryOp\LogicalOr:
+            case $node instanceof BinaryOp\LogicalXor:
+            case $node instanceof BinaryOp\BooleanAnd:
+            case $node instanceof BinaryOp\BooleanOr:
             case $node instanceof Stmt\Catch_:
             case $node instanceof Expr\Ternary:
-            case $node instanceof Expr\BinaryOp\Coalesce:
+            case $node instanceof BinaryOp\Coalesce:
                 $cc++;
                 break;
             case $node instanceof Stmt\Case_:
@@ -132,7 +132,7 @@ class PhpMethodMetricsCalculator
                     $cc++;
                 }
                 break;
-            case $node instanceof Expr\BinaryOp\Spaceship:
+            case $node instanceof BinaryOp\Spaceship:
                 $cc += 2;
                 break;
         }
@@ -196,7 +196,7 @@ class PhpMethodMetricsCalculator
                 $a++;
                 break;
 
-            // Branches: calls, instantiation, and operators
+                // Branches: calls, instantiation, and operators
             case $node instanceof Expr\MethodCall:
             case $node instanceof Expr\NullsafeMethodCall:
             case $node instanceof Expr\StaticCall:
@@ -226,7 +226,7 @@ class PhpMethodMetricsCalculator
                 $b++;
                 break;
 
-            // Conditions: branching control flow and boolean logic
+                // Conditions: branching control flow and boolean logic
             case $node instanceof Stmt\If_:
             case $node instanceof Stmt\ElseIf_:
             case $node instanceof Stmt\Else_:
