@@ -665,6 +665,7 @@ function openPanel(n) {
     });
   }
   placeAnnotationDots();
+  placeInlineCommentRows(n.path);
 
   // Inject "← caller" indicators at method definition lines.
   // Defined as a closure so the mode-switch handler can call it too.
@@ -742,7 +743,7 @@ function openPanel(n) {
       else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       else rows = renderUnifiedDiff(parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
-      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); placeIfComplexityBadges(); updateDiffNav(); wireLineNumberLinks(n.path); }
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeInlineCommentRows(n.path); placeCallerBadges(); placeIfComplexityBadges(); updateDiffNav(); wireLineNumberLinks(n.path); }
     });
   });
 
