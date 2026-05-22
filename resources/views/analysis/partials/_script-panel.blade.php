@@ -101,6 +101,7 @@ function renderMethodPanel(n) {
   }
 
   document.getElementById('panel-body').innerHTML = bodyHtml;
+  wireLineNumberLinks(n.file);
   document.getElementById('complexity-scroll-btn').classList.remove('visible');
   document.getElementById('panel-body').onscroll = null;
 
@@ -519,6 +520,7 @@ function openPanel(n) {
 
   document.getElementById('panel-body').innerHTML = diffHtml + bodyHtml;
   updateDiffNav();
+  wireLineNumberLinks(n.path);
 
   // Floating "Methods by Complexity" scroll button
   var complexityScrollBtn = document.getElementById('complexity-scroll-btn');
@@ -728,7 +730,7 @@ function openPanel(n) {
       else if (mode === 'full' && fileContents[n.path]) rows = renderFullFile(fileContents[n.path], parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       else rows = renderUnifiedDiff(parsed, hlFn, reLinkMap, reClassMap, implementorsIndex);
       var table = document.querySelector('.diff-table');
-      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); placeIfComplexityBadges(); updateDiffNav(); }
+      if (table) { table.className = 'diff-table ' + mode; table.innerHTML = rows; placeAnnotationDots(); placeCallerBadges(); placeIfComplexityBadges(); updateDiffNav(); wireLineNumberLinks(n.path); }
     });
   });
 
