@@ -319,8 +319,10 @@ tailwind.config = {
   .comments-scroll::-webkit-scrollbar-thumb { background: #2d333b; border-radius: 10px; }
   .comment-card {
     background: #1c2128; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
-    margin-bottom: 12px;
+    margin-bottom: 12px; transition: border-color 0.15s;
   }
+  .comment-card.clickable-card { cursor: pointer; }
+  .comment-card.clickable-card:hover { border-color: #58a6ff; }
   .comment-card-header {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 12px; border-bottom: 1px solid #21262d;
@@ -335,6 +337,12 @@ tailwind.config = {
   .comment-author { font-size: 12px; font-weight: 600; color: #e6edf3; }
   .comment-time { font-size: 11px; color: #6e7681; margin-left: auto; white-space: nowrap; }
   .comment-state-badge { font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 20px; border: 1px solid; }
+  .comment-hide-btn {
+    background: none; border: none; color: #484f58; cursor: pointer; font-size: 15px;
+    line-height: 1; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; margin-left: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .comment-hide-btn:hover { color: #e6edf3; background: #30363d; }
   .comment-body { padding: 10px 12px; font-size: 12.5px; color: #c9d1d9; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
   .comment-body:empty { display: none; }
   .comment-body code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #21262d; color: #79c0ff; padding: 1px 5px; border-radius: 4px; }
@@ -571,8 +579,12 @@ tailwind.config = {
       <h3>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="#58a6ff" style="flex-shrink:0"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>
         PR Comments
+        <span id="commentsPanelCount" style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 6px;font-size:10.5px;font-weight:500;color:#8b949e">{{ $prCommentCount }}</span>
       </h3>
-      <button class="comments-panel-close" onclick="toggleCommentsPanel()">&times;</button>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button id="commentsShowHiddenBtn" style="display:none;background:none;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:11px;padding:3px 8px;cursor:pointer;white-space:nowrap;transition:all 0.15s;font-family:inherit">Show hidden <span id="commentsHiddenCount">0</span></button>
+        <button class="comments-panel-close" onclick="toggleCommentsPanel()">&times;</button>
+      </div>
     </div>
     <div class="comments-scroll" id="commentsScroll"></div>
   </div>
@@ -708,6 +720,7 @@ tailwind.config = {
   @if($prCommentCount > 0)
   (function() {
     var prComments = {!! $prCommentsJson !!};
+    var hiddenComments = new Set();
 
     var stateConfig = {
       'APPROVED':           { label: 'Approved',          bg: '#0d3520', color: '#3fb950', border: '#238636' },
@@ -741,8 +754,11 @@ tailwind.config = {
     }
 
     function renderComments() {
+      var visibleCount = 0;
       var html = '';
-      prComments.forEach(function(c) {
+      prComments.forEach(function(c, idx) {
+        var isHidden = hiddenComments.has(idx);
+        if (!isHidden) visibleCount++;
         var initials = (c.author || '?').slice(0, 2).toUpperCase();
         var avatarUrl = 'https://github.com/' + encodeURIComponent(c.author || '') + '.png?size=40';
         var stateBadge = '';
@@ -751,15 +767,21 @@ tailwind.config = {
           stateBadge = '<span class="comment-state-badge" style="background:' + sc.bg + ';color:' + sc.color + ';border-color:' + sc.border + '">' + sc.label + '</span>';
         }
         var locationBadge = '';
-        if (c.type === 'inline' && c.path) {
+        var isInline = c.type === 'inline' && c.path;
+        if (isInline) {
           var fileName = c.path.split('/').pop();
           var lineLabel = c.line ? ':' + c.line : '';
           locationBadge = '<span style="font-size:10px;font-family:ui-monospace,monospace;background:#21262d;border:1px solid #30363d;border-radius:4px;padding:1px 6px;color:#8b949e;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle" title="' + escHtml(c.path + lineLabel) + '">' + escHtml(fileName + lineLabel) + '</span>';
         }
         var bodyHtml = formatBody(c.body);
         var footerHtml = c.url ? '<div class="comment-footer"><a class="comment-link" href="' + escHtml(c.url) + '" target="_blank" rel="noopener">View on GitHub ↗</a></div>' : '';
-        var cardAttrs = (c.type === 'inline' && c.path) ? ' data-inline-path="' + escHtml(c.path) + '" data-inline-line="' + (c.line || '') + '" style="cursor:pointer"' : '';
-        html += '<div class="comment-card"' + cardAttrs + '>'
+        var inlineAttrs = isInline ? ' data-inline-path="' + escHtml(c.path) + '" data-inline-line="' + (c.line || '') + '"' : '';
+        var hideBtn = '<button class="comment-hide-btn" data-idx="' + idx + '" title="Hide this comment">&times;</button>';
+        html += '<div class="comment-card' + (isInline ? ' clickable-card' : '') + '"'
+          + inlineAttrs
+          + ' data-comment-idx="' + idx + '"'
+          + (isHidden ? ' style="display:none"' : '')
+          + '>'
           + '<div class="comment-card-header">'
             + '<div class="comment-avatar"><img src="' + escHtml(avatarUrl) + '" alt="" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + initials + '\'">'
             + '</div>'
@@ -767,6 +789,7 @@ tailwind.config = {
             + stateBadge
             + locationBadge
             + '<span class="comment-time">' + relativeTime(c.createdAt) + '</span>'
+            + hideBtn
           + '</div>'
           + (bodyHtml ? '<div class="comment-body">' + bodyHtml + '</div>' : '')
           + footerHtml
@@ -774,14 +797,35 @@ tailwind.config = {
       });
       document.getElementById('commentsScroll').innerHTML = html;
 
-      // Wire inline comment cards to navigate to the file + line in the iframe
+      // Update visible count badge
+      var countEl = document.getElementById('commentsPanelCount');
+      if (countEl) countEl.textContent = visibleCount;
+
+      // Update "Show hidden" button
+      var showHiddenBtn = document.getElementById('commentsShowHiddenBtn');
+      var hiddenCountEl = document.getElementById('commentsHiddenCount');
+      if (showHiddenBtn) showHiddenBtn.style.display = hiddenComments.size > 0 ? '' : 'none';
+      if (hiddenCountEl) hiddenCountEl.textContent = hiddenComments.size;
+
+      // Wire hide buttons
+      document.querySelectorAll('#commentsScroll .comment-hide-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          hiddenComments.add(parseInt(btn.getAttribute('data-idx'), 10));
+          renderComments();
+        });
+      });
+
+      // Wire inline comment cards: close panel then navigate to file + line
       document.querySelectorAll('#commentsScroll .comment-card[data-inline-path]').forEach(function(card) {
         card.addEventListener('click', function(e) {
-          if (e.target.closest('a')) return;
+          if (e.target.closest('a') || e.target.closest('.comment-hide-btn')) return;
           var path = card.getAttribute('data-inline-path');
           var line = parseInt(card.getAttribute('data-inline-line'), 10) || null;
           var node = filesNodes.find(function(n) { return n.path === path; });
           if (!node) return;
+          var panel = document.getElementById('commentsPanel');
+          if (panel && panel.classList.contains('open')) toggleCommentsPanel();
           document.getElementById('view').contentWindow.postMessage({
             type: 'openFile', nodeId: node.id, fromFiles: false, targetLine: line,
           }, '*');
@@ -790,6 +834,15 @@ tailwind.config = {
     }
 
     renderComments();
+
+    // "Show hidden" button restores all hidden comments
+    var showHiddenBtn = document.getElementById('commentsShowHiddenBtn');
+    if (showHiddenBtn) {
+      showHiddenBtn.addEventListener('click', function() {
+        hiddenComments.clear();
+        renderComments();
+      });
+    }
 
     window.toggleCommentsPanel = function() {
       var panel = document.getElementById('commentsPanel');

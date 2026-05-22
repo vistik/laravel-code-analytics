@@ -1184,14 +1184,28 @@ class AnalyzeCode
 
         $t = microtime(true);
         $this->githubCallCount++;
-        $prJson = json_decode(
-            trim(shell_exec('gh pr view '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' --json title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName,comments,reviews,reviewThreads 2>/dev/null') ?? ''),
-            true,
+        $proc = proc_open(
+            ['gh', 'pr', 'view', $prNumber, '--repo', $this->prRepo, '--json', 'title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName,comments,reviews'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
         );
+        $stdout = $proc ? (string) stream_get_contents($pipes[1]) : '';
+        $stderr = $proc ? (string) stream_get_contents($pipes[2]) : '';
+        if ($proc) {
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($proc);
+        }
+        $prJson = json_decode(trim($stdout), true);
 
         if (! $prJson || empty($prJson['files'])) {
-            throw new RuntimeException('Could not fetch PR data. Make sure `gh` is authenticated and the PR URL is valid.');
+            $detail = trim($stderr) !== '' ? "\n".trim($stderr) : ' Make sure `gh` is authenticated and the PR URL is valid.';
+            throw new RuntimeException('Could not fetch PR data.'.$detail);
         }
+
+        // Fetch inline review comments via REST API (gh pr view --json does not support reviewThreads in older gh versions).
+        $this->githubCallCount++;
+        $prJson['reviewComments'] = $this->fetchPrReviewComments($prNumber);
 
         $this->headCommit = $prJson['headRefOid'] ?? '';
         $this->baseCommit = $prJson['baseRefOid'] ?? '';
@@ -1305,25 +1319,24 @@ class AnalyzeCode
             ];
         }
 
-        foreach ($prJson['reviewThreads'] ?? [] as $thread) {
-            $path = $thread['path'] ?? '';
-            $line = $thread['line'] ?? $thread['originalLine'] ?? null;
-            foreach ($thread['comments']['nodes'] ?? [] as $c) {
-                $body = trim($c['body'] ?? '');
-                if ($body === '') {
-                    continue;
-                }
-                $entries[] = [
-                    'type' => 'inline',
-                    'author' => $c['author']['login'] ?? 'unknown',
-                    'body' => $body,
-                    'createdAt' => $c['createdAt'] ?? '',
-                    'url' => $c['url'] ?? '',
-                    'state' => null,
-                    'path' => $path,
-                    'line' => $line,
-                ];
+        foreach ($prJson['reviewComments'] ?? [] as $c) {
+            if (! empty($c['in_reply_to_id'])) {
+                continue;
             }
+            $body = trim($c['body'] ?? '');
+            if ($body === '') {
+                continue;
+            }
+            $entries[] = [
+                'type' => 'inline',
+                'author' => $c['user']['login'] ?? 'unknown',
+                'body' => $body,
+                'createdAt' => $c['created_at'] ?? '',
+                'url' => $c['html_url'] ?? '',
+                'state' => null,
+                'path' => $c['path'] ?? null,
+                'line' => $c['line'] ?? $c['original_line'] ?? null,
+            ];
         }
 
         usort($entries, fn ($a, $b) => strcmp($a['createdAt'], $b['createdAt']));
@@ -1335,41 +1348,67 @@ class AnalyzeCode
     {
         $byPath = [];
 
-        foreach ($prJson['reviewThreads'] ?? [] as $thread) {
-            $path = $thread['path'] ?? '';
+        foreach ($prJson['reviewComments'] ?? [] as $c) {
+            $path = $c['path'] ?? '';
             if ($path === '') {
                 continue;
             }
 
-            $comments = [];
-            foreach ($thread['comments']['nodes'] ?? [] as $c) {
-                $body = trim($c['body'] ?? '');
-                $comments[] = [
-                    'author' => $c['author']['login'] ?? 'unknown',
-                    'body' => $body,
-                    'createdAt' => $c['createdAt'] ?? '',
-                    'url' => $c['url'] ?? '',
-                ];
-            }
+            $line = $c['line'] ?? $c['original_line'] ?? null;
 
-            if (empty($comments)) {
-                continue;
-            }
+            $comment = [
+                'author' => $c['user']['login'] ?? 'unknown',
+                'body' => trim($c['body'] ?? ''),
+                'createdAt' => $c['created_at'] ?? '',
+                'url' => $c['html_url'] ?? '',
+            ];
 
             if (! isset($byPath[$path])) {
                 $byPath[$path] = [];
             }
 
-            $byPath[$path][] = [
-                'line' => $thread['line'] ?? $thread['originalLine'] ?? null,
-                'side' => $thread['diffSide'] ?? 'RIGHT',
-                'isResolved' => $thread['isResolved'] ?? false,
-                'isOutdated' => $thread['isOutdated'] ?? false,
-                'comments' => $comments,
-            ];
+            // Group comments that share the same line into one thread entry.
+            $threadIdx = null;
+            foreach ($byPath[$path] as $i => $thread) {
+                if ($thread['line'] === $line) {
+                    $threadIdx = $i;
+                    break;
+                }
+            }
+
+            if ($threadIdx !== null) {
+                $byPath[$path][$threadIdx]['comments'][] = $comment;
+            } else {
+                $byPath[$path][] = [
+                    'line' => $line,
+                    'side' => $c['side'] ?? 'RIGHT',
+                    'isResolved' => false,
+                    'isOutdated' => false,
+                    'comments' => [$comment],
+                ];
+            }
         }
 
         return $byPath;
+    }
+
+    private function fetchPrReviewComments(string $prNumber): array
+    {
+        $proc = proc_open(
+            ['gh', 'api', '--paginate', '--slurp', "repos/{$this->prRepo}/pulls/{$prNumber}/comments"],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        $stdout = $proc ? (string) stream_get_contents($pipes[1]) : '';
+        if ($proc) {
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($proc);
+        }
+
+        $pages = json_decode($stdout, true);
+
+        return array_merge(...($pages ?: [[]]));
     }
 
     private function resolveGitObjectsCache(array $changedPaths, bool $full = false): void
