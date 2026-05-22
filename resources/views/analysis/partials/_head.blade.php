@@ -196,15 +196,19 @@ tailwind.config = {
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #2d333b; border-radius: 10px; }
 
-  /* ── Panel close/back ── */
+  /* ── Panel topbar (breadcrumbs + back + close) ── */
+  #panel-topbar {
+    display: flex; align-items: center; flex-shrink: 0;
+    border-bottom: 1px solid #21262d; min-height: 36px; gap: 2px; padding-right: 4px;
+  }
   .panel-close {
-    position: absolute; top: 14px; right: 14px; background: none; border: none;
-    color: #6e7681; font-size: 18px; cursor: pointer; line-height: 1; padding: 4px;
+    flex-shrink: 0; background: none; border: none;
+    color: #6e7681; font-size: 18px; cursor: pointer; line-height: 1; padding: 4px 8px;
     border-radius: 6px; transition: color 0.15s, background 0.15s;
   }
   .panel-close:hover { color: #e6edf3; background: #21262d; }
   .panel-back {
-    position: absolute; top: 14px; right: 44px; background: none; border: none;
+    flex-shrink: 0; background: none; border: none;
     color: #6e7681; font-size: 12px; cursor: pointer; padding: 4px 8px;
     display: none; align-items: center; gap: 4px; border-radius: 6px;
     transition: color 0.15s, background 0.15s; font-family: inherit;
@@ -213,15 +217,15 @@ tailwind.config = {
   .panel-back.visible { display: inline-flex; }
 
   #panel-breadcrumbs {
-    display: none; padding: 6px 24px 4px; border-bottom: 1px solid #21262d;
-    flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px;
+    flex: 1; min-width: 0;
+    display: flex; padding: 6px 8px 6px 16px; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px;
   }
   .bc-item {
     color: #58a6ff; cursor: pointer; padding: 2px 4px; border-radius: 4px;
     white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
   }
   .bc-item:hover { background: #21262d; }
-  .bc-current { color: #8b949e; cursor: default; }
+  .bc-current { color: #3fb950; cursor: default; }
   .bc-current:hover { background: none; }
   .bc-sep { color: #484f58; padding: 0 1px; font-size: 11px; }
 
