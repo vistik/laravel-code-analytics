@@ -828,11 +828,11 @@ class AnalyzeCode
         );
 
         foreach ($pairs as [$migrationPath, $modelPath]) {
-            $migrationNodeId = $this->pathToNode[$migrationPath] ?? null;
-            $modelNodeId = $this->pathToNode[$modelPath] ?? null;
+            $migrationNodeId = $this->graph->pathToNode[$migrationPath] ?? null;
+            $modelNodeId = $this->graph->pathToNode[$modelPath] ?? null;
 
             if ($migrationNodeId !== null && $modelNodeId !== null) {
-                $this->addEdge($migrationNodeId, $modelNodeId, PhpDependencyExtractor::MIGRATION_MODEL);
+                $this->graph->addEdge($migrationNodeId, $modelNodeId, PhpDependencyExtractor::MIGRATION_MODEL);
             }
         }
 
@@ -2475,15 +2475,15 @@ class AnalyzeCode
                 continue;
             }
 
-            if (isset($this->pathToNode[$commandPath])) {
-                $this->addEdge($sourceNodeId, $this->pathToNode[$commandPath], PhpDependencyExtractor::STATIC_CALL);
+            if (isset($this->graph->pathToNode[$commandPath])) {
+                $this->graph->addEdge($sourceNodeId, $this->graph->pathToNode[$commandPath], PhpDependencyExtractor::STATIC_CALL);
 
                 continue;
             }
 
             $targetId = $this->ensureConnectedBladeNode($commandPath);
             if ($targetId !== null) {
-                $this->addEdge($sourceNodeId, $targetId, PhpDependencyExtractor::STATIC_CALL);
+                $this->graph->addEdge($sourceNodeId, $targetId, PhpDependencyExtractor::STATIC_CALL);
             }
         }
     }

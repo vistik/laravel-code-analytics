@@ -166,7 +166,8 @@ tailwind.config = {
   /* ── Review progress bar ── */
   .files-review-progress {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 16px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    padding: 0 16px; border-right: 1px solid #21262d; align-self: stretch; flex-shrink: 0;
+    width: 200px;
   }
   .files-review-progress-bar-wrap {
     height: 4px; flex-shrink: 0; display: flex; gap: 2px; align-items: stretch;
@@ -466,6 +467,13 @@ tailwind.config = {
     </button>
     @endif
   </div>
+  <div class="files-review-progress" id="filesReviewProgress">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+      <div class="files-review-progress-bar-wrap" id="filesProgressBar"></div>
+      <div id="filesProgressLegend" style="display:flex;gap:2px"></div>
+    </div>
+    <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
+  </div>
   <div class="topbar-badges">
     {!! $riskBadgeHtml !!}
   </div>
@@ -501,13 +509,6 @@ tailwind.config = {
         <option value="ce">Ce</option>
         <option value="flog">Flog</option>
       </select>
-    </div>
-    <div class="files-review-progress" id="filesReviewProgress">
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-        <div class="files-review-progress-bar-wrap" id="filesProgressBar"></div>
-        <div id="filesProgressLegend" style="display:flex;gap:2px"></div>
-      </div>
-      <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
     </div>
     <div class="files-header-row">
       <div class="file-col file-col-review"></div>

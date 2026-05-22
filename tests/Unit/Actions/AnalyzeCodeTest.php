@@ -1493,6 +1493,38 @@ describe('applyFilePatternFilter — path/substring patterns', function () {
     });
 });
 
+// ── execute — migration model edges ──────────────────────────────────────────
+
+describe('execute — migration model edges', function () {
+    it('creates a dependency edge from a migration to its correlated model when both are in the diff', function () {
+        $dir = makeTempGitRepo(withArtisan: true);
+
+        addAndStageFile($dir, 'database/migrations/2024_01_01_000000_create_users_table.php', '<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+return new class extends Migration {
+    public function up(): void {
+        Schema::create(\'users\', function (Blueprint $table) {
+            $table->id();
+        });
+    }
+};');
+
+        addAndStageFile($dir, 'app/Models/User.php', '<?php
+namespace App\Models;
+use Illuminate\Database\Eloquent\Model;
+class User extends Model {}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+});
+
 // ── execute — schedule command links ─────────────────────────────────────────
 
 describe('execute — schedule command links', function () {
