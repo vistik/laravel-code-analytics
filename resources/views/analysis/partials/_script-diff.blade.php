@@ -215,6 +215,25 @@ function findDiffRowByLocation(location) {
   return null;
 }
 
+function wireLineNumberLinks(filePath) {
+  if (!PR_URL || !filePath) return;
+  var repoBase = PR_URL.replace(/\/pull\/.*$/, '');
+  document.querySelectorAll('.diff-table tr[data-new-ln]').forEach(function(row) {
+    var ln = row.getAttribute('data-new-ln');
+    if (!ln) return;
+    var url = repoBase + '/blob/' + HEAD_COMMIT + '/' + filePath + '#L' + ln;
+    row.querySelectorAll('td.diff-ln').forEach(function(cell) {
+      if (!cell.textContent.trim()) return;
+      cell.style.cursor = 'pointer';
+      cell.title = 'Open line ' + ln + ' on GitHub';
+      cell.addEventListener('click', function(e) {
+        e.stopPropagation();
+        window.open(url, '_blank', 'noopener');
+      });
+    });
+  });
+}
+
 function placeAnnotationDots() {
   document.querySelectorAll('.diff-annotation').forEach(function(d) { d.remove(); });
   var byRow = new Map();
