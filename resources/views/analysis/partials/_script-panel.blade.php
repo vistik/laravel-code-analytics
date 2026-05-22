@@ -100,9 +100,11 @@ function renderMethodPanel(n) {
     bodyHtml += '</div>';
   }
 
-  document.getElementById('panel-body').innerHTML = bodyHtml;
+  var panelBodyMethod = document.getElementById('panel-body');
+  panelBodyMethod.innerHTML = bodyHtml;
+  panelBodyMethod.scrollTop = 0;
   document.getElementById('complexity-scroll-btn').classList.remove('visible');
-  document.getElementById('panel-body').onscroll = null;
+  panelBodyMethod.onscroll = null;
 
   // Wire call-line row clicks (navigate to callee panel)
   document.querySelectorAll('.code-call-row').forEach(function(row) {
@@ -143,10 +145,12 @@ function buildFileLinkMap(node) {
 
 // ── Panel navigation breadcrumbs ──────────────────────────────────────────────
 var navStack = [];      // [{node}] - history of panels opened via link-clicks
-var navSkipPush = false; // set true when re-opening a node via breadcrumb click
+var navIndex = -1;      // current position in navStack (-1 = empty)
+var navSkipPush = false; // set true when re-opening a node via breadcrumb/keyboard nav
 
 function clearNavStack() {
   navStack = [];
+  navIndex = -1;
   renderBreadcrumbs();
 }
 
@@ -157,23 +161,32 @@ function renderBreadcrumbs() {
   el.style.display = 'flex';
   el.innerHTML = navStack.map(function(entry, i) {
     var label = entry.node.displayLabel || entry.node.name || entry.node.id;
-    var isLast = i === navStack.length - 1;
+    var isCurrent = i === navIndex;
     var sep = i < navStack.length - 1 ? '<span class="bc-sep">&rsaquo;</span>' : '';
-    var cls = 'bc-item' + (isLast ? ' bc-current' : '');
-    var attr = isLast ? '' : ' data-bc-index="' + i + '"';
+    var cls = 'bc-item' + (isCurrent ? ' bc-current' : '');
+    var attr = isCurrent ? '' : ' data-bc-index="' + i + '"';
     return '<span class="' + cls + '"' + attr + ' title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</span>' + sep;
   }).join('');
 }
 
 function openPanel(n) {
   if (!navSkipPush) {
+    // Truncate any forward history before pushing a new item
+    if (navIndex >= 0 && navIndex < navStack.length - 1) {
+      navStack = navStack.slice(0, navIndex + 1);
+    }
     if (navStack.length === 0 || navStack[navStack.length - 1].node !== n) {
       navStack.push({ node: n });
+      navIndex = navStack.length - 1;
       renderBreadcrumbs();
     }
   }
   if (n.code !== undefined) { renderMethodPanel(n); return; }
   selectedNode = n;
+  // Clear stale content immediately so a partial render never shows the previous file's diff
+  var panelBodyEl = document.getElementById('panel-body');
+  panelBodyEl.innerHTML = '';
+  panelBodyEl.scrollTop = 0;
   const ghFileUrl = PR_URL + '/files#diff-' + n.hash;
   const total = n.add + n.del;
   const addPct = total > 0 ? (n.add / total * 100) : 0;
@@ -517,12 +530,11 @@ function openPanel(n) {
       '<table class="diff-table full">' + connRows + '</table></div>';
   }
 
-  document.getElementById('panel-body').innerHTML = diffHtml + bodyHtml;
+  panelBodyEl.innerHTML = diffHtml + bodyHtml;
   updateDiffNav();
 
   // Floating "Methods by Complexity" scroll button
   var complexityScrollBtn = document.getElementById('complexity-scroll-btn');
-  var panelBodyEl = document.getElementById('panel-body');
   var complexitySection = document.getElementById('methods-by-complexity');
   if (complexitySection && complexityScrollBtn) {
     complexityScrollBtn.classList.remove('visible');
