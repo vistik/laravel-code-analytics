@@ -14,5 +14,7 @@ class PullRequestContext
         public readonly string $prNumber = '',
         public readonly string $prUrl = '',
         public readonly int $connectedCount = 0,
+        public readonly array $prComments = [],
+        public readonly array $inlineComments = [],
     ) {}
 }

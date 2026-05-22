@@ -81,7 +81,7 @@ class MagicMethodRule implements Rule
                     location: $key,
                     line: $pair['new']->getStartLine(),
                 );
-            } elseif ($pair['old'] !== null && $pair['new'] === null) {
+            } elseif ($pair['old'] !== null) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::METHOD_SIGNATURE,
                     severity: $meta['severity'],

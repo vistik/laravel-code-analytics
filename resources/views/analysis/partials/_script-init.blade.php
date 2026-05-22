@@ -26,6 +26,7 @@ const fileContents = {!! $fileContentsJson !!};
 const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
 const methodThresholds = {!! $methodThresholdsJson !!};
+const inlineComments = {!! $inlineCommentsJson !!};
 {!! $severityDataJs !!}
 
 // ── Metric chip tooltip ───────────────────────────────────────────────────────

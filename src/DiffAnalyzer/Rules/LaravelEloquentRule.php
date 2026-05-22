@@ -114,7 +114,7 @@ class LaravelEloquentRule implements Rule
                     location: $key,
                     line: $pair['new']->getStartLine(),
                 );
-            } elseif ($pair['old'] !== null && $pair['new'] === null) {
+            } elseif ($pair['old'] !== null) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::LARAVEL,
                     severity: $meta['severity'],
@@ -282,7 +282,7 @@ class LaravelEloquentRule implements Rule
 
         $entries = [];
         foreach ($array->items as $item) {
-            if ($item === null || ! $item->key instanceof Scalar\String_) {
+            if (! $item->key instanceof Scalar\String_) {
                 continue;
             }
             $entries[$item->key->value] = $this->printer->prettyPrintExpr($item->value);
