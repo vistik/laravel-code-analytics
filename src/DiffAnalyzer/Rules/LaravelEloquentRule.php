@@ -282,7 +282,7 @@ class LaravelEloquentRule implements Rule
 
         $entries = [];
         foreach ($array->items as $item) {
-            if ($item === null || ! $item->key instanceof Scalar\String_) {
+            if (! $item->key instanceof Scalar\String_) {
                 continue;
             }
             $entries[$item->key->value] = $this->printer->prettyPrintExpr($item->value);

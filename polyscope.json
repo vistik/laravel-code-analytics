@@ -74,6 +74,10 @@
                 "command": "./testbench code:analyze --open --pr=https://github.com/laravel/cloud/pull/4604 --format=md --min-severity=high"
             },
             {
+                "label": "Compare PRs [cloud-billing/610 ↔ cloud/5687]",
+                "command": "./testbench code:analyze --open --pr=https://github.com/laravel/cloud-billing/pull/610 --compare=https://github.com/laravel/cloud/pull/5687 --format=html"
+            },
+            {
                 "label": "Run tests",
                 "command": "./vendor/bin/pest"
             }

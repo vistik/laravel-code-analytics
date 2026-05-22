@@ -4,6 +4,7 @@
 <body>
 @include('laravel-code-analytics::analysis.partials._html')
 <script>
+@php $crossBridgeNodeIdsJson = $crossBridgeNodeIdsJson ?? '[]'; @endphp
 @include('laravel-code-analytics::analysis.partials._script-init')
 @include('laravel-code-analytics::analysis.partials._script-highlight')
 @include('laravel-code-analytics::analysis.partials._script-diff')

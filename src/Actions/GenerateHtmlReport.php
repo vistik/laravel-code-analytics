@@ -35,8 +35,9 @@ class GenerateHtmlReport implements ReportGenerator
         FilterTogglesHtml $toggles,
         GraphLayout $layout = GraphLayout::Force,
         ?LayerStack $layerStack = null,
+        array $crossBridgeNodeIds = [],
     ): string {
-        return $this->render($payload, $pr, $toggles, $layout, $layerStack);
+        return $this->render($payload, $pr, $toggles, $layout, $layerStack, '', $crossBridgeNodeIds);
     }
 
     /**
@@ -77,7 +78,7 @@ class GenerateHtmlReport implements ReportGenerator
                 ? $this->buildLayoutSwitcher($currentLayout, $generatedFiles)
                 : '';
 
-            file_put_contents($file, $this->render($payload, $pr, $toggles, $currentLayout, $layerStack, $switcherHtml));
+            file_put_contents($file, $this->render($payload, $pr, $toggles, $currentLayout, $layerStack, $switcherHtml, []));
         }
 
         return $generatedFiles;
@@ -90,6 +91,7 @@ class GenerateHtmlReport implements ReportGenerator
         GraphLayout $layout,
         ?LayerStack $layerStack = null,
         string $layoutSwitcher = '',
+        array $crossBridgeNodeIds = [],
     ): string {
         $renderer = $layout->renderer($layerStack);
 
@@ -122,6 +124,8 @@ class GenerateHtmlReport implements ReportGenerator
             (new DiffParser)->parseAll($payload->fileDiffs),
             JSON_UNESCAPED_SLASHES | JSON_HEX_TAG,
         );
+
+        $crossBridgeNodeIdsJson = json_encode(array_values($crossBridgeNodeIds), JSON_HEX_TAG);
 
         $graphIndex = (new GraphIndexBuilder)->build(
             nodes: $payload->nodes,
@@ -162,6 +166,7 @@ class GenerateHtmlReport implements ReportGenerator
             'filterDefaultsJson' => $filterDefaultsJson,
             'graphIndexJson' => $graphIndexJson,
             'parsedDiffsJson' => $parsedDiffsJson,
+            'crossBridgeNodeIdsJson' => $crossBridgeNodeIdsJson,
         ])->render();
     }
 
@@ -508,7 +513,7 @@ class GenerateHtmlReport implements ReportGenerator
         return $html;
     }
 
-    private function buildSeverityDataJs(): string
+    public function buildSeverityDataJs(): string
     {
         $colors = [];
         $labels = [];

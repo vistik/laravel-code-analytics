@@ -249,7 +249,18 @@ it('passes includeFileContents=true when --full-files flag is set', function () 
     $this->artisan('code:analyze', ['--full-files' => true])->assertSuccessful();
 });
 
-it('passes includeFileContents=false by default', function () {
+it('passes includeFileContents=true by default', function () {
+    $this->mock(AnalyzeCode::class, function ($mock) {
+        $mock->shouldReceive('execute')
+            ->once()
+            ->withArgs(fn (...$args) => $args[13] === true)
+            ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
+    });
+
+    $this->artisan('code:analyze')->assertSuccessful();
+});
+
+it('passes includeFileContents=false when --no-full-files is set', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()
@@ -257,7 +268,7 @@ it('passes includeFileContents=false by default', function () {
             ->andReturn(['files' => [], 'risk' => new RiskScore(0)]);
     });
 
-    $this->artisan('code:analyze')->assertSuccessful();
+    $this->artisan('code:analyze', ['--no-full-files' => true])->assertSuccessful();
 });
 
 it('passes includeFileContents=true from config full_files key', function () {

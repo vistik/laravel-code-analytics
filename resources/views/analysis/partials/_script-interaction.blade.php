@@ -32,6 +32,7 @@ document.addEventListener('mouseup', function() {
 });
 
 // ── Interaction ───────────────────────────────────────────────────────────────
+var _lastBridgeHoverId = null;
 let dragNode = null, dragGroup = null, dragGroupLastWX = 0, dragGroupLastWY = 0, dragStartX = 0, dragStartY = 0, didDrag = false;
 
 canvas.addEventListener('mousedown', e => {
@@ -93,6 +94,17 @@ canvas.addEventListener('mousemove', e => {
     if (dx*dx + dy*dy < n.r * n.r) { hoveredNode = n; break; }
   }
   canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+  if (crossBridgeNodeIds.size > 0 && window.parent !== window) {
+    var _bridgeHoverId = (hoveredNode && crossBridgeNodeIds.has(hoveredNode.id)) ? hoveredNode.id : null;
+    if (_bridgeHoverId !== _lastBridgeHoverId) {
+      _lastBridgeHoverId = _bridgeHoverId;
+      if (_bridgeHoverId) {
+        window.parent.postMessage({ type: 'bridge-node-hover', nodeId: _bridgeHoverId }, '*');
+      } else {
+        window.parent.postMessage({ type: 'bridge-node-out' }, '*');
+      }
+    }
+  }
   if (hoveredNode) {
     const n = hoveredNode;
     tooltip.style.display = 'block';
@@ -266,14 +278,20 @@ function draw() {
       ctx.strokeStyle = hexAlpha(n.cycleColor, dim ? 0.2 : 0.85);
       ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
     }
+    var isCrossBridge = crossBridgeNodeIds.size > 0 && crossBridgeNodeIds.has(n.id);
     ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-    if (n.isConnected) {
+    if (isCrossBridge) {
+      ctx.fillStyle = dim ? '#34d39918' : ((isHov || isSel || isPathSelected) ? '#34d399cc' : '#34d39955');
+    } else if (n.isConnected) {
       ctx.fillStyle = dim ? '#48405810' : ((isHov || isSel || isPathSelected) ? '#484f5860' : isPathNode ? '#484f5850' : '#484f5830');
     } else {
       ctx.fillStyle = dim ? (n.color + '25') : (n.color + ((isHov || isSel || isPathSelected) ? 'ff' : isPathNode ? 'dd' : (n.status === 'deleted' ? '65' : 'bb')));
     }
     ctx.fill();
-    if (n.isConnected) {
+    if (isCrossBridge) {
+      ctx.setLineDash([]); ctx.strokeStyle = dim ? '#34d39930' : ((isHov || isSel) ? '#34d399' : '#34d39980');
+      ctx.lineWidth = isHov ? 2.5 : 2; ctx.stroke();
+    } else if (n.isConnected) {
       ctx.setLineDash([3, 3]); ctx.strokeStyle = dim ? '#48405820' : ((isHov || isSel) ? '#6e7681' : '#484f58');
       ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
     } else if (n.status === 'added') {

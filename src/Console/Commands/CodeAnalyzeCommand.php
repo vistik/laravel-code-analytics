@@ -9,6 +9,7 @@ use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use RuntimeException;
 use Throwable;
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateComparisonReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
 use Vistik\LaravelCodeAnalytics\Ai\Agents\CodeReviewAgent;
@@ -49,7 +50,8 @@ class CodeAnalyzeCommand extends Command
         {--full-files : Embed full file contents in the report to enable the "Full file" diff view (enabled by default)}
         {--no-full-files : Do not embed full file contents in the report}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
-        {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}';
+        {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}
+        {--compare= : GitHub PR URL to compare against --pr= (generates a side-by-side comparison report)}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -125,6 +127,51 @@ class CodeAnalyzeCommand extends Command
                     default => $this->line($message),
                 };
             };
+
+            $compareUrl = $this->option('compare');
+
+            if ($compareUrl !== null) {
+                if ($prUrl === null) {
+                    throw new RuntimeException('--compare= requires --pr= to be set.');
+                }
+
+                $sharedParams = [
+                    'repoPath' => $repoPath,
+                    'full' => $full,
+                    'view' => $view,
+                    'format' => $format,
+                    'minSeverity' => $minSeverity,
+                    'filePatterns' => $filePatterns ?: null,
+                    'includeFileContents' => $includeFileContents,
+                    'filterDefaults' => $config['filter_defaults'] ?? [],
+                    'riskScoringConfig' => $config['risk_scoring'] ?? [],
+                    'criticalTables' => $config['critical_tables'] ?? [],
+                    'onProgress' => $onProgress,
+                    'returnPayload' => true,
+                ];
+
+                $resultA = $action->execute(...array_merge(['prUrl' => $prUrl], $sharedParams));
+                $resultB = $action->execute(...array_merge(['prUrl' => $compareUrl], $sharedParams));
+
+                if (! array_key_exists('payload', $resultA) || ! array_key_exists('payload', $resultB)) {
+                    throw new RuntimeException('Comparison execution did not return graph payload.');
+                }
+
+                $comparisonHtml = (new GenerateComparisonReport)->generate(
+                    $resultA['payload'], $resultA['pr'], $resultA['layerStack'],
+                    $resultB['payload'], $resultB['pr'], $resultB['layerStack'],
+                    $view,
+                );
+
+                if ($outputPath !== null) {
+                    file_put_contents($outputPath, $comparisonHtml);
+                    if ($openFile) {
+                        shell_exec('open '.escapeshellarg($outputPath));
+                    }
+                }
+
+                return self::SUCCESS;
+            }
 
             $onPayloadReady = $this->buildOnPayloadReady($format, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity, $focusFiles);
 

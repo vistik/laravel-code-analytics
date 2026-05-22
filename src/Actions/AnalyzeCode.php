@@ -99,7 +99,7 @@ class AnalyzeCode
     }
 
     /**
-     * @return array{files: array<string, string>, risk: RiskScore, content?: string}
+     * @return array{files: array<string, string>, risk: RiskScore, content?: string}|array{payload: GraphPayload, pr: PullRequestContext, layerStack: LayerStack, risk: RiskScore, files: array<never, never>}
      */
     public function execute(
         string $repoPath = '',
@@ -124,6 +124,7 @@ class AnalyzeCode
         ?string $toCommit = null,
         ?array $focusFiles = null,
         ?Closure $onPayloadReady = null,
+        bool $returnPayload = false,
     ): array {
         $this->onProgress = $onProgress;
         $this->analyzeStart = microtime(true);
@@ -253,6 +254,10 @@ class AnalyzeCode
         $this->progress('info', "Generating {$format->value} report...");
 
         $layerStack = LayerStack::fromConfig($this->projectType);
+        $nodeFqcns = array_merge(
+            array_flip($this->fqcnIndex->diffNodes),
+            array_flip($this->fqcnIndex->resolvedNodes),
+        );
         $payload = new GraphPayload(
             nodes: $nodes,
             edges: $this->graph->edges,
@@ -262,6 +267,7 @@ class AnalyzeCode
             fileContents: $fileContents,
             filterDefaults: $this->resolveFilterDefaults($filterDefaults),
             riskScore: $riskResult,
+            nodeFqcns: $nodeFqcns,
         );
         $pr = new PullRequestContext(
             prTitle: $prTitle,
@@ -273,6 +279,10 @@ class AnalyzeCode
             prUrl: $prLinkUrl,
             connectedCount: count($this->graph->connectedNodes),
         );
+
+        if ($returnPayload) {
+            return ['payload' => $payload, 'pr' => $pr, 'layerStack' => $layerStack, 'risk' => $riskResult, 'files' => []];
+        }
 
         $extraOptions = $onPayloadReady !== null ? ($onPayloadReady)($payload, $pr, $layerStack) ?? [] : [];
 
