@@ -68,6 +68,12 @@ class AnalyzeCode
     /** GitHub "owner/repo" when analyzing a remote PR (empty in local mode) */
     private string $prRepo = '';
 
+    /** Fetched PR comments (general + reviews + inline), populated in PR mode only */
+    private array $prComments = [];
+
+    /** Inline review comment threads keyed by file path, populated in PR mode only */
+    private array $inlineComments = [];
+
     private DependencyGraph $graph;
 
     private FqcnNodeIndex $fqcnIndex;
@@ -272,6 +278,8 @@ class AnalyzeCode
             fileCount: $fileCount,
             prUrl: $prLinkUrl,
             connectedCount: count($this->graph->connectedNodes),
+            prComments: $this->prComments,
+            inlineComments: $this->inlineComments,
         );
 
         $extraOptions = $onPayloadReady !== null ? ($onPayloadReady)($payload, $pr, $layerStack) ?? [] : [];
@@ -324,6 +332,8 @@ class AnalyzeCode
         $this->repoPath = '';
         $this->repoDir = null;
         $this->prRepo = '';
+        $this->prComments = [];
+        $this->inlineComments = [];
         $this->readContentsFromCommit = false;
     }
 
@@ -1175,7 +1185,7 @@ class AnalyzeCode
         $t = microtime(true);
         $this->githubCallCount++;
         $prJson = json_decode(
-            trim(shell_exec('gh pr view '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' --json title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName 2>/dev/null') ?? ''),
+            trim(shell_exec('gh pr view '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' --json title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName,comments,reviews,reviewThreads 2>/dev/null') ?? ''),
             true,
         );
 
@@ -1186,6 +1196,8 @@ class AnalyzeCode
         $this->headCommit = $prJson['headRefOid'] ?? '';
         $this->baseCommit = $prJson['baseRefOid'] ?? '';
         $this->branchName = "PR #{$prNumber}";
+        $this->inlineComments = $this->extractInlineComments($prJson);
+        $this->prComments = $this->extractPrComments($prJson);
 
         $this->progress('line', '  Title: '.$prJson['title']);
         $this->progress('line', '  Base: '.$prJson['baseRefName'].'  HEAD: '.substr($this->headCommit, 0, 7));
@@ -1252,6 +1264,112 @@ class AnalyzeCode
             'repoName' => basename($this->prRepo),
             'prTitle' => $prJson['title'],
         ];
+    }
+
+    private function extractPrComments(array $prJson): array
+    {
+        $entries = [];
+
+        foreach ($prJson['comments'] ?? [] as $c) {
+            $body = trim($c['body'] ?? '');
+            if ($body === '') {
+                continue;
+            }
+            $entries[] = [
+                'type' => 'comment',
+                'author' => $c['author']['login'] ?? 'unknown',
+                'body' => $body,
+                'createdAt' => $c['createdAt'] ?? '',
+                'url' => $c['url'] ?? '',
+                'state' => null,
+                'path' => null,
+                'line' => null,
+            ];
+        }
+
+        foreach ($prJson['reviews'] ?? [] as $r) {
+            $body = trim($r['body'] ?? '');
+            $state = $r['state'] ?? '';
+            if ($body === '' && ! in_array($state, ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'], true)) {
+                continue;
+            }
+            $entries[] = [
+                'type' => 'review',
+                'author' => $r['author']['login'] ?? 'unknown',
+                'body' => $body,
+                'createdAt' => $r['submittedAt'] ?? $r['createdAt'] ?? '',
+                'url' => $r['url'] ?? '',
+                'state' => $state,
+                'path' => null,
+                'line' => null,
+            ];
+        }
+
+        foreach ($prJson['reviewThreads'] ?? [] as $thread) {
+            $path = $thread['path'] ?? '';
+            $line = $thread['line'] ?? $thread['originalLine'] ?? null;
+            foreach ($thread['comments']['nodes'] ?? [] as $c) {
+                $body = trim($c['body'] ?? '');
+                if ($body === '') {
+                    continue;
+                }
+                $entries[] = [
+                    'type' => 'inline',
+                    'author' => $c['author']['login'] ?? 'unknown',
+                    'body' => $body,
+                    'createdAt' => $c['createdAt'] ?? '',
+                    'url' => $c['url'] ?? '',
+                    'state' => null,
+                    'path' => $path,
+                    'line' => $line,
+                ];
+            }
+        }
+
+        usort($entries, fn ($a, $b) => strcmp($a['createdAt'], $b['createdAt']));
+
+        return $entries;
+    }
+
+    private function extractInlineComments(array $prJson): array
+    {
+        $byPath = [];
+
+        foreach ($prJson['reviewThreads'] ?? [] as $thread) {
+            $path = $thread['path'] ?? '';
+            if ($path === '') {
+                continue;
+            }
+
+            $comments = [];
+            foreach ($thread['comments']['nodes'] ?? [] as $c) {
+                $body = trim($c['body'] ?? '');
+                $comments[] = [
+                    'author' => $c['author']['login'] ?? 'unknown',
+                    'body' => $body,
+                    'createdAt' => $c['createdAt'] ?? '',
+                    'url' => $c['url'] ?? '',
+                ];
+            }
+
+            if (empty($comments)) {
+                continue;
+            }
+
+            if (! isset($byPath[$path])) {
+                $byPath[$path] = [];
+            }
+
+            $byPath[$path][] = [
+                'line' => $thread['line'] ?? $thread['originalLine'] ?? null,
+                'side' => $thread['diffSide'] ?? 'RIGHT',
+                'isResolved' => $thread['isResolved'] ?? false,
+                'isOutdated' => $thread['isOutdated'] ?? false,
+                'comments' => $comments,
+            ];
+        }
+
+        return $byPath;
     }
 
     private function resolveGitObjectsCache(array $changedPaths, bool $full = false): void

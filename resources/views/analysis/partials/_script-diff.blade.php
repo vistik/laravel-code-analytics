@@ -215,6 +215,56 @@ function findDiffRowByLocation(location) {
   return null;
 }
 
+function placeInlineCommentRows(path) {
+  document.querySelectorAll('.diff-inline-comment-row').forEach(function(r) { r.remove(); });
+  if (!path || typeof inlineComments === 'undefined') return;
+  var threads = inlineComments[path];
+  if (!threads || !threads.length) return;
+
+  threads.forEach(function(thread) {
+    var targetRow = thread.line ? findDiffRowByLine(thread.line) : null;
+    if (!targetRow) return;
+
+    var colCount = targetRow.querySelectorAll('td').length || 2;
+    var badges = '';
+    if (thread.isResolved) badges += '<span style="font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid #238636;background:#0d3520;color:#3fb950;margin-left:6px">Resolved</span>';
+    if (thread.isOutdated) badges += '<span style="font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid #484f58;background:#1c2128;color:#8b949e;margin-left:6px">Outdated</span>';
+
+    var commentsHtml = '';
+    thread.comments.forEach(function(c, i) {
+      var avatarUrl = 'https://github.com/' + encodeURIComponent(c.author || '') + '.png?size=32';
+      var initials = (c.author || '?').slice(0, 2).toUpperCase();
+      var bodyEsc = c.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      var linkHtml = c.url ? ' <a href="' + c.url.replace(/"/g,'&quot;') + '" target="_blank" rel="noopener" style="font-size:10.5px;color:#58a6ff;text-decoration:none;opacity:0.7;margin-left:8px">↗</a>' : '';
+      commentsHtml += '<div style="display:flex;gap:8px;padding:6px 10px' + (i > 0 ? ';border-top:1px solid #21262d' : '') + '">'
+        + '<div style="width:18px;height:18px;border-radius:50%;background:#30363d;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#8b949e;flex-shrink:0;overflow:hidden">'
+        + '<img src="' + avatarUrl.replace(/"/g,'&quot;') + '" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">'
+        + '</div>'
+        + '<div style="flex:1;min-width:0">'
+        + '<span style="font-size:11px;font-weight:600;color:#e6edf3">' + (c.author || 'unknown').replace(/</g,'&lt;') + '</span>'
+        + linkHtml
+        + '<div style="font-size:11.5px;color:#c9d1d9;line-height:1.5;margin-top:3px;white-space:pre-wrap;word-break:break-word">' + bodyEsc + '</div>'
+        + '</div>'
+        + '</div>';
+    });
+
+    var tr = document.createElement('tr');
+    tr.className = 'diff-inline-comment-row';
+    tr.innerHTML = '<td colspan="' + colCount + '" style="padding:0">'
+      + '<div style="background:#1c2128;border-left:2px solid #388bfd;border-top:1px solid #30363d;border-bottom:1px solid #30363d">'
+      + '<div style="padding:5px 10px 4px;display:flex;align-items:center;gap:4px">'
+      + '<svg width="11" height="11" viewBox="0 0 16 16" fill="#58a6ff"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>'
+      + '<span style="font-size:10.5px;color:#8b949e">Review comment</span>'
+      + badges
+      + '</div>'
+      + commentsHtml
+      + '</div>'
+      + '</td>';
+
+    targetRow.insertAdjacentElement('afterend', tr);
+  });
+}
+
 function placeAnnotationDots() {
   document.querySelectorAll('.diff-annotation').forEach(function(d) { d.remove(); });
   var byRow = new Map();
