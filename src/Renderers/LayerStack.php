@@ -43,11 +43,11 @@ readonly class LayerStack implements Countable
             new CakeLayer('Entry', '#ffa657', [FileGroup::ROUTE, FileGroup::CONFIG]),
             new CakeLayer('Controllers', '#d29922', [FileGroup::CONTROLLER, FileGroup::HTTP, FileGroup::CONSOLE]),
             new CakeLayer('Requests / Resources', '#e3b341', [FileGroup::REQUEST]),
-            new CakeLayer('Application', '#79c0ff', [FileGroup::SERVICE, FileGroup::ACTION, FileGroup::JOB, FileGroup::EVENT]),
+            new CakeLayer('Application', '#79c0ff', [FileGroup::SERVICE, FileGroup::ACTION, FileGroup::JOB, FileGroup::EVENT, FileGroup::OTHER]),
             new CakeLayer('Domain', '#3fb950', [FileGroup::MODEL, FileGroup::CORE, FileGroup::NOVA]),
             new CakeLayer('Infrastructure', '#8957e5', [FileGroup::DB, FileGroup::PROVIDER]),
             new CakeLayer('Presentation', '#7ee787', [FileGroup::VIEW, FileGroup::FRONTEND]),
-            new CakeLayer('Testing', '#58a6ff', [FileGroup::TEST, FileGroup::OTHER]),
+            new CakeLayer('Testing', '#58a6ff', [FileGroup::TEST]),
         );
     }
 
