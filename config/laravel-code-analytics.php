@@ -10,6 +10,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\DateTimeRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\DependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\EnumRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ErrorHandlingRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\FileComplexityRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\FileLevelRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ImportRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelApiResourceRule;
@@ -38,6 +39,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelUnauthorizedRouteRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MagicMethodRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodAddedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodChangedRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodComplexityRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRemovedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodRenamedRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\MethodSignatureRule;
@@ -119,6 +121,8 @@ return [
             ErrorHandlingRule::class,
             AssignmentRule::class,
             DateTimeRule::class,
+            MethodComplexityRule::class,
+            FileComplexityRule::class,
         ],
 
         ProjectType::LaravelApp->value => [
@@ -305,6 +309,12 @@ return [
         'cc' => ['warn' => 5,  'bad' => 10],
         'lloc' => ['warn' => 20, 'bad' => 50],
         'params' => ['warn' => 3,  'bad' => 5],
+        'flog' => ['warn' => 10, 'bad' => 20],
+    ],
+
+    'file_complexity_thresholds' => [
+        'cc' => ['warn' => 25, 'bad' => 50],
+        'flog' => ['warn' => 30, 'bad' => 60],
     ],
 
     'watched_files' => [

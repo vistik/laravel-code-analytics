@@ -1,6 +1,23 @@
 // ── Syntax highlighting ───────────────────────────────────────────────────────
 function escapeHtml(s) { s = (s == null) ? '' : String(s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function computeIfComplexity(code, pos, len) {
+  var k = pos;
+  while (k < len && (code[k] === ' ' || code[k] === '\t')) k++;
+  if (k >= len || code[k] !== '(') return 1;
+  var depth = 1, ci = k + 1;
+  while (ci < len && depth > 0) {
+    if (code[ci] === '(') depth++;
+    else if (code[ci] === ')') depth--;
+    ci++;
+  }
+  var cond = code.substring(k, ci);
+  var cc = 1;
+  cc += (cond.match(/&&|\|\|/g) || []).length;
+  cc += (cond.match(/\b(?:and|or|xor)\b/gi) || []).length;
+  return cc;
+}
+
 function highlightPHP(code, linkMap, classMap, ifaceIndex) {
   var tokens = [];
   var i = 0, len = code.length;

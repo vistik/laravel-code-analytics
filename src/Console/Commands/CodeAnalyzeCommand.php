@@ -2,14 +2,25 @@
 
 namespace Vistik\LaravelCodeAnalytics\Console\Commands;
 
+use Closure;
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\RequestException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use RuntimeException;
+use Throwable;
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
+use Vistik\LaravelCodeAnalytics\Actions\GenerateLlmReport;
+use Vistik\LaravelCodeAnalytics\Ai\Agents\CodeReviewAgent;
+use Vistik\LaravelCodeAnalytics\Ai\Tools\RunCodeAnalysis;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
+use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
+use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
+use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
 use function Laravel\Prompts\select;
 
@@ -34,9 +45,12 @@ class CodeAnalyzeCommand extends Command
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--folder=* : Only analyze files under this directory prefix (can be repeated, e.g. --folder=src)}
         {--ext=* : Only analyze files with this extension (can be repeated, e.g. --ext=php)}
-        {--open : Open the generated file in the browser when done}
-        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
-        {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}';
+        {--open : Open the generated file in the browser when done (enabled by default)}
+        {--no-open : Do not open the generated file in the browser}
+        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (enabled by default)}
+        {--no-full-files : Do not embed full file contents in the report}
+        {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
+        {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}';
 
     protected $description = 'Analyze a local branch diff — AST analysis, risk scoring, and interactive graph';
 
@@ -60,8 +74,8 @@ class CodeAnalyzeCommand extends Command
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, llm, github");
-            $openFile = $this->option('open') || ($config['open'] ?? false);
-            $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
+            $openFile = ! $this->option('no-open') && ($this->option('open') || ($config['open'] ?? true));
+            $includeFileContents = ! $this->option('no-full-files') && ($this->option('full-files') || ($config['full_files'] ?? true));
             $githubMetrics = $this->option('github-metrics') || ($config['github_metrics'] ?? false);
 
             if ($openFile && $outputPath === null) {
@@ -115,6 +129,10 @@ class CodeAnalyzeCommand extends Command
                 };
             };
 
+            $onPayloadReady = $this->buildOnPayloadReady($format, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity, $focusFiles);
+
+            $rateLimitBefore = $this->fetchGitHubRateLimit();
+
             $result = $action->execute(
                 repoPath: $repoPath,
                 outputPath: $outputPath,
@@ -138,7 +156,10 @@ class CodeAnalyzeCommand extends Command
                 fromCommit: $fromCommit,
                 toCommit: $toCommit,
                 focusFiles: $focusFiles,
+                onPayloadReady: $onPayloadReady,
             );
+
+            $this->printRateLimitSummary($rateLimitBefore);
 
             if (isset($result['content'])) {
                 $this->output->write($result['content']);
@@ -237,5 +258,108 @@ class CodeAnalyzeCommand extends Command
     private function resolveGroupResolver(array $fileGroups): FileGroupResolver
     {
         return new ArrayFileGroupResolver($fileGroups);
+    }
+
+    /** @return array{remaining: int, limit: int}|null */
+    private function fetchGitHubRateLimit(): ?array
+    {
+        $output = shell_exec('gh api rate_limit 2>/dev/null');
+        if ($output === null) {
+            return null;
+        }
+
+        $data = json_decode($output, true);
+        $core = $data['resources']['core'] ?? null;
+
+        if (! is_array($core)) {
+            return null;
+        }
+
+        return ['remaining' => (int) $core['remaining'], 'limit' => (int) $core['limit']];
+    }
+
+    /** @param array{remaining: int, limit: int}|null $before */
+    private function printRateLimitSummary(?array $before): void
+    {
+        $after = $this->fetchGitHubRateLimit();
+
+        if ($before === null || $after === null) {
+            return;
+        }
+
+        $spent = $before['remaining'] - $after['remaining'];
+        $remaining = $after['remaining'];
+        $limit = $after['limit'];
+
+        $this->line(sprintf(
+            '<fg=gray>GitHub API rate limit: <fg=yellow>%d</> used this run · <fg=green>%d</><fg=gray>/%d remaining</>',
+            $spent,
+            $remaining,
+            $limit,
+        ));
+    }
+
+    /**
+     * Returns an onPayloadReady closure when --review is set for HTML format,
+     * null otherwise. The closure pre-computes LLM/JSON text from the payload
+     * (avoiding a second analysis run) then runs the AI agent.
+     *
+     * @param  list<string>|null  $filePatterns
+     * @param  list<string>|null  $focusFiles
+     */
+    private function buildOnPayloadReady(
+        OutputFormat $format,
+        string $repoPath,
+        ?string $baseBranch,
+        ?string $prUrl,
+        bool $full,
+        ?array $filePatterns,
+        ?string $fromCommit,
+        ?string $toCommit,
+        ?Severity $minSeverity,
+        ?array $focusFiles,
+    ): ?Closure {
+        if (! $this->option('review') || $format !== OutputFormat::HTML) {
+            return null;
+        }
+
+        return function (GraphPayload $payload, PullRequestContext $pr, LayerStack $layerStack) use ($focusFiles, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity): array {
+            $llm = (new GenerateLlmReport($focusFiles))->generate($payload, $pr, null, $layerStack);
+            $json = (new GenerateJsonReport)->generate($payload, $pr, null, $layerStack);
+
+            $tool = (new RunCodeAnalysis(
+                repoPath: $repoPath,
+                baseBranch: $baseBranch,
+                prUrl: $prUrl,
+                full: $full,
+                filePatterns: $filePatterns,
+                fromCommit: $fromCommit,
+                toCommit: $toCommit,
+                minSeverity: $minSeverity,
+            ))->withPrecomputed($llm, $json);
+
+            $this->info('Generating AI review...');
+
+            try {
+                $reviewText = (string) (new CodeReviewAgent($tool))->prompt('Review these changes.');
+            } catch (RequestException $e) {
+                $status = $e->response->status();
+                $this->warn(match (true) {
+                    $status === 401 || $status === 403 => 'AI review skipped: authentication failed. Ensure Ollama is running locally (or the correct API key is set for a remote provider).',
+                    $status === 404 => 'AI review skipped: model not found. Run `ollama pull llama3.1:8b` to install it, or override with --model=<name>.',
+                    default => "AI review skipped: HTTP {$status}.",
+                });
+
+                return [];
+            } catch (ProviderOverloadedException $e) {
+                throw new RuntimeException($e->getMessage(), previous: $e);
+            } catch (Throwable $e) {
+                $this->warn('AI review skipped: '.$e->getMessage());
+
+                return [];
+            }
+
+            return ['aiReview' => $reviewText];
+        };
     }
 }

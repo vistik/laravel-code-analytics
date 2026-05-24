@@ -53,6 +53,8 @@ class PhpDependencyExtractor
 
     public const USE = 'use';
 
+    public const MIGRATION_MODEL = 'migration_model';
+
     private Parser $parser;
 
     private NodeFinder $finder;

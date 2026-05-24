@@ -53,6 +53,7 @@ class GenerateGithubAnnotationsReport implements ReportGenerator
                     isset($m['bugs']) ? 'Bugs: '.number_format((float) $m['bugs'], 3) : null,
                     isset($m['coupling']) ? "Coupling: {$m['coupling']}" : null,
                     isset($m['lloc']) ? "LLOC: {$m['lloc']}" : null,
+                    isset($m['flog']) ? "Flog: {$m['flog']}" : null,
                 ]);
 
                 if (! empty($parts)) {
@@ -63,7 +64,8 @@ class GenerateGithubAnnotationsReport implements ReportGenerator
                 foreach ($m['method_metrics'] ?? [] as $method) {
                     $methodTitle = $this->escapeParam("Method: {$method['name']}");
                     $params = "file={$filePath},line={$method['line']},title={$methodTitle}";
-                    $detail = "CC: {$method['cc']} | LLOC: {$method['lloc']} | Params: {$method['params']}";
+                    $flog = isset($method['flog']) ? " | Flog: {$method['flog']}" : '';
+                    $detail = "CC: {$method['cc']} | LLOC: {$method['lloc']} | Params: {$method['params']}{$flog}";
                     $lines[] = "::notice {$params}::{$detail}";
                 }
             }
