@@ -83,6 +83,9 @@ const nodes = filesData.map((f, i) => {
 
 const links = edgesData.map(([s, t, type, line]) => ({ source: nodeMap[s], target: nodeMap[t], depType: type || 'use', callLine: line || null })).filter(l => l.source && l.target);
 
+// Cross-PR bridge nodes: set by the comparison wrapper to show which nodes link to the other PR.
+var crossBridgeNodeIds = new Set({!! $crossBridgeNodeIdsJson ?? '[]' !!});
+
 // Pre-compute bridge nodes: connected (non-diff) nodes referenced by ≥2 diff nodes.
 // These are the "connecting files" that explain why two diff files are related.
 var bridgeNodeIds = (function() {

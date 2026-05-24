@@ -144,6 +144,13 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'clearHighlight') {
     externalHighlightNodes = new Set();
   }
+  if (e.data.type === 'bridge-highlight-partner') {
+    var n = nodeMap[e.data.nodeId];
+    externalHighlightNodes = n ? new Set([n]) : new Set();
+  }
+  if (e.data.type === 'bridge-clear') {
+    externalHighlightNodes = new Set();
+  }
   if (e.data.type === 'markFileReviewed') {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.add(n.id); updateReviewedCount(); clearHidden(); }

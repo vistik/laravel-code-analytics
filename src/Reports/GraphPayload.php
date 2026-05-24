@@ -15,5 +15,7 @@ class GraphPayload
         public readonly array $fileContents = [],
         public readonly array $filterDefaults = [],
         public readonly ?RiskScore $riskScore = null,
+        /** @var array<string, string> nodeId => FQCN for all tracked PHP nodes */
+        public readonly array $nodeFqcns = [],
     ) {}
 }
