@@ -27,6 +27,7 @@ const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
 const methodThresholds = {!! $methodThresholdsJson !!};
 const inlineComments = {!! $inlineCommentsJson !!};
+const affectedEndpoints = {!! $affectedEndpointsJson !!};
 {!! $severityDataJs !!}
 
 // ── Metric chip tooltip ───────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ if (cycleGroupCount > 0) {
 let selectedNode = null;
 let hoveredNode = null;
 var externalHighlightNodes = new Set(); // set by parent frame on cycle-panel hover
+var externalHighlightDepths = new Map(); // node object → depth (0 = controller)
 var _fd = {!! $filterDefaultsJson !!};
 function _toHiddenSet(arr) { var h = {}; arr.forEach(function(v) { h[v] = true; }); return h; }
 var hideConnected = _fd.hide_connected;
@@ -145,6 +147,7 @@ var hiddenChangeTypes = _toHiddenSet(_fd.hidden_change_types);
 var hiddenKinds = _toHiddenSet(_fd.hidden_kinds || []);
 var reviewedNodes = new Set();
 var hideReviewed = _fd.hide_reviewed;
+var showOnlyHighlighted = false;
 var pathfindNodes = new Set();
 var pathResult = { nodes: new Set(), edges: new Set() };
 
@@ -167,6 +170,7 @@ function broadcastFilterState() {
       hiddenSeverities: hiddenSeverities,
       hiddenChangeTypes: hiddenChangeTypes,
       hideReviewed: hideReviewed,
+      showOnlyHighlighted: showOnlyHighlighted,
     }
   }, '*');
 }
@@ -199,6 +203,16 @@ document.getElementById('toggleReviewed').addEventListener('change', function() 
   if (window.parent !== window) window.parent.postMessage({ type: 'showReviewedChanged', show: this.checked }, '*');
   broadcastFilterState();
 });
+
+(function() {
+  var el = document.getElementById('toggleOnlyHighlighted');
+  if (!el) return;
+  el.addEventListener('change', function() {
+    showOnlyHighlighted = this.checked;
+    clearHidden();
+    broadcastFilterState();
+  });
+})();
 
 function updateReviewedCount() {
   var total = nodes.filter(function(n) { return !n.isConnected; }).length;
@@ -299,7 +313,12 @@ function isConnectedVisible(n) {
   return false;
 }
 function isKindFiltered(n) { return n.kind ? !!hiddenKinds[n.kind] : false; }
-function isVisible(n) { return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && isConnectedVisible(n) && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n) && !isKindFiltered(n); }
+function isVisible(n) {
+  var inHighlight = showOnlyHighlighted && externalHighlightNodes.size > 0 && externalHighlightNodes.has(n);
+  // Diff nodes in the highlight set bypass the connected/bridge filter; connected nodes still respect it.
+  var connOk = (inHighlight && !n.isConnected) || isConnectedVisible(n);
+  return !hiddenExts[n.ext] && !hiddenDomains[n.domain || '(root)'] && !isChangeTypeFiltered(n) && connOk && !(hideReviewed && reviewedNodes.has(n.id)) && !isSeverityFiltered(n) && !isKindFiltered(n) && !(showOnlyHighlighted && externalHighlightNodes.size > 0 && !inHighlight);
+}
 function isLinkVisible(l) { return isVisible(l.source) && isVisible(l.target); }
 
 {!! $simulationJs !!}

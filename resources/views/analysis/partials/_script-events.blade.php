@@ -140,9 +140,19 @@ window.addEventListener('message', function(e) {
   }
   if (e.data.type === 'highlightCycle') {
     externalHighlightNodes = new Set((e.data.nodeIds || []).map(function(id) { return nodeMap[id]; }).filter(Boolean));
+    externalHighlightDepths = new Map();
+    var depths = e.data.nodeDepths || {};
+    Object.keys(depths).forEach(function(id) { var n = nodeMap[id]; if (n) externalHighlightDepths.set(n, depths[id]); });
+    var toh = document.getElementById('toggleOnlyHighlighted');
+    if (toh && !showOnlyHighlighted) { showOnlyHighlighted = true; toh.checked = true; broadcastFilterState(); }
+    clearHidden();
   }
   if (e.data.type === 'clearHighlight') {
     externalHighlightNodes = new Set();
+    externalHighlightDepths = new Map();
+    var toh = document.getElementById('toggleOnlyHighlighted');
+    if (toh && showOnlyHighlighted) { showOnlyHighlighted = false; toh.checked = false; broadcastFilterState(); }
+    clearHidden();
   }
   if (e.data.type === 'markFileReviewed') {
     var n = nodeMap[e.data.nodeId];
@@ -161,10 +171,13 @@ window.addEventListener('message', function(e) {
     hiddenSeverities = s.hiddenSeverities;
     hiddenChangeTypes = s.hiddenChangeTypes;
     hideReviewed = s.hideReviewed;
+    showOnlyHighlighted = s.showOnlyHighlighted || false;
     if (s.reviewedNodes) {
       reviewedNodes = new Set(s.reviewedNodes);
       updateReviewedCount();
     }
+    var toggleOnlyHighlightedEl = document.getElementById('toggleOnlyHighlighted');
+    if (toggleOnlyHighlightedEl) toggleOnlyHighlightedEl.checked = showOnlyHighlighted;
     var toggleConnectedEl = document.getElementById('toggleConnected');
     if (toggleConnectedEl) toggleConnectedEl.checked = !hideConnected;
     var toggleBridgesEl2 = document.getElementById('toggleBridges');

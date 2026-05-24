@@ -469,6 +469,11 @@ tailwind.config = {
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>Comments <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 5px;font-size:10.5px;margin-left:3px">{{ $prCommentCount }}</span>
     </button>
     @endif
+    @if(count(json_decode($wrapperAffectedEndpointsJson, true)) > 0)
+    <button class="tab" id="endpointsTab" onclick="toggleEndpointsPanel()">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>Endpoints <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 5px;font-size:10.5px;margin-left:3px" id="endpointsTabCount"></span>
+    </button>
+    @endif
     @if($aiReviewMarkdown)
     <button class="tab" id="aiReviewTab" onclick="toggleAiReviewPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>AI Review
@@ -589,6 +594,31 @@ tailwind.config = {
     <div class="comments-scroll" id="commentsScroll"></div>
   </div>
   @endif
+  @if(count(json_decode($wrapperAffectedEndpointsJson, true)) > 0)
+  <div class="files-panel" id="endpointsPanel" style="width:400px">
+    <div class="files-panel-resize" id="endpointsPanelResize"></div>
+    <div class="files-panel-header">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="#ffa657" style="flex-shrink:0"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>
+        Affected Endpoints
+        <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 6px;font-size:10.5px;font-weight:500;color:#8b949e" id="endpointsPanelCount"></span>
+      </h3>
+      <button class="files-panel-close" onclick="toggleEndpointsPanel()">&times;</button>
+    </div>
+    <div style="border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0">
+      <div style="padding:10px 12px 8px">
+        <input id="endpointsSearch" type="text" placeholder="Search endpoints…" autocomplete="off"
+          style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:12px;padding:6px 10px;outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='#388bfd'" onblur="this.style.borderColor='#30363d'">
+      </div>
+      <div id="endpointsHiddenBar" style="display:none;padding:0 12px 9px;display:none;align-items:center;justify-content:space-between">
+        <span id="endpointsHiddenMsg" style="font-size:11px;color:#6e7681"></span>
+        <button id="endpointsShowHidden" style="background:none;border:none;color:#58a6ff;font-size:11px;cursor:pointer;padding:0;font-family:inherit">Show hidden</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:0 0 20px" id="endpointsScroll"></div>
+  </div>
+  @endif
   @if($aiReviewMarkdown)
   <div class="ai-review-overlay" id="aiReviewOverlay" onclick="closeAiReviewOnBackdrop(event)">
     <div class="ai-review-panel" id="aiReviewPanel">
@@ -607,6 +637,162 @@ tailwind.config = {
 <script>
   {!! $wrapperSeverityJs !!}
   const filesNodes = {!! $wrapperNodesJson !!};
+  const wrapperAffectedEndpoints = {!! $wrapperAffectedEndpointsJson !!};
+  var activeEndpointIdx = null;
+  var renderEndpointList = function() {};
+
+  // ── Affected Endpoints panel ──────────────────────────────────────────────
+  (function() {
+    if (!wrapperAffectedEndpoints.length) return;
+    var methodColors = { GET:'#3fb950', POST:'#58a6ff', PUT:'#d29922', PATCH:'#d29922', DELETE:'#f85149', OPTIONS:'#8b949e', ANY:'#8b949e' };
+    var tabCount = document.getElementById('endpointsTabCount');
+    var panelCount = document.getElementById('endpointsPanelCount');
+    if (tabCount) tabCount.textContent = wrapperAffectedEndpoints.length;
+
+    var scroll = document.getElementById('endpointsScroll');
+    if (!scroll) return;
+
+    var endpointSearch = '';
+    var hiddenEndpoints = new Set();
+
+    function sendToIframe(msg) {
+      var iframe = document.getElementById('view');
+      if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(msg, '*');
+    }
+
+    function matchesSearch(ep, q) {
+      if (!q) return true;
+      var haystack = [ep.method, ep.uri, ep.name || '', (ep.middleware || []).join(' ')].join(' ').toLowerCase();
+      return haystack.indexOf(q) !== -1;
+    }
+
+    var hiddenBar = document.getElementById('endpointsHiddenBar');
+    var hiddenMsg = document.getElementById('endpointsHiddenMsg');
+    var showHiddenBtn = document.getElementById('endpointsShowHidden');
+
+    renderEndpointList = function() {
+      var q = endpointSearch.toLowerCase().trim();
+      var hiddenCount = hiddenEndpoints.size;
+      var totalVisible = wrapperAffectedEndpoints.length - hiddenCount;
+      var visible = wrapperAffectedEndpoints.filter(function(ep, i) {
+        return !hiddenEndpoints.has(i) && matchesSearch(ep, q);
+      });
+      if (panelCount) panelCount.textContent = hiddenCount ? totalVisible + ' of ' + wrapperAffectedEndpoints.length : wrapperAffectedEndpoints.length;
+      if (hiddenBar) {
+        if (hiddenCount > 0) {
+          hiddenBar.style.display = 'flex';
+          if (hiddenMsg) hiddenMsg.textContent = hiddenCount + ' hidden';
+        } else {
+          hiddenBar.style.display = 'none';
+        }
+      }
+
+      var html = '';
+      wrapperAffectedEndpoints.forEach(function(ep, i) {
+        if (hiddenEndpoints.has(i) || !matchesSearch(ep, q)) return;
+        var color = methodColors[ep.method] || '#8b949e';
+        var isActive = activeEndpointIdx === i;
+        var chain = ep.dependencyChain && ep.dependencyChain.length > 1
+          ? ep.dependencyChain.map(function(p){ return p.split('/').pop().replace(/\.php$/, ''); }).join(' → ')
+          : ep.triggeredByPath.split('/').pop().replace(/\.php$/, '');
+        html += '<div data-ep-idx="' + i + '" style="padding:10px 16px;cursor:pointer;transition:background 0.15s;position:relative;'
+          + (isActive ? 'background:rgba(255,166,87,0.08);outline:1px solid rgba(255,166,87,0.25);outline-offset:-1px;' : 'background:transparent;')
+          + 'border-bottom:1px solid rgba(255,255,255,.05);'
+          + '" onmouseenter="this.style.background=\'' + (isActive ? 'rgba(255,166,87,0.1)' : 'rgba(255,255,255,0.03)') + '\';this.querySelector(\'.ep-hide-btn\').style.opacity=\'1\'" '
+          + 'onmouseleave="this.style.background=\'' + (isActive ? 'rgba(255,166,87,0.08)' : 'transparent') + '\';this.querySelector(\'.ep-hide-btn\').style.opacity=\'0\'">';
+        html += '<button class="ep-hide-btn" data-ep-hide-idx="' + i + '" title="Hide" style="position:absolute;top:8px;right:10px;background:none;border:none;color:#6e7681;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s" onmouseenter="this.style.color=\'#e6edf3\'" onmouseleave="this.style.color=\'#6e7681\'">&times;</button>';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-right:20px">';
+        html += '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:' + color + '1a;color:' + color + ';border:1px solid ' + color + '40;letter-spacing:0.05em;flex-shrink:0">' + ep.method + '</span>';
+        html += '<code style="font-size:12px;color:#c9d1d9;word-break:break-all;line-height:1.4">' + ep.uri + '</code>';
+        if (isActive) html += '<svg width="11" height="11" viewBox="0 0 16 16" fill="#ffa657" style="flex-shrink:0;margin-left:auto"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>';
+        html += '</div>';
+        if (ep.name) {
+          html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px;display:flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:.5"><path d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.75 1.75 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>' + ep.name + '</div>';
+        }
+        if (ep.middleware && ep.middleware.length) {
+          html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px;display:flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:.5"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>' + ep.middleware.join(', ') + '</div>';
+        }
+        html += '<div style="font-size:11px;color:#484f58;margin-top:1px" title="' + ep.dependencyChain.join(' → ') + '">via ' + chain + '</div>';
+        html += '</div>';
+      });
+
+      scroll.innerHTML = html;
+    }
+
+    if (showHiddenBtn) {
+      showHiddenBtn.addEventListener('click', function() {
+        hiddenEndpoints.clear();
+        renderEndpointList();
+      });
+    }
+
+    scroll.addEventListener('click', function(e) {
+      // Hide button
+      var hideBtn = e.target.closest('[data-ep-hide-idx]');
+      if (hideBtn) {
+        e.stopPropagation();
+        var hideIdx = parseInt(hideBtn.getAttribute('data-ep-hide-idx'), 10);
+        hiddenEndpoints.add(hideIdx);
+        if (activeEndpointIdx === hideIdx) {
+          activeEndpointIdx = null;
+          sendToIframe({ type: 'clearHighlight' });
+        }
+        renderEndpointList();
+        return;
+      }
+      // Row click → select endpoint
+      var row = e.target.closest('[data-ep-idx]');
+      if (!row) return;
+      var idx = parseInt(row.getAttribute('data-ep-idx'), 10);
+      var ep = wrapperAffectedEndpoints[idx];
+      if (!ep) return;
+      if (activeEndpointIdx === idx) {
+        activeEndpointIdx = null;
+        sendToIframe({ type: 'clearHighlight' });
+      } else {
+        activeEndpointIdx = idx;
+        sendToIframe({ type: 'highlightCycle', nodeIds: ep.reachableNodeIds || [], nodeDepths: ep.reachableDepths || {} });
+      }
+      renderEndpointList();
+    });
+
+    var searchEl = document.getElementById('endpointsSearch');
+    if (searchEl) {
+      searchEl.addEventListener('input', function() {
+        endpointSearch = this.value;
+        renderEndpointList();
+      });
+    }
+
+    renderEndpointList();
+  })();
+
+  function clearActiveEndpoint() {
+    if (activeEndpointIdx === null) return;
+    activeEndpointIdx = null;
+    sendToIframe({ type: 'clearHighlight' });
+    renderEndpointList();
+  }
+
+  function closeAllPanels() {
+    // files-panels use inline style for position; others use CSS class only
+    document.querySelectorAll('.files-panel.open').forEach(function(p) {
+      p.classList.remove('open'); p.style.left = '-100%';
+    });
+    document.querySelectorAll('.findings-panel, .cycles-panel, .comments-panel').forEach(function(p) {
+      p.classList.remove('open');
+    });
+    ['filesTab','endpointsTab','findingsTab','cyclesTab','commentsTab'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.classList.remove('active');
+    });
+  }
+  function toggleEndpointsPanel() {
+    var panel = document.getElementById('endpointsPanel');
+    if (!panel) return;
+    var isOpen = panel.classList.contains('open');
+    closeAllPanels();
+    if (!isOpen) { panel.classList.add('open'); panel.style.left = '0'; document.getElementById('endpointsTab') && document.getElementById('endpointsTab').classList.add('active'); }
+  }
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
 
@@ -699,19 +885,9 @@ tailwind.config = {
       document.getElementById('cyclesTab').classList.remove('active');
       document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
     } else {
-      // Close other panels if open
-      var filesPanel = document.getElementById('filesPanel');
-      if (filesPanel.classList.contains('open')) {
-        filesPanel.classList.remove('open');
-        document.getElementById('filesTab').classList.remove('active');
-      }
-      var findingsPanelEl2 = document.getElementById('findingsPanel');
-      if (findingsPanelEl2 && findingsPanelEl2.classList.contains('open')) {
-        findingsPanelEl2.classList.remove('open');
-        document.getElementById('findingsTab').classList.remove('active');
-      }
-      var iframe = document.getElementById('view');
-      iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
+      clearActiveEndpoint();
+      closeAllPanels();
+      document.getElementById('view').contentWindow.postMessage({ type: 'closePanel' }, '*');
       panel.classList.add('open');
       document.getElementById('cyclesTab').classList.add('active');
     }
@@ -851,16 +1027,8 @@ tailwind.config = {
         panel.classList.remove('open');
         document.getElementById('commentsTab').classList.remove('active');
       } else {
-        var filesPanel = document.getElementById('filesPanel');
-        if (filesPanel && filesPanel.classList.contains('open')) {
-          filesPanel.classList.remove('open');
-          document.getElementById('filesTab').classList.remove('active');
-        }
-        var findingsPanelEl = document.getElementById('findingsPanel');
-        if (findingsPanelEl && findingsPanelEl.classList.contains('open')) {
-          findingsPanelEl.classList.remove('open');
-          document.getElementById('findingsTab').classList.remove('active');
-        }
+        clearActiveEndpoint();
+        closeAllPanels();
         panel.classList.add('open');
         document.getElementById('commentsTab').classList.add('active');
       }
@@ -1296,18 +1464,10 @@ tailwind.config = {
       panel.classList.remove('open');
       document.getElementById('filesTab').classList.remove('active');
     } else {
-      // Close other panels if open
-      var cyclesPanel = document.getElementById('cyclesPanel');
-      if (cyclesPanel.classList.contains('open')) {
-        cyclesPanel.classList.remove('open');
-        document.getElementById('cyclesTab').classList.remove('active');
-      }
-      var findingsPanel = document.getElementById('findingsPanel');
-      if (findingsPanel && findingsPanel.classList.contains('open')) {
-        findingsPanel.classList.remove('open');
-        document.getElementById('findingsTab').classList.remove('active');
-      }
+      clearActiveEndpoint();
+      closeAllPanels();
       panel.classList.add('open');
+      panel.style.left = '';
       document.getElementById('filesTab').classList.add('active');
       renderFileList();
     }
@@ -1424,6 +1584,10 @@ tailwind.config = {
         pendingFilterApply = false;
         var state = Object.assign({}, currentFilterState, { reviewedNodes: Array.from(reviewedFiles) });
         document.getElementById('view').contentWindow.postMessage({ type: 'applyFilters', state: state }, '*');
+      }
+      if (typeof activeEndpointIdx !== 'undefined' && activeEndpointIdx !== null) {
+        var ep = wrapperAffectedEndpoints[activeEndpointIdx];
+        if (ep) document.getElementById('view').contentWindow.postMessage({ type: 'highlightCycle', nodeIds: ep.reachableNodeIds || [], nodeDepths: ep.reachableDepths || {} }, '*');
       }
     }
   });
@@ -1685,17 +1849,8 @@ tailwind.config = {
         panel.classList.remove('open');
         document.getElementById('findingsTab').classList.remove('active');
       } else {
-        // Close other panels
-        var fp = document.getElementById('filesPanel');
-        if (fp.classList.contains('open')) {
-          fp.classList.remove('open');
-          document.getElementById('filesTab').classList.remove('active');
-        }
-        var cp = document.getElementById('cyclesPanel');
-        if (cp.classList.contains('open')) {
-          cp.classList.remove('open');
-          document.getElementById('cyclesTab').classList.remove('active');
-        }
+        clearActiveEndpoint();
+        closeAllPanels();
         panel.classList.add('open');
         document.getElementById('findingsTab').classList.add('active');
         renderFindingsList();

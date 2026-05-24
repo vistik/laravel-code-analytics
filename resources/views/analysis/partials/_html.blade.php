@@ -63,6 +63,12 @@
           <label class="toggle"><input type="checkbox" id="toggleReviewed"><span class="slider"></span></label>
           <label class="toggle-label" for="toggleReviewed">Show reviewed <span id="reviewedToggleCount" style="color:#484f58">(0)</span></label>
         </div>
+        @if(count(json_decode($affectedEndpointsJson, true)) > 0)
+        <div class="toggle-row" id="onlyHighlightedRow">
+          <label class="toggle"><input type="checkbox" id="toggleOnlyHighlighted"><span class="slider"></span></label>
+          <label class="toggle-label" for="toggleOnlyHighlighted">Only endpoint files</label>
+        </div>
+        @endif
         <div class="toggle-row">
           <label class="toggle"><input type="checkbox" id="toggleConnected"><span class="slider"></span></label>
           <label class="toggle-label" for="toggleConnected">Dependencies <span style="color:#484f58">({{ $connectedCount }})</span></label>
@@ -111,6 +117,68 @@
     </div>
   </div>
 </div>
+
+<!-- ── Affected endpoints panel ── -->
+<div id="endpointsPanel" class="fixed top-4 right-4 z-[5] bg-surface/95 border border-border-default/60 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,.5),0_0_0_1px_rgba(255,255,255,.04)_inset] backdrop-blur-sm" style="font-size:13px;max-width:340px;display:none">
+  <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onclick="toggleEndpointsPanel()">
+    <div class="flex items-center gap-2">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="color:#ffa657;flex-shrink:0"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2A1.75 1.75 0 005 1H1.75z"/></svg>
+      <span class="text-fg font-semibold" style="letter-spacing:-0.01em">Affected Endpoints</span>
+      <span id="endpointsBadge" class="inline-flex items-center justify-center rounded-full font-semibold" style="background:#ffa657;color:#0d1117;font-size:10px;min-width:18px;height:18px;padding:0 5px"></span>
+    </div>
+    <button id="endpointsChevron" class="bg-transparent border-0 p-0.5 cursor-pointer text-fg-subtle flex items-center transition-colors hover:text-fg">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div id="endpointsBody" style="display:none;max-height:calc(100dvh - 120px);overflow-y:auto">
+    <div class="px-4 pb-4" id="endpointsList"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var methodColors = { GET:'#3fb950', POST:'#58a6ff', PUT:'#d29922', PATCH:'#d29922', DELETE:'#f85149', OPTIONS:'#8b949e', ANY:'#8b949e' };
+  function renderEndpoints() {
+    if (!window.affectedEndpoints || !affectedEndpoints.length) return;
+    var panel = document.getElementById('endpointsPanel');
+    var badge = document.getElementById('endpointsBadge');
+    var list = document.getElementById('endpointsList');
+    badge.textContent = affectedEndpoints.length;
+    panel.style.display = '';
+    var html = '';
+    affectedEndpoints.forEach(function(ep, i) {
+      var color = methodColors[ep.method] || '#8b949e';
+      var mw = ep.middleware && ep.middleware.length ? ep.middleware.join(', ') : '';
+      var trigger = ep.triggeredByPath.replace(/^.*\//, '');
+      var chain = ep.dependencyChain && ep.dependencyChain.length > 1
+        ? ep.dependencyChain.map(function(p){ return p.replace(/^.*\//, ''); }).join(' → ')
+        : trigger;
+      html += '<div style="padding:8px 0;' + (i > 0 ? 'border-top:1px solid rgba(255,255,255,.06);' : '') + '">';
+      html += '<div class="flex items-center gap-2 mb-1">';
+      html += '<span class="font-semibold rounded" style="font-size:10px;padding:1px 5px;background:' + color + '1a;color:' + color + ';border:1px solid ' + color + '40;letter-spacing:0.04em">' + ep.method + '</span>';
+      html += '<code style="font-size:12px;color:#c9d1d9;word-break:break-all">' + ep.uri + '</code>';
+      html += '</div>';
+      if (ep.name) {
+        html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px">&#x1f516; ' + ep.name + '</div>';
+      }
+      if (mw) {
+        html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px">&#x1f512; ' + mw + '</div>';
+      }
+      html += '<div style="font-size:11px;color:#484f58" title="' + ep.dependencyChain.join(' → ') + '">via ' + chain + '</div>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+  }
+  document.addEventListener('DOMContentLoaded', renderEndpoints);
+})();
+function toggleEndpointsPanel() {
+  var body = document.getElementById('endpointsBody');
+  var chevron = document.getElementById('endpointsChevron');
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+</script>
 
 <!-- ── Path-finding bar ── -->
 <div class="pathfind-bar fixed bottom-5 z-[15] bg-surface border rounded-xl px-5 py-2.5 text-sm items-center gap-3 shadow-[0_4px_20px_rgba(247,129,102,.2)]" style="left:50%;transform:translateX(-50%);border-color:rgba(247,129,102,0.5);display:none" id="pathfindBar">
