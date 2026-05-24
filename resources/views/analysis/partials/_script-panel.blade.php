@@ -592,7 +592,9 @@ function openPanel(n) {
       document.body.appendChild(covTip);
       // Keep the tooltip open while the mouse is inside it (allows scrolling)
       covTip.addEventListener('mouseenter', function() { clearTimeout(covTip._hideTimer); });
-      covTip.addEventListener('mouseleave', function() { covTip.style.display = 'none'; });
+      covTip.addEventListener('mouseleave', function() {
+        covTip._hideTimer = setTimeout(function() { covTip.style.display = 'none'; }, 300);
+      });
     }
 
     document.querySelectorAll('.diff-table tr[data-new-ln]').forEach(function(row) {
@@ -606,10 +608,13 @@ function openPanel(n) {
       if (!gutterCell) return;
 
       var color = count > 0 ? '#3fb950' : '#f85149';
-      gutterCell.style.borderLeft = '3px solid ' + color;
+      if (count === 0) {
+        gutterCell.style.borderLeft = '3px solid #f85149';
+      }
       gutterCell.style.cursor = 'default';
 
-      gutterCell.addEventListener('mouseenter', function() {
+      gutterCell.addEventListener('mouseenter', function(e) {
+        clearTimeout(covTip._hideTimer);
         var headerText = count > 0
           ? count + ' hit' + (count !== 1 ? 's' : '')
           : 'Not covered';
@@ -646,20 +651,23 @@ function openPanel(n) {
         }
         covTip.innerHTML = '<div class="cov-header" style="color:' + color + '">' + headerText + '</div>' + testsHtml;
 
-        var rect = gutterCell.getBoundingClientRect();
+        // Position near cursor so there's no gap to cross
+        covTip.style.left = '-9999px';
+        covTip.style.top = '0';
         covTip.style.display = 'block';
-        var left = rect.right + 6;
-        // Flip left if it would overflow the viewport
-        if (left + covTip.offsetWidth > window.innerWidth - 8) {
-          left = rect.left - covTip.offsetWidth - 6;
-        }
-        covTip.style.left = left + 'px';
-        covTip.style.top = rect.top + 'px';
+        var tipW = covTip.offsetWidth;
+        var tipH = covTip.offsetHeight;
+        var cx = e.clientX + 16;
+        var cy = e.clientY - Math.round(tipH / 4);
+        if (cx + tipW > window.innerWidth - 8) cx = e.clientX - tipW - 8;
+        if (cy + tipH > window.innerHeight - 8) cy = window.innerHeight - tipH - 8;
+        if (cy < 8) cy = 8;
+        covTip.style.left = cx + 'px';
+        covTip.style.top = cy + 'px';
       });
 
       gutterCell.addEventListener('mouseleave', function() {
-        // Delay before hiding — gives the cursor time to travel into the tooltip
-        covTip._hideTimer = setTimeout(function() { covTip.style.display = 'none'; }, 300);
+        covTip._hideTimer = setTimeout(function() { covTip.style.display = 'none'; }, 600);
       });
     });
   }
