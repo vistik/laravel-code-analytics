@@ -260,7 +260,7 @@ it('passes includeFileContents=true by default', function () {
     $this->artisan('code:analyze')->assertSuccessful();
 });
 
-it('passes includeFileContents=false when --no-full-files is set', function () {
+it('passes includeFileContents=false when --no-full-files flag is set', function () {
     $this->mock(AnalyzeCode::class, function ($mock) {
         $mock->shouldReceive('execute')
             ->once()

@@ -175,6 +175,8 @@ class CodeAnalyzeCommand extends Command
 
             $onPayloadReady = $this->buildOnPayloadReady($format, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity, $focusFiles);
 
+            $rateLimitBefore = $this->fetchGitHubRateLimit();
+
             $result = $action->execute(
                 repoPath: $repoPath,
                 outputPath: $outputPath,
@@ -199,6 +201,8 @@ class CodeAnalyzeCommand extends Command
                 focusFiles: $focusFiles,
                 onPayloadReady: $onPayloadReady,
             );
+
+            $this->printRateLimitSummary($rateLimitBefore);
 
             if (isset($result['content'])) {
                 $this->output->write($result['content']);
@@ -297,6 +301,45 @@ class CodeAnalyzeCommand extends Command
     private function resolveGroupResolver(array $fileGroups): FileGroupResolver
     {
         return new ArrayFileGroupResolver($fileGroups);
+    }
+
+    /** @return array{remaining: int, limit: int}|null */
+    private function fetchGitHubRateLimit(): ?array
+    {
+        $output = shell_exec('gh api rate_limit 2>/dev/null');
+        if ($output === null) {
+            return null;
+        }
+
+        $data = json_decode($output, true);
+        $core = $data['resources']['core'] ?? null;
+
+        if (! is_array($core)) {
+            return null;
+        }
+
+        return ['remaining' => (int) $core['remaining'], 'limit' => (int) $core['limit']];
+    }
+
+    /** @param array{remaining: int, limit: int}|null $before */
+    private function printRateLimitSummary(?array $before): void
+    {
+        $after = $this->fetchGitHubRateLimit();
+
+        if ($before === null || $after === null) {
+            return;
+        }
+
+        $spent = $before['remaining'] - $after['remaining'];
+        $remaining = $after['remaining'];
+        $limit = $after['limit'];
+
+        $this->line(sprintf(
+            '<fg=gray>GitHub API rate limit: <fg=yellow>%d</> used this run · <fg=green>%d</><fg=gray>/%d remaining</>',
+            $spent,
+            $remaining,
+            $limit,
+        ));
     }
 
     /**

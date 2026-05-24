@@ -122,9 +122,11 @@
 <!-- ── Detail panel ── -->
 <div id="panel">
   <div id="panel-resize"></div>
-  <button class="panel-back" id="panelBack" onclick="if(window.parent!==window)window.parent.postMessage({type:'backToFiles'},'*')">&#8592; Files</button>
-  <button class="panel-close" onclick="closePanel()">&times;</button>
-  <div id="panel-breadcrumbs"></div>
+  <div id="panel-topbar">
+    <button class="panel-back" id="panelBack" onclick="if(window.parent!==window)window.parent.postMessage({type:'backToFiles'},'*')">&#8592; Files</button>
+    <div id="panel-breadcrumbs"></div>
+    <button class="panel-close" onclick="closePanel()">&times;</button>
+  </div>
   <div class="panel-header" id="panel-header"></div>
   <div class="panel-actions" id="panel-actions"></div>
   <div class="change-bar-wrap" id="panel-bar"></div>

@@ -99,4 +99,22 @@ document.getElementById('panel-body').addEventListener('click', function(e) {
     if (target) autoRevealAndOpen(target);
   }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePanel(); clearPathfinding(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closePanel(); clearPathfinding(); return; }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (e.key === 'ArrowLeft' && navIndex > 0) {
+    e.preventDefault();
+    navIndex--;
+    navSkipPush = true;
+    openPanel(navStack[navIndex].node);
+    navSkipPush = false;
+    renderBreadcrumbs();
+  } else if (e.key === 'ArrowRight' && navIndex < navStack.length - 1) {
+    e.preventDefault();
+    navIndex++;
+    navSkipPush = true;
+    openPanel(navStack[navIndex].node);
+    navSkipPush = false;
+    renderBreadcrumbs();
+  }
+});

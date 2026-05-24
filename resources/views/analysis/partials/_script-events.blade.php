@@ -7,13 +7,14 @@ function scrollToDiffLine(line) {
   scrollToDiffRow(findDiffRowByLine(line));
 }
 
-// Breadcrumb click: navigate back to a prior node in the stack.
+// Breadcrumb click: navigate to a prior node in the stack (truncates forward history).
 document.getElementById('panel-breadcrumbs').addEventListener('click', function(e) {
   var item = e.target.closest('.bc-item:not(.bc-current)');
   if (!item) return;
   var idx = parseInt(item.getAttribute('data-bc-index'), 10);
   if (isNaN(idx) || idx < 0 || idx >= navStack.length) return;
   navStack = navStack.slice(0, idx + 1);
+  navIndex = idx;
   navSkipPush = true;
   openPanel(navStack[idx].node);
   navSkipPush = false;
