@@ -301,6 +301,15 @@ tailwind.config = {
     transition: left 0.28s cubic-bezier(0.22,1,0.36,1); width: 460px;
   }
   .comments-panel.open { left: 0; }
+  .comments-panel-resize {
+    position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+    cursor: col-resize; z-index: 35;
+  }
+  .comments-panel-resize::after {
+    content: ''; position: absolute; top: 0; right: 3px; width: 2px; height: 100%;
+    background: transparent; transition: background 0.2s;
+  }
+  .comments-panel-resize:hover::after, .comments-panel-resize.active::after { background: #388bfd; }
   .comments-panel-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 18px 10px; border-bottom: 1px solid #21262d; flex-shrink: 0;
@@ -343,10 +352,30 @@ tailwind.config = {
     transition: color 0.15s, background 0.15s;
   }
   .comment-hide-btn:hover { color: #e6edf3; background: #30363d; }
-  .comment-body { padding: 10px 12px; font-size: 12.5px; color: #c9d1d9; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .comment-body { padding: 10px 12px; font-size: 12.5px; color: #c9d1d9; line-height: 1.6; word-break: break-word; }
   .comment-body:empty { display: none; }
   .comment-body code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #21262d; color: #79c0ff; padding: 1px 5px; border-radius: 4px; }
   .comment-body strong { color: #e6edf3; font-weight: 600; }
+  .comment-body em { font-style: italic; }
+  .comment-body a { color: #58a6ff; text-decoration: none; }
+  .comment-body a:hover { text-decoration: underline; }
+  .comment-body p { margin: 0 0 6px; }
+  .comment-body p:last-child { margin-bottom: 0; }
+  .comment-body h1, .comment-body h2, .comment-body h3 { color: #e6edf3; font-weight: 600; margin: 8px 0 4px; }
+  .comment-body h1 { font-size: 14px; }
+  .comment-body h2 { font-size: 13px; }
+  .comment-body h3 { font-size: 12.5px; }
+  .comment-body ul, .comment-body ol { margin: 4px 0 6px; padding-left: 18px; }
+  .comment-body li { margin-bottom: 2px; }
+  .comment-body blockquote { border-left: 3px solid #30363d; margin: 6px 0; padding: 2px 10px; color: #8b949e; }
+  .comment-body pre { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 6px 0; }
+  .comment-body pre code { background: none; color: #c9d1d9; padding: 0; font-size: 11.5px; }
+  .comment-body table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 11.5px; }
+  .comment-body th, .comment-body td { border: 1px solid #30363d; padding: 5px 10px; text-align: left; }
+  .comment-body th { background: #21262d; color: #e6edf3; font-weight: 600; }
+  .comment-body tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+  .comment-body details { margin: 4px 0; }
+  .comment-body summary { cursor: pointer; color: #58a6ff; font-size: 12px; user-select: none; }
   .comment-footer { padding: 4px 12px 8px; }
   .comment-link { font-size: 10.5px; color: #58a6ff; text-decoration: none; opacity: 0.7; transition: opacity 0.15s; }
   .comment-link:hover { opacity: 1; }
@@ -575,6 +604,7 @@ tailwind.config = {
 
   @if($prCommentCount > 0)
   <div class="comments-panel" id="commentsPanel">
+    <div class="comments-panel-resize" id="commentsPanelResize"></div>
     <div class="comments-panel-header">
       <h3>
         <svg width="14" height="14" viewBox="0 0 16 16" fill="#58a6ff" style="flex-shrink:0"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>
@@ -720,6 +750,7 @@ tailwind.config = {
   @if($prCommentCount > 0)
   (function() {
     var prComments = {!! $prCommentsJson !!};
+    var prUrl = {!! json_encode($prUrl) !!};
     var hiddenComments = new Set();
 
     var stateConfig = {
@@ -733,12 +764,78 @@ tailwind.config = {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    function inlineFmtComment(s) {
+      s = escHtml(s);
+      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      return s;
+    }
+    function isTableRow(line) { return /^\s*\|.+\|\s*$/.test(line); }
+    function isSeparatorRow(line) { return /^\s*\|[\s|:-]+\|\s*$/.test(line) && !/[a-zA-Z0-9]/.test(line); }
+    function renderTable(rows) {
+      if (rows.length < 2) return rows.map(function(r) { return '<p>' + inlineFmtComment(r) + '</p>'; }).join('');
+      function splitCells(row) {
+        return row.trim().replace(/^\||\|$/g, '').split('|').map(function(c) { return c.trim(); });
+      }
+      var headers = splitCells(rows[0]);
+      var out = '<table><thead><tr>' + headers.map(function(h) { return '<th>' + inlineFmtComment(h) + '</th>'; }).join('') + '</tr></thead><tbody>';
+      for (var i = 2; i < rows.length; i++) {
+        var cells = splitCells(rows[i]);
+        out += '<tr>' + cells.map(function(c) { return '<td>' + inlineFmtComment(c) + '</td>'; }).join('') + '</tr>';
+      }
+      return out + '</tbody></table>';
+    }
     function formatBody(text) {
       if (!text) return '';
-      var s = escHtml(text);
-      s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      return s;
+      var lines = text.split('\n'), html = '', inUl = false, inOl = false, inPre = false, preLines = [], tableBuf = [];
+      function closeList() {
+        if (inUl) { html += '</ul>'; inUl = false; }
+        if (inOl) { html += '</ol>'; inOl = false; }
+      }
+      function flushTable() {
+        if (!tableBuf.length) return;
+        html += renderTable(tableBuf);
+        tableBuf = [];
+      }
+      function flushPre() {
+        html += '<pre><code>' + preLines.map(function(l) { return escHtml(l); }).join('\n') + '</code></pre>';
+        preLines = []; inPre = false;
+      }
+      // Passthrough for GitHub-flavoured HTML tags (details, summary, br, hr)
+      var allowedHtml = /^<\/?(?:details|summary|br|hr)[\s>]/i;
+      var selfClose = /^<(?:br|hr)[^>]*\/?>/i;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var trimmed = line.trim();
+        if (/^```/.test(trimmed)) {
+          if (inPre) { flushPre(); } else { closeList(); flushTable(); inPre = true; }
+          continue;
+        }
+        if (inPre) { preLines.push(line); continue; }
+        // Table rows
+        if (isTableRow(trimmed)) { closeList(); tableBuf.push(trimmed); continue; }
+        if (tableBuf.length) flushTable();
+        // Allow safe passthrough HTML
+        if (allowedHtml.test(trimmed) || selfClose.test(trimmed) || trimmed === '<details>' || trimmed === '</details>') {
+          closeList(); html += trimmed; continue;
+        }
+        // Handle <summary>...</summary> on one line
+        if (/^<summary>/i.test(trimmed)) { closeList(); html += trimmed; continue; }
+        if (/^# /.test(line))        { closeList(); html += '<h1>' + inlineFmtComment(line.slice(2)) + '</h1>'; }
+        else if (/^## /.test(line))  { closeList(); html += '<h2>' + inlineFmtComment(line.slice(3)) + '</h2>'; }
+        else if (/^### /.test(line)) { closeList(); html += '<h3>' + inlineFmtComment(line.slice(4)) + '</h3>'; }
+        else if (/^> /.test(line))   { closeList(); html += '<blockquote>' + inlineFmtComment(line.slice(2)) + '</blockquote>'; }
+        else if (/^[-*] /.test(line))  { if (!inUl) { closeList(); html += '<ul>'; inUl = true; } html += '<li>' + inlineFmtComment(line.slice(2)) + '</li>'; }
+        else if (/^\d+\. /.test(line)) { if (!inOl) { closeList(); html += '<ol>'; inOl = true; } html += '<li>' + inlineFmtComment(line.replace(/^\d+\. /, '')) + '</li>'; }
+        else if (trimmed === '') { closeList(); }
+        else { closeList(); html += '<p>' + inlineFmtComment(line) + '</p>'; }
+      }
+      if (inPre) flushPre();
+      flushTable();
+      closeList();
+      return html;
     }
 
     function relativeTime(iso) {
@@ -775,10 +872,14 @@ tailwind.config = {
         }
         var bodyHtml = formatBody(c.body);
         var footerHtml = c.url ? '<div class="comment-footer"><a class="comment-link" href="' + escHtml(c.url) + '" target="_blank" rel="noopener">View on GitHub ↗</a></div>' : '';
+        var reviewUrl = !isInline ? (c.url || prUrl) : '';
+        var isReviewLink = !!reviewUrl;
         var inlineAttrs = isInline ? ' data-inline-path="' + escHtml(c.path) + '" data-inline-line="' + (c.line || '') + '"' : '';
+        var urlAttr = isReviewLink ? ' data-url="' + escHtml(reviewUrl) + '"' : '';
         var hideBtn = '<button class="comment-hide-btn" data-idx="' + idx + '" title="Hide this comment">&times;</button>';
-        html += '<div class="comment-card' + (isInline ? ' clickable-card' : '') + '"'
+        html += '<div class="comment-card' + (isInline || isReviewLink ? ' clickable-card' : '') + '"'
           + inlineAttrs
+          + urlAttr
           + ' data-comment-idx="' + idx + '"'
           + (isHidden ? ' style="display:none"' : '')
           + '>'
@@ -831,6 +932,14 @@ tailwind.config = {
           }, '*');
         });
       });
+
+      // Wire PR-level review comment cards: open GitHub URL in new tab
+      document.querySelectorAll('#commentsScroll .comment-card[data-url]').forEach(function(card) {
+        card.addEventListener('click', function(e) {
+          if (e.target.closest('a') || e.target.closest('.comment-hide-btn')) return;
+          window.open(card.getAttribute('data-url'), '_blank', 'noopener');
+        });
+      });
     }
 
     renderComments();
@@ -841,6 +950,41 @@ tailwind.config = {
       showHiddenBtn.addEventListener('click', function() {
         hiddenComments.clear();
         renderComments();
+      });
+    }
+
+    // ── Comments panel resize ──
+    var commentsPanelEl = document.getElementById('commentsPanel');
+    var commentsPanelHandle = document.getElementById('commentsPanelResize');
+    if (commentsPanelHandle) {
+      var commentsPanelResizing = false;
+      var commentsPanelWidth = 460;
+      commentsPanelEl.style.width = commentsPanelWidth + 'px';
+      var commentsResizeOverlay = document.createElement('div');
+      commentsResizeOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;cursor:col-resize;display:none';
+      document.body.appendChild(commentsResizeOverlay);
+      commentsPanelHandle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        commentsPanelResizing = true;
+        commentsPanelHandle.classList.add('active');
+        commentsPanelEl.style.transition = 'none';
+        commentsResizeOverlay.style.display = 'block';
+      });
+      document.addEventListener('mousemove', function(e) {
+        if (!commentsPanelResizing) return;
+        var contentArea = document.querySelector('.content-area');
+        var rect = contentArea.getBoundingClientRect();
+        var newW = e.clientX - rect.left;
+        newW = Math.max(320, Math.min(newW, rect.width * 0.9));
+        commentsPanelWidth = newW;
+        commentsPanelEl.style.width = commentsPanelWidth + 'px';
+      });
+      document.addEventListener('mouseup', function() {
+        if (!commentsPanelResizing) return;
+        commentsPanelResizing = false;
+        commentsPanelHandle.classList.remove('active');
+        commentsPanelEl.style.transition = '';
+        commentsResizeOverlay.style.display = 'none';
       });
     }
 
