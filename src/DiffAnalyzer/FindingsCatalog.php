@@ -719,6 +719,39 @@ class FindingsCatalog
                     }
                     PHP,
             ],
+            [
+                'rule' => 'MethodComplexityRule',
+                'severity' => Severity::HIGH,
+                'title' => 'Method complexity jumped directly to bad',
+                'description' => 'A method\'s complexity metric crossed from good directly to bad in a single commit — consider breaking the method apart.',
+                'before' => <<<'PHP'
+                    public function handle(): void
+                    {
+                        $this->run();
+                    }
+                    PHP,
+                'after' => <<<'PHP'
+                    public function handle(): void
+                    {
+                        if ($this->a) { ... }
+                        if ($this->b) { ... }
+                        if ($this->c) { ... }
+                        // ... many more branches
+                    }
+                    PHP,
+            ],
+            [
+                'rule' => 'FileComplexityRule',
+                'severity' => Severity::HIGH,
+                'title' => 'File total complexity jumped directly to bad',
+                'description' => 'The sum of CC or Flog across all methods in the file crossed from good directly to bad — the file as a whole has become very complex.',
+                'before' => <<<'PHP'
+                    // file total CC = 18 (good)
+                    PHP,
+                'after' => <<<'PHP'
+                    // file total CC = 55 (bad, many new branches added)
+                    PHP,
+            ],
         ];
     }
 
@@ -889,6 +922,45 @@ class FindingsCatalog
                     public function handle($request)
                     PHP,
             ],
+            [
+                'rule' => 'MethodComplexityRule',
+                'severity' => Severity::MEDIUM,
+                'title' => 'Method complexity worsened into bad zone',
+                'description' => 'A method\'s complexity metric was already in the warning zone and has now crossed into the bad zone — refactoring is recommended.',
+                'before' => <<<'PHP'
+                    // cc = 6 (warn)
+                    public function resolve($type): mixed
+                    {
+                        if ($type === 'a') { return $this->a(); }
+                        if ($type === 'b') { return $this->b(); }
+                        if ($type === 'c') { return $this->c(); }
+                        return null;
+                    }
+                    PHP,
+                'after' => <<<'PHP'
+                    // cc = 12 (bad)
+                    public function resolve($type, $flag): mixed
+                    {
+                        if ($type === 'a') { return $flag ? $this->a1() : $this->a2(); }
+                        if ($type === 'b') { return $flag ? $this->b1() : $this->b2(); }
+                        if ($type === 'c') { return $flag ? $this->c1() : $this->c2(); }
+                        // ...
+                        return null;
+                    }
+                    PHP,
+            ],
+            [
+                'rule' => 'FileComplexityRule',
+                'severity' => Severity::MEDIUM,
+                'title' => 'File total complexity worsened into bad zone',
+                'description' => 'The sum of CC or Flog across all methods in the file was already in the warning zone and has now crossed into the bad zone — consider splitting the file.',
+                'before' => <<<'PHP'
+                    // file total CC = 28 (warn)
+                    PHP,
+                'after' => <<<'PHP'
+                    // file total CC = 54 (bad)
+                    PHP,
+            ],
         ];
     }
 
@@ -920,6 +992,41 @@ class FindingsCatalog
                     PHP,
                 'after' => <<<'PHP'
                     return DB::select('select * from users where active = 1');
+                    PHP,
+            ],
+            [
+                'rule' => 'MethodComplexityRule',
+                'severity' => Severity::LOW,
+                'title' => 'Method complexity crossed into warning zone',
+                'description' => 'A method\'s complexity metric (CC, LLOC, or param count) moved from good to warn — it is approaching the threshold where reviewers should take note.',
+                'before' => <<<'PHP'
+                    public function process($a, $b): void
+                    {
+                        $this->doA($a);
+                        $this->doB($b);
+                    }
+                    PHP,
+                'after' => <<<'PHP'
+                    public function process($a, $b, $c, $d, $e): void
+                    {
+                        $this->doA($a);
+                        $this->doB($b);
+                        if ($c) { $this->doC($c); }
+                        if ($d) { $this->doD($d); }
+                        if ($e) { $this->doE($e); }
+                    }
+                    PHP,
+            ],
+            [
+                'rule' => 'FileComplexityRule',
+                'severity' => Severity::LOW,
+                'title' => 'File total complexity crossed into warning zone',
+                'description' => 'The sum of CC or Flog across all methods in the file moved from good to warn — the file is accumulating complexity.',
+                'before' => <<<'PHP'
+                    // file total CC = 18 (good)
+                    PHP,
+                'after' => <<<'PHP'
+                    // file total CC = 27 (warn)
                     PHP,
             ],
         ];
@@ -998,6 +1105,41 @@ class FindingsCatalog
                 'after' => <<<'PHP'
                     it('creates a user', fn () => ...);
                     it('deletes a user', fn () => ...);
+                    PHP,
+            ],
+            [
+                'rule' => 'MethodComplexityRule',
+                'severity' => Severity::INFO,
+                'title' => 'Method complexity improved',
+                'description' => 'A method\'s complexity metric improved to a lower severity band — the method is simpler than before.',
+                'before' => <<<'PHP'
+                    // cc = 7 (warn)
+                    public function build(): array
+                    {
+                        if ($this->a) { ... }
+                        if ($this->b) { ... }
+                        if ($this->c) { ... }
+                        // ...
+                    }
+                    PHP,
+                'after' => <<<'PHP'
+                    // cc = 3 (good)
+                    public function build(): array
+                    {
+                        return $this->builder->compile($this->config);
+                    }
+                    PHP,
+            ],
+            [
+                'rule' => 'FileComplexityRule',
+                'severity' => Severity::INFO,
+                'title' => 'File total complexity improved',
+                'description' => 'The sum of CC or Flog across all methods in the file improved to a lower severity band — the file has been simplified.',
+                'before' => <<<'PHP'
+                    // file total CC = 32 (warn)
+                    PHP,
+                'after' => <<<'PHP'
+                    // file total CC = 19 (good, methods extracted or simplified)
                     PHP,
             ],
         ];

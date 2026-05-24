@@ -28,7 +28,35 @@ const fileContents = {!! $fileContentsJson !!};
 const analysisData = {!! $analysisJson !!};
 const metricsData = {!! $metricsJson !!};
 const methodThresholds = {!! $methodThresholdsJson !!};
+const inlineComments = {!! $inlineCommentsJson !!};
 {!! $severityDataJs !!}
+
+// ── Metric chip tooltip ───────────────────────────────────────────────────────
+(function() {
+  var metricTip = document.getElementById('metric-tooltip');
+  var tipTimer = null;
+  document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('[data-tooltip]');
+    if (!el) return;
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(function() {
+      metricTip.textContent = el.getAttribute('data-tooltip');
+      metricTip.style.display = 'block';
+      var rect = el.getBoundingClientRect();
+      var tipW = metricTip.offsetWidth;
+      var left = rect.left + rect.width / 2 - tipW / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8));
+      metricTip.style.left = left + 'px';
+      metricTip.style.top = (rect.bottom + 6) + 'px';
+    }, 120);
+  });
+  document.addEventListener('mouseout', function(e) {
+    var el = e.target.closest('[data-tooltip]');
+    if (!el) return;
+    clearTimeout(tipTimer);
+    metricTip.style.display = 'none';
+  });
+})();
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas');

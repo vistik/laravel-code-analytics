@@ -166,7 +166,8 @@ tailwind.config = {
   /* ── Review progress bar ── */
   .files-review-progress {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 16px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    padding: 0 16px; border-right: 1px solid #21262d; align-self: stretch; flex-shrink: 0;
+    width: 200px;
   }
   .files-review-progress-bar-wrap {
     height: 4px; flex-shrink: 0; display: flex; gap: 2px; align-items: stretch;
@@ -290,6 +291,65 @@ tailwind.config = {
     transition: right 0.28s cubic-bezier(0.22,1,0.36,1); width: 420px;
   }
   .cycles-panel.open { right: 0; }
+
+  /* ── PR Comments panel ── */
+  .comments-panel {
+    position: absolute; top: 0; left: -100%; height: 100%;
+    background: #161b22; border-right: 1px solid #21262d; z-index: 30;
+    display: flex; flex-direction: column;
+    box-shadow: 8px 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03) inset;
+    transition: left 0.28s cubic-bezier(0.22,1,0.36,1); width: 460px;
+  }
+  .comments-panel.open { left: 0; }
+  .comments-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px 10px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(28,33,40,0.7) 0%, rgba(22,27,34,0) 100%);
+  }
+  .comments-panel-header h3 { font-size: 13.5px; font-weight: 600; color: #e6edf3; letter-spacing: -0.01em; display:flex; align-items:center; gap:8px; }
+  .comments-panel-close {
+    background: none; border: none; color: #6e7681; font-size: 18px;
+    cursor: pointer; line-height: 1; padding: 4px; border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .comments-panel-close:hover { color: #e6edf3; background: #21262d; }
+  .comments-scroll { flex: 1 1 0%; overflow-y: auto; min-height: 0; padding: 12px 16px 20px; }
+  .comments-scroll::-webkit-scrollbar { width: 5px; }
+  .comments-scroll::-webkit-scrollbar-track { background: transparent; }
+  .comments-scroll::-webkit-scrollbar-thumb { background: #2d333b; border-radius: 10px; }
+  .comment-card {
+    background: #1c2128; border: 1px solid #30363d; border-radius: 10px; overflow: hidden;
+    margin-bottom: 12px; transition: border-color 0.15s;
+  }
+  .comment-card.clickable-card { cursor: pointer; }
+  .comment-card.clickable-card:hover { border-color: #58a6ff; }
+  .comment-card-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-bottom: 1px solid #21262d;
+    background: rgba(255,255,255,.02);
+  }
+  .comment-avatar {
+    width: 20px; height: 20px; border-radius: 50%; background: #30363d;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; color: #8b949e; flex-shrink: 0; overflow: hidden;
+  }
+  .comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .comment-author { font-size: 12px; font-weight: 600; color: #e6edf3; }
+  .comment-time { font-size: 11px; color: #6e7681; margin-left: auto; white-space: nowrap; }
+  .comment-state-badge { font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 20px; border: 1px solid; }
+  .comment-hide-btn {
+    background: none; border: none; color: #484f58; cursor: pointer; font-size: 15px;
+    line-height: 1; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; margin-left: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .comment-hide-btn:hover { color: #e6edf3; background: #30363d; }
+  .comment-body { padding: 10px 12px; font-size: 12.5px; color: #c9d1d9; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .comment-body:empty { display: none; }
+  .comment-body code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #21262d; color: #79c0ff; padding: 1px 5px; border-radius: 4px; }
+  .comment-body strong { color: #e6edf3; font-weight: 600; }
+  .comment-footer { padding: 4px 12px 8px; }
+  .comment-link { font-size: 10.5px; color: #58a6ff; text-decoration: none; opacity: 0.7; transition: opacity 0.15s; }
+  .comment-link:hover { opacity: 1; }
   .cycles-panel-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 18px 10px; border-bottom: 1px solid #21262d; flex-shrink: 0;
@@ -404,11 +464,23 @@ tailwind.config = {
     <button class="tab" id="findingsTab" onclick="toggleFindingsPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-.25-6.25a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 1.5 0v-3.5z"/></svg>Findings
     </button>
+    @if($prCommentCount > 0)
+    <button class="tab" id="commentsTab" onclick="toggleCommentsPanel()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>Comments <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 5px;font-size:10.5px;margin-left:3px">{{ $prCommentCount }}</span>
+    </button>
+    @endif
     @if($aiReviewMarkdown)
     <button class="tab" id="aiReviewTab" onclick="toggleAiReviewPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>AI Review
     </button>
     @endif
+  </div>
+  <div class="files-review-progress" id="filesReviewProgress">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+      <div class="files-review-progress-bar-wrap" id="filesProgressBar"></div>
+      <div id="filesProgressLegend" style="display:flex;gap:2px"></div>
+    </div>
+    <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
   </div>
   <div class="topbar-badges">
     {!! $riskBadgeHtml !!}
@@ -442,14 +514,9 @@ tailwind.config = {
         <option value="name">Name</option>
         <option value="cc">CC</option>
         <option value="mi">MI</option>
+        <option value="ce">Ce</option>
+        <option value="flog">Flog</option>
       </select>
-    </div>
-    <div class="files-review-progress" id="filesReviewProgress">
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-        <div class="files-review-progress-bar-wrap" id="filesProgressBar"></div>
-        <div id="filesProgressLegend" style="display:flex;gap:2px"></div>
-      </div>
-      <span class="files-review-progress-label" id="filesProgressLabel">0%</span>
     </div>
     <div class="files-header-row">
       <div class="file-col file-col-review"></div>
@@ -480,11 +547,11 @@ tailwind.config = {
       <input type="text" class="files-search" id="findingsSearch" placeholder="Filter findings...">
       <select id="findingsSevFilter" class="bg-overlay border border-border-default text-[#c9d1d9] text-[11.5px] px-2 py-1 rounded-md cursor-pointer font-sans shrink-0 focus:outline-none focus:border-accent">
         <option value="">All severities</option>
-        <option value="very_high">Very High</option>
-        <option value="high">High</option>
-        <option value="medium">Medium</option>
-        <option value="low">Low</option>
-        <option value="info">Info</option>
+        <option value="very_high">Very High+</option>
+        <option value="high">High+</option>
+        <option value="medium">Medium+</option>
+        <option value="low">Low+</option>
+        <option value="info">Info+</option>
       </select>
       <select id="findingsTypeFilter" class="bg-overlay border border-border-default text-[#c9d1d9] text-[11.5px] px-2 py-1 rounded-md cursor-pointer font-sans shrink-0 focus:outline-none focus:border-accent">
         <option value="">All types</option>
@@ -505,6 +572,23 @@ tailwind.config = {
     </div>
     <div class="cycles-scroll" id="cyclesScroll"></div>
   </div>
+
+  @if($prCommentCount > 0)
+  <div class="comments-panel" id="commentsPanel">
+    <div class="comments-panel-header">
+      <h3>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="#58a6ff" style="flex-shrink:0"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>
+        PR Comments
+        <span id="commentsPanelCount" style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 6px;font-size:10.5px;font-weight:500;color:#8b949e">{{ $prCommentCount }}</span>
+      </h3>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button id="commentsShowHiddenBtn" style="display:none;background:none;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:11px;padding:3px 8px;cursor:pointer;white-space:nowrap;transition:all 0.15s;font-family:inherit">Show hidden <span id="commentsHiddenCount">0</span></button>
+        <button class="comments-panel-close" onclick="toggleCommentsPanel()">&times;</button>
+      </div>
+    </div>
+    <div class="comments-scroll" id="commentsScroll"></div>
+  </div>
+  @endif
   @if($aiReviewMarkdown)
   <div class="ai-review-overlay" id="aiReviewOverlay" onclick="closeAiReviewOnBackdrop(event)">
     <div class="ai-review-panel" id="aiReviewPanel">
@@ -632,6 +716,157 @@ tailwind.config = {
       document.getElementById('cyclesTab').classList.add('active');
     }
   }
+
+  @if($prCommentCount > 0)
+  (function() {
+    var prComments = {!! $prCommentsJson !!};
+    var hiddenComments = new Set();
+
+    var stateConfig = {
+      'APPROVED':           { label: 'Approved',          bg: '#0d3520', color: '#3fb950', border: '#238636' },
+      'CHANGES_REQUESTED':  { label: 'Changes requested', bg: '#3d1214', color: '#f85149', border: '#da3633' },
+      'DISMISSED':          { label: 'Dismissed',         bg: '#1c2128', color: '#8b949e', border: '#484f58' },
+      'COMMENTED':          { label: 'Commented',         bg: '#1c2128', color: '#8b949e', border: '#484f58' },
+    };
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function formatBody(text) {
+      if (!text) return '';
+      var s = escHtml(text);
+      s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      return s;
+    }
+
+    function relativeTime(iso) {
+      if (!iso) return '';
+      var d = new Date(iso);
+      var now = Date.now();
+      var diff = Math.floor((now - d.getTime()) / 1000);
+      if (diff < 60)  return 'just now';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      if (diff < 2592000) return Math.floor(diff / 86400) + 'd ago';
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function renderComments() {
+      var visibleCount = 0;
+      var html = '';
+      prComments.forEach(function(c, idx) {
+        var isHidden = hiddenComments.has(idx);
+        if (!isHidden) visibleCount++;
+        var initials = (c.author || '?').slice(0, 2).toUpperCase();
+        var avatarUrl = 'https://github.com/' + encodeURIComponent(c.author || '') + '.png?size=40';
+        var stateBadge = '';
+        if (c.state && stateConfig[c.state]) {
+          var sc = stateConfig[c.state];
+          stateBadge = '<span class="comment-state-badge" style="background:' + sc.bg + ';color:' + sc.color + ';border-color:' + sc.border + '">' + sc.label + '</span>';
+        }
+        var locationBadge = '';
+        var isInline = c.type === 'inline' && c.path;
+        if (isInline) {
+          var fileName = c.path.split('/').pop();
+          var lineLabel = c.line ? ':' + c.line : '';
+          locationBadge = '<span style="font-size:10px;font-family:ui-monospace,monospace;background:#21262d;border:1px solid #30363d;border-radius:4px;padding:1px 6px;color:#8b949e;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle" title="' + escHtml(c.path + lineLabel) + '">' + escHtml(fileName + lineLabel) + '</span>';
+        }
+        var bodyHtml = formatBody(c.body);
+        var footerHtml = c.url ? '<div class="comment-footer"><a class="comment-link" href="' + escHtml(c.url) + '" target="_blank" rel="noopener">View on GitHub ↗</a></div>' : '';
+        var inlineAttrs = isInline ? ' data-inline-path="' + escHtml(c.path) + '" data-inline-line="' + (c.line || '') + '"' : '';
+        var hideBtn = '<button class="comment-hide-btn" data-idx="' + idx + '" title="Hide this comment">&times;</button>';
+        html += '<div class="comment-card' + (isInline ? ' clickable-card' : '') + '"'
+          + inlineAttrs
+          + ' data-comment-idx="' + idx + '"'
+          + (isHidden ? ' style="display:none"' : '')
+          + '>'
+          + '<div class="comment-card-header">'
+            + '<div class="comment-avatar"><img src="' + escHtml(avatarUrl) + '" alt="" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + initials + '\'">'
+            + '</div>'
+            + '<span class="comment-author">' + escHtml(c.author || 'unknown') + '</span>'
+            + stateBadge
+            + locationBadge
+            + '<span class="comment-time">' + relativeTime(c.createdAt) + '</span>'
+            + hideBtn
+          + '</div>'
+          + (bodyHtml ? '<div class="comment-body">' + bodyHtml + '</div>' : '')
+          + footerHtml
+          + '</div>';
+      });
+      document.getElementById('commentsScroll').innerHTML = html;
+
+      // Update visible count badge
+      var countEl = document.getElementById('commentsPanelCount');
+      if (countEl) countEl.textContent = visibleCount;
+
+      // Update "Show hidden" button
+      var showHiddenBtn = document.getElementById('commentsShowHiddenBtn');
+      var hiddenCountEl = document.getElementById('commentsHiddenCount');
+      if (showHiddenBtn) showHiddenBtn.style.display = hiddenComments.size > 0 ? '' : 'none';
+      if (hiddenCountEl) hiddenCountEl.textContent = hiddenComments.size;
+
+      // Wire hide buttons
+      document.querySelectorAll('#commentsScroll .comment-hide-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          hiddenComments.add(parseInt(btn.getAttribute('data-idx'), 10));
+          renderComments();
+        });
+      });
+
+      // Wire inline comment cards: close panel then navigate to file + line
+      document.querySelectorAll('#commentsScroll .comment-card[data-inline-path]').forEach(function(card) {
+        card.addEventListener('click', function(e) {
+          if (e.target.closest('a') || e.target.closest('.comment-hide-btn')) return;
+          var path = card.getAttribute('data-inline-path');
+          var line = parseInt(card.getAttribute('data-inline-line'), 10) || null;
+          var node = filesNodes.find(function(n) { return n.path === path; });
+          if (!node) return;
+          var panel = document.getElementById('commentsPanel');
+          if (panel && panel.classList.contains('open')) toggleCommentsPanel();
+          document.getElementById('view').contentWindow.postMessage({
+            type: 'openFile', nodeId: node.id, fromFiles: false, targetLine: line,
+          }, '*');
+        });
+      });
+    }
+
+    renderComments();
+
+    // "Show hidden" button restores all hidden comments
+    var showHiddenBtn = document.getElementById('commentsShowHiddenBtn');
+    if (showHiddenBtn) {
+      showHiddenBtn.addEventListener('click', function() {
+        hiddenComments.clear();
+        renderComments();
+      });
+    }
+
+    window.toggleCommentsPanel = function() {
+      var panel = document.getElementById('commentsPanel');
+      var isOpen = panel.classList.contains('open');
+      if (isOpen) {
+        panel.classList.remove('open');
+        document.getElementById('commentsTab').classList.remove('active');
+      } else {
+        var filesPanel = document.getElementById('filesPanel');
+        if (filesPanel && filesPanel.classList.contains('open')) {
+          filesPanel.classList.remove('open');
+          document.getElementById('filesTab').classList.remove('active');
+        }
+        var findingsPanelEl = document.getElementById('findingsPanel');
+        if (findingsPanelEl && findingsPanelEl.classList.contains('open')) {
+          findingsPanelEl.classList.remove('open');
+          document.getElementById('findingsTab').classList.remove('active');
+        }
+        panel.classList.add('open');
+        document.getElementById('commentsTab').classList.add('active');
+      }
+    };
+  })();
+  @endif
 
   @if($aiReviewMarkdown)
   (function() {
@@ -764,6 +999,8 @@ tailwind.config = {
       case 'name': return n.id.toLowerCase();
       case 'cc': var m = filesMetrics[n.path]; return m && m.cc != null ? m.cc : -1;
       case 'mi': var m = filesMetrics[n.path]; return m && m.mi != null ? m.mi : 999;
+      case 'ce': var m = filesMetrics[n.path]; return m && m.coupling != null ? m.coupling : -1;
+      case 'flog': var m = filesMetrics[n.path]; return m && m.flog != null ? m.flog : -1;
       case 'status': return n.status;
       default: return 0;
     }
@@ -867,7 +1104,7 @@ tailwind.config = {
 
       var isReviewed = reviewedFiles.has(n.id);
       var b = m.before || null;
-      var ccArrow = '', miArrow = '';
+      var ccArrow = '', miArrow = '', flogArrow = '';
       if (b != null) {
         if (b.cc != null && m.cc != null) {
           var ccDelta = m.cc - b.cc;
@@ -880,6 +1117,12 @@ tailwind.config = {
           miArrow = miDelta > 0 ? '<span style="color:#3fb950;font-size:9px;margin-left:2px">\u2191</span>'
                   : miDelta < 0 ? '<span style="color:#f85149;font-size:9px;margin-left:2px">\u2193</span>'
                   : '';
+        }
+        if (b.flog != null && m.flog != null) {
+          var flogDelta = Math.round((m.flog - b.flog) * 10) / 10;
+          flogArrow = flogDelta > 0 ? '<span style="color:#f85149;font-size:9px;margin-left:2px">\u2191</span>'
+                    : flogDelta < 0 ? '<span style="color:#3fb950;font-size:9px;margin-left:2px">\u2193</span>'
+                    : '';
         }
       }
 
@@ -902,7 +1145,11 @@ tailwind.config = {
       }
       if (m.coupling != null) {
         var cplColor = m.coupling > 15 ? '#f85149' : m.coupling > 8 ? '#d29922' : '#484f58';
-        chips.push('<span class="file-metric-chip" style="color:' + cplColor + '">cpl ' + m.coupling + '</span>');
+        chips.push('<span class="file-metric-chip" style="color:' + cplColor + '">ce ' + m.coupling + '</span>');
+      }
+      if (m.flog != null) {
+        var flogChipColor = m.flog >= 60 ? '#f85149' : m.flog >= 30 ? '#d29922' : '#484f58';
+        chips.push('<span class="file-metric-chip" style="color:' + flogChipColor + '">flog ' + m.flog + flogArrow + '</span>');
       }
       if (m.lloc != null) {
         chips.push('<span class="file-metric-chip">loc ' + m.lloc + '</span>');
@@ -1356,7 +1603,7 @@ tailwind.config = {
       var list = allFindings.filter(function(f) {
         var isDone = doneFindings.has(findingKey(f));
         if (isDone && !showDone) return false;
-        if (sevFilter && f.severity !== sevFilter) return false;
+        if (sevFilter && sevScores[f.severity] < sevScores[sevFilter]) return false;
         if (typeFilter && f.category !== typeFilter) return false;
         if (!filter) return true;
         return f.description.toLowerCase().indexOf(filter) !== -1

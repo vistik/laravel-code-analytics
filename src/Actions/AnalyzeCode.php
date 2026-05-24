@@ -5,6 +5,10 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 use Closure;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\ConnectedNodeFactory;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\DependencyGraph;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\FqcnNodeIndex;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\Psr4Resolver;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\BladeDependencyRule;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\ViewFileDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
@@ -64,26 +68,19 @@ class AnalyzeCode
     /** GitHub "owner/repo" when analyzing a remote PR (empty in local mode) */
     private string $prRepo = '';
 
-    /** @var array<string, string> */
-    private array $fqcnToNode = [];
+    /** Fetched PR comments (general + reviews + inline), populated in PR mode only */
+    private array $prComments = [];
 
-    /** @var array<string, string> */
-    private array $pathToNode = [];
+    /** Inline review comment threads keyed by file path, populated in PR mode only */
+    private array $inlineComments = [];
 
-    /** @var list<array{0: string, 1: string, 2: string}> */
-    private array $edges = [];
+    private DependencyGraph $graph;
 
-    /** @var array<string, true> */
-    private array $edgeSet = [];
+    private FqcnNodeIndex $fqcnIndex;
 
-    /** @var array<string, array> Non-diff dependency nodes discovered during dependency extraction */
-    private array $connectedNodes = [];
+    private ConnectedNodeFactory $connectedNodeFactory;
 
-    /** @var array<string, string> FQCN → connected node ID */
-    private array $connectedNodeFqcn = [];
-
-    /** @var array<string, string>|null PSR-4 namespace prefix → relative directory (loaded from composer.json) */
-    private ?array $psr4Map = null;
+    private ?Psr4Resolver $psr4Resolver = null;
 
     /** Count of outbound network calls made to GitHub during this analysis */
     private int $githubCallCount = 0;
@@ -102,6 +99,9 @@ class AnalyzeCode
         $this->groupResolverIsDefault = $this->groupResolver instanceof PatternBasedGroupResolver;
         $this->riskScorer = $riskScorer ?? new CalculateRiskScore;
         $this->fileSignalScorer = $fileSignalScorer ?? new CalculateFileSignal;
+        $this->graph = new DependencyGraph;
+        $this->fqcnIndex = new FqcnNodeIndex;
+        $this->connectedNodeFactory = new ConnectedNodeFactory($this->groupResolver);
     }
 
     /**
@@ -184,9 +184,9 @@ class AnalyzeCode
         [$fqcnToFilePath, $fileReferences] = $this->buildDependencyGraph($nodes, $phpFiles, $frontendFiles, $headContents);
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
-        if ($this->connectedNodes !== []) {
-            $nodes = array_merge($nodes, array_values($this->connectedNodes));
-            $this->progress('line', '  Found '.count($this->connectedNodes).' connected (non-diff) dependencies.');
+        if ($this->graph->connectedNodes !== []) {
+            $nodes = array_merge($nodes, array_values($this->graph->connectedNodes));
+            $this->progress('line', '  Found '.count($this->graph->connectedNodes).' connected (non-diff) dependencies.');
         }
 
         $nodes = $this->enrichNodesWithKind($nodes, $headContents);
@@ -224,8 +224,8 @@ class AnalyzeCode
         }
 
         // Always load file contents for connected nodes so their code can be viewed in the panel.
-        if ($this->connectedNodes !== []) {
-            $connectedPaths = array_column(array_values($this->connectedNodes), 'path');
+        if ($this->graph->connectedNodes !== []) {
+            $connectedPaths = array_column(array_values($this->graph->connectedNodes), 'path');
             // Prefetch blobs in a single batch fetch so git doesn't lazily pull them one-by-one.
             $t = microtime(true);
             if ($this->repoDir !== null) {
@@ -309,7 +309,7 @@ class AnalyzeCode
         $layerStack = LayerStack::fromConfig($this->projectType);
         $payload = new GraphPayload(
             nodes: $nodes,
-            edges: $this->edges,
+            edges: $this->graph->edges,
             fileDiffs: $fileDiffs,
             analysisData: $analysisData,
             metricsData: $metricsData,
@@ -326,7 +326,9 @@ class AnalyzeCode
             prDeletions: $totalDeletions,
             fileCount: $fileCount,
             prUrl: $prLinkUrl,
-            connectedCount: count($this->connectedNodes),
+            connectedCount: count($this->graph->connectedNodes),
+            prComments: $this->prComments,
+            inlineComments: $this->inlineComments,
         );
 
         $extraOptions = $onPayloadReady !== null ? ($onPayloadReady)($payload, $pr, $layerStack) ?? [] : [];
@@ -373,16 +375,14 @@ class AnalyzeCode
 
     private function resetState(): void
     {
-        $this->fqcnToNode = [];
-        $this->pathToNode = [];
-        $this->edges = [];
-        $this->edgeSet = [];
-        $this->connectedNodes = [];
-        $this->connectedNodeFqcn = [];
-        $this->psr4Map = null;
+        $this->graph = new DependencyGraph;
+        $this->fqcnIndex = new FqcnNodeIndex;
+        $this->psr4Resolver = null;
         $this->repoPath = '';
         $this->repoDir = null;
         $this->prRepo = '';
+        $this->prComments = [];
+        $this->inlineComments = [];
         $this->readContentsFromCommit = false;
     }
 
@@ -537,7 +537,7 @@ class AnalyzeCode
         $this->processFrontendDependencies($frontendFiles, $headContents, $componentNameToNode);
         $this->processBladeDependents();
 
-        $this->progress('line', '  Found '.count($this->edges).' dependencies.');
+        $this->progress('line', '  Found '.count($this->graph->edges).' dependencies.');
 
         return [$fqcnToFilePath, $fileReferences];
     }
@@ -561,14 +561,19 @@ class AnalyzeCode
     private function populateNodeLookupMaps(array $nodes, array $filePathToFqcn): void
     {
         foreach ($nodes as $node) {
-            $this->pathToNode[$node['path']] = $node['id'];
+            $this->graph->pathToNode[$node['path']] = $node['id'];
             if (str_ends_with($node['path'], '.php')) {
-                $fqcn = $filePathToFqcn[$node['path']] ?? $this->pathToFqcn($node['path']);
+                $fqcn = $filePathToFqcn[$node['path']] ?? $this->psr4Resolver()->fqcnForPath($node['path']);
                 if ($fqcn) {
-                    $this->fqcnToNode[$fqcn] = $node['id'];
+                    $this->fqcnIndex->diffNodes[$fqcn] = $node['id'];
                 }
             }
         }
+    }
+
+    private function psr4Resolver(): Psr4Resolver
+    {
+        return $this->psr4Resolver ??= new Psr4Resolver($this->repoPath, $this->repoDir, $this->headCommit);
     }
 
     private function buildComponentNameMap(array $nodes): array
@@ -590,6 +595,7 @@ class AnalyzeCode
     private function processPhpDependencies(array $phpFiles, array $headContents): array
     {
         $fileReferences = [];
+        $commandSignatureIndex = $this->buildCommandSignatureIndex();
         foreach ($phpFiles as $node) {
             $content = $headContents[$node['path']] ?? null;
             if ($content === null || $content === '') {
@@ -598,6 +604,7 @@ class AnalyzeCode
             $references = $this->extractReferences($content);
             $this->matchReferences($references, $node['id']);
             $this->matchViewReferences($content, $node['id'], $node['path']);
+            $this->matchScheduleReferences($content, $node['id'], $commandSignatureIndex);
             $fileReferences[$node['path']] = $references;
         }
 
@@ -622,7 +629,7 @@ class AnalyzeCode
     private function processBladeDependents(): void
     {
         $changedBladePaths = array_filter(
-            array_keys($this->pathToNode),
+            array_keys($this->graph->pathToNode),
             fn ($p) => str_ends_with($p, '.blade.php')
         );
 
@@ -633,7 +640,7 @@ class AnalyzeCode
         $changedBladePathSet = array_flip($changedBladePaths);
 
         $allBladePaths = $this->listAllBladeFiles();
-        $nonDiffPaths = array_values(array_filter($allBladePaths, fn ($p) => ! isset($this->pathToNode[$p])));
+        $nonDiffPaths = array_values(array_filter($allBladePaths, fn ($p) => ! isset($this->graph->pathToNode[$p])));
 
         if (empty($nonDiffPaths)) {
             return;
@@ -654,7 +661,7 @@ class AnalyzeCode
 
                 $dependentNodeId = $this->ensureConnectedBladeNode($path);
                 if ($dependentNodeId !== null) {
-                    $this->addEdge($dependentNodeId, $this->pathToNode[$depPath]);
+                    $this->graph->addEdge($dependentNodeId, $this->graph->pathToNode[$depPath]);
                 }
             }
         }
@@ -662,8 +669,9 @@ class AnalyzeCode
 
     private function ensureConnectedBladeNode(string $path): ?string
     {
-        if (isset($this->pathToNode[$path])) {
-            return $this->pathToNode[$path];
+        $existing = $this->graph->nodeIdForPath($path);
+        if ($existing !== null) {
+            return $existing;
         }
 
         if ($this->repoDir === null && $this->repoPath !== '' && ! is_file("{$this->repoPath}/{$path}")) {
@@ -671,34 +679,9 @@ class AnalyzeCode
         }
 
         $label = $this->generateLabel($path);
-        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: basename($path);
-        $folder = dirname($path);
-        $folder = (string) preg_replace('#^app/#', '', $folder);
-        $folder = (string) preg_replace('#^tests/(Unit|Feature)/#', 'tests/', $folder);
-        if ($folder === '.' || $folder === '') {
-            $folder = '';
-        }
-        $domain = explode('/', $folder)[0] ?: '(root)';
+        $node = $this->connectedNodeFactory->make($path, $label);
 
-        $node = [
-            'id' => $label,
-            'path' => $path,
-            'add' => 0,
-            'del' => 0,
-            'status' => 'modified',
-            'group' => $this->groupResolver->resolve($path)->value,
-            'hash' => hash('sha256', $path),
-            'ext' => $ext,
-            'folder' => $folder,
-            'domain' => $domain,
-            'domainColor' => '#484f58',
-            'isConnected' => true,
-        ];
-
-        $this->connectedNodes[$label] = $node;
-        $this->pathToNode[$path] = $label;
-
-        return $label;
+        return $this->graph->registerConnectedNode($node);
     }
 
     /**
@@ -724,6 +707,64 @@ class AnalyzeCode
             explode("\n", $output),
             fn ($p) => str_ends_with($p, '.blade.php')
         ));
+    }
+
+    /**
+     * @return array<string, string> artisan command name → relative file path
+     */
+    private function buildCommandSignatureIndex(): array
+    {
+        $paths = $this->listCommandFiles();
+        if (empty($paths)) {
+            return [];
+        }
+
+        $contents = $this->readBulkFileContents($paths);
+        $index = [];
+
+        foreach ($contents as $path => $content) {
+            if ($content === null || $content === '') {
+                continue;
+            }
+            if (preg_match('/\$signature\s*=\s*[\'"]([^\'"]+)[\'"]/m', $content, $m)) {
+                $commandName = explode(' ', trim($m[1]))[0];
+                if ($commandName !== '') {
+                    $index[$commandName] = $path;
+                }
+            }
+        }
+
+        return $index;
+    }
+
+    /** @return list<string> */
+    private function listCommandFiles(): array
+    {
+        if ($this->repoDir !== null) {
+            $output = trim(shell_exec("git -C {$this->repoDir} ls-tree -r {$this->headCommit} --name-only 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                explode("\n", $output),
+                fn ($p) => str_contains($p, '/Commands/') && str_ends_with($p, '.php'),
+            ));
+        }
+
+        if ($this->repoPath !== '') {
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                array_map('trim', explode("\n", $output)),
+                fn ($p) => str_contains($p, '/Commands/') && str_ends_with($p, '.php'),
+            ));
+        }
+
+        return [];
     }
 
     /**
@@ -767,7 +808,7 @@ class AnalyzeCode
      */
     private function detectAndAnnotateCycles(array $nodes): array
     {
-        $cycleMap = $this->detectCycles($nodes, $this->edges);
+        $cycleMap = $this->detectCycles($nodes, $this->graph->edges);
         $cycleColorPalette = ['#f0883e', '#a371f7', '#3dcfcf', '#ff6b9d', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6b6b'];
 
         foreach ($nodes as &$node) {
@@ -829,11 +870,22 @@ class AnalyzeCode
             return $fileReports;
         }
 
-        return (new LaravelMigrationModelCorrelator)->correlate(
+        [$fileReports, $pairs] = (new LaravelMigrationModelCorrelator)->correlate(
             $fileReports,
             $headContents,
             $this->repoDir !== null ? null : $this->repoPath,
         );
+
+        foreach ($pairs as [$migrationPath, $modelPath]) {
+            $migrationNodeId = $this->graph->pathToNode[$migrationPath] ?? null;
+            $modelNodeId = $this->graph->pathToNode[$modelPath] ?? null;
+
+            if ($migrationNodeId !== null && $modelNodeId !== null) {
+                $this->graph->addEdge($migrationNodeId, $modelNodeId, PhpDependencyExtractor::MIGRATION_MODEL);
+            }
+        }
+
+        return $fileReports;
     }
 
     private function enrichNodesWithAnalysis(array $nodes, array $fileReports): array
@@ -1096,7 +1148,7 @@ class AnalyzeCode
         $changedIds = array_flip(array_column($diffNodes, 'id'));
         $internalConnections = array_fill_keys(array_column($diffNodes, 'id'), 0);
 
-        foreach ($this->edges as [$sourceId, $targetId]) {
+        foreach ($this->graph->edges as [$sourceId, $targetId]) {
             if (isset($changedIds[$sourceId], $changedIds[$targetId])) {
                 $internalConnections[$sourceId]++;
                 $internalConnections[$targetId]++;
@@ -1181,18 +1233,34 @@ class AnalyzeCode
 
         $t = microtime(true);
         $this->githubCallCount++;
-        $prJson = json_decode(
-            trim(shell_exec('gh pr view '.escapeshellarg($prNumber).' --repo '.escapeshellarg($this->prRepo).' --json title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName 2>/dev/null') ?? ''),
-            true,
+        $proc = proc_open(
+            ['gh', 'pr', 'view', $prNumber, '--repo', $this->prRepo, '--json', 'title,additions,deletions,files,headRefOid,baseRefOid,headRefName,baseRefName,comments,reviews'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
         );
+        $stdout = $proc ? (string) stream_get_contents($pipes[1]) : '';
+        $stderr = $proc ? (string) stream_get_contents($pipes[2]) : '';
+        if ($proc) {
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($proc);
+        }
+        $prJson = json_decode(trim($stdout), true);
 
         if (! $prJson || empty($prJson['files'])) {
-            throw new RuntimeException('Could not fetch PR data. Make sure `gh` is authenticated and the PR URL is valid.');
+            $detail = trim($stderr) !== '' ? "\n".trim($stderr) : ' Make sure `gh` is authenticated and the PR URL is valid.';
+            throw new RuntimeException('Could not fetch PR data.'.$detail);
         }
+
+        // Fetch inline review comments via REST API (gh pr view --json does not support reviewThreads in older gh versions).
+        $this->githubCallCount++;
+        $prJson['reviewComments'] = $this->fetchPrReviewComments($prNumber);
 
         $this->headCommit = $prJson['headRefOid'] ?? '';
         $this->baseCommit = $prJson['baseRefOid'] ?? '';
         $this->branchName = "PR #{$prNumber}";
+        $this->inlineComments = $this->extractInlineComments($prJson);
+        $this->prComments = $this->extractPrComments($prJson);
 
         $this->progress('line', '  Title: '.$prJson['title']);
         $this->progress('line', '  Base: '.$prJson['baseRefName'].'  HEAD: '.substr($this->headCommit, 0, 7));
@@ -1259,6 +1327,137 @@ class AnalyzeCode
             'repoName' => basename($this->prRepo),
             'prTitle' => $prJson['title'],
         ];
+    }
+
+    private function extractPrComments(array $prJson): array
+    {
+        $entries = [];
+
+        foreach ($prJson['comments'] ?? [] as $c) {
+            $body = trim($c['body'] ?? '');
+            if ($body === '') {
+                continue;
+            }
+            $entries[] = [
+                'type' => 'comment',
+                'author' => $c['author']['login'] ?? 'unknown',
+                'body' => $body,
+                'createdAt' => $c['createdAt'] ?? '',
+                'url' => $c['url'] ?? '',
+                'state' => null,
+                'path' => null,
+                'line' => null,
+            ];
+        }
+
+        foreach ($prJson['reviews'] ?? [] as $r) {
+            $body = trim($r['body'] ?? '');
+            $state = $r['state'] ?? '';
+            if ($body === '' && ! in_array($state, ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'], true)) {
+                continue;
+            }
+            $entries[] = [
+                'type' => 'review',
+                'author' => $r['author']['login'] ?? 'unknown',
+                'body' => $body,
+                'createdAt' => $r['submittedAt'] ?? $r['createdAt'] ?? '',
+                'url' => $r['url'] ?? '',
+                'state' => $state,
+                'path' => null,
+                'line' => null,
+            ];
+        }
+
+        foreach ($prJson['reviewComments'] ?? [] as $c) {
+            if (! empty($c['in_reply_to_id'])) {
+                continue;
+            }
+            $body = trim($c['body'] ?? '');
+            if ($body === '') {
+                continue;
+            }
+            $entries[] = [
+                'type' => 'inline',
+                'author' => $c['user']['login'] ?? 'unknown',
+                'body' => $body,
+                'createdAt' => $c['created_at'] ?? '',
+                'url' => $c['html_url'] ?? '',
+                'state' => null,
+                'path' => $c['path'] ?? null,
+                'line' => $c['line'] ?? $c['original_line'] ?? null,
+            ];
+        }
+
+        usort($entries, fn ($a, $b) => strcmp($a['createdAt'], $b['createdAt']));
+
+        return $entries;
+    }
+
+    private function extractInlineComments(array $prJson): array
+    {
+        $byPath = [];
+
+        foreach ($prJson['reviewComments'] ?? [] as $c) {
+            $path = $c['path'] ?? '';
+            if ($path === '') {
+                continue;
+            }
+
+            $line = $c['line'] ?? $c['original_line'] ?? null;
+
+            $comment = [
+                'author' => $c['user']['login'] ?? 'unknown',
+                'body' => trim($c['body'] ?? ''),
+                'createdAt' => $c['created_at'] ?? '',
+                'url' => $c['html_url'] ?? '',
+            ];
+
+            if (! isset($byPath[$path])) {
+                $byPath[$path] = [];
+            }
+
+            // Group comments that share the same line into one thread entry.
+            $threadIdx = null;
+            foreach ($byPath[$path] as $i => $thread) {
+                if ($thread['line'] === $line) {
+                    $threadIdx = $i;
+                    break;
+                }
+            }
+
+            if ($threadIdx !== null) {
+                $byPath[$path][$threadIdx]['comments'][] = $comment;
+            } else {
+                $byPath[$path][] = [
+                    'line' => $line,
+                    'side' => $c['side'] ?? 'RIGHT',
+                    'isResolved' => false,
+                    'isOutdated' => false,
+                    'comments' => [$comment],
+                ];
+            }
+        }
+
+        return $byPath;
+    }
+
+    private function fetchPrReviewComments(string $prNumber): array
+    {
+        $proc = proc_open(
+            ['gh', 'api', '--paginate', '--slurp', "repos/{$this->prRepo}/pulls/{$prNumber}/comments"],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        $stdout = $proc ? (string) stream_get_contents($pipes[1]) : '';
+        if ($proc) {
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($proc);
+        }
+
+        $pages = json_decode($stdout, true);
+
+        return array_merge(...($pages ?: [[]]));
     }
 
     private function resolveGitObjectsCache(array $changedPaths, bool $full = false): void
@@ -1872,7 +2071,7 @@ class AnalyzeCode
         $metricsData = [];
 
         foreach ($metricsByFqcn as $fqcn => $m) {
-            $path = $fqcnToFilePath[$fqcn] ?? $this->fqcnToPath($fqcn);
+            $path = $fqcnToFilePath[$fqcn] ?? $this->psr4Resolver()->pathForFqcn($fqcn);
             if ($path === null) {
                 continue;
             }
@@ -1908,7 +2107,7 @@ class AnalyzeCode
 
         $metricsBefore = [];
         foreach ((new PhpMetricsRunner)->run($oldSources) as $fqcn => $m) {
-            $path = $oldFqcnToPath[$fqcn] ?? $this->fqcnToPath($fqcn);
+            $path = $oldFqcnToPath[$fqcn] ?? $this->psr4Resolver()->pathForFqcn($fqcn);
             if ($path !== null) {
                 $metricsBefore[$path] = $m;
             }
@@ -1951,6 +2150,7 @@ class AnalyzeCode
         foreach ($methodMetrics as $path => $methods) {
             if (isset($metricsData[$path]) && ! empty($methods)) {
                 $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
+                $metricsData[$path]['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
             }
         }
 
@@ -1959,6 +2159,7 @@ class AnalyzeCode
             foreach ($beforeMethodMetrics as $path => $methods) {
                 if (isset($metricsData[$path]) && ! empty($methods)) {
                     $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
+                    $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
                 }
             }
         }
@@ -2230,21 +2431,6 @@ class AnalyzeCode
         return (new PhpDependencyExtractor)->extract($content);
     }
 
-    private function addEdge(string $sourceId, string $targetId, string $type = PhpDependencyExtractor::USE): void
-    {
-        if ($sourceId === $targetId) {
-            return;
-        }
-
-        $key = "{$sourceId}->{$targetId}";
-        if (isset($this->edgeSet[$key])) {
-            return;
-        }
-
-        $this->edges[] = [$sourceId, $targetId, $type];
-        $this->edgeSet[$key] = true;
-    }
-
     /**
      * @param  array<string, string>  $references  FQCN/short-name → dependency type
      */
@@ -2253,18 +2439,18 @@ class AnalyzeCode
         foreach ($references as $ref => $type) {
             $ref = ltrim($ref, '\\');
 
-            if (isset($this->fqcnToNode[$ref])) {
-                $this->addEdge($sourceNodeId, $this->fqcnToNode[$ref], $type);
+            if (isset($this->fqcnIndex->diffNodes[$ref])) {
+                $this->graph->addEdge($sourceNodeId, $this->fqcnIndex->diffNodes[$ref], $type);
 
                 continue;
             }
 
             $shortName = basename(str_replace('\\', '/', $ref));
             $matched = false;
-            foreach ($this->fqcnToNode as $fqcn => $nodeId) {
+            foreach ($this->fqcnIndex->diffNodes as $fqcn => $nodeId) {
                 $fqcnShort = basename(str_replace('\\', '/', $fqcn));
                 if ($fqcnShort === $shortName) {
-                    $this->addEdge($sourceNodeId, $nodeId, $type);
+                    $this->graph->addEdge($sourceNodeId, $nodeId, $type);
                     $matched = true;
                     break;
                 }
@@ -2273,102 +2459,10 @@ class AnalyzeCode
             if (! $matched) {
                 $connectedId = $this->ensureConnectedNode($ref);
                 if ($connectedId !== null) {
-                    $this->addEdge($sourceNodeId, $connectedId, $type);
+                    $this->graph->addEdge($sourceNodeId, $connectedId, $type);
                 }
             }
         }
-    }
-
-    /**
-     * Derive the likely file path for a given FQCN using PSR-4 mappings from composer.json.
-     */
-    private function fqcnToExpectedPath(string $fqcn): ?string
-    {
-        $map = $this->loadPsr4Map();
-
-        // Sort by prefix length descending so the most-specific prefix wins
-        foreach ($map as $prefix => $dir) {
-            if (str_starts_with($fqcn, $prefix)) {
-                return $dir.str_replace('\\', '/', substr($fqcn, strlen($prefix))).'.php';
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Load PSR-4 namespace→directory mappings from composer.json, falling back to
-     * Laravel conventions when composer.json is unavailable or unreadable.
-     *
-     * @return array<string, string> namespace prefix (with trailing \\) → relative dir (with trailing /)
-     */
-    private function loadPsr4Map(): array
-    {
-        if ($this->psr4Map !== null) {
-            return $this->psr4Map;
-        }
-
-        $composerJson = $this->readComposerJson();
-        $map = $this->parsePsr4Map($composerJson);
-
-        // Fall back to Laravel conventions when composer.json is unavailable
-        if (empty($map)) {
-            $map = [
-                'App\\' => 'app/',
-                'Database\\Factories\\' => 'database/factories/',
-                'Database\\Seeders\\' => 'database/seeders/',
-                'Tests\\' => 'tests/',
-            ];
-        }
-
-        // Sort by prefix length descending so the most-specific prefix wins
-        uksort($map, fn ($a, $b) => strlen($b) - strlen($a));
-
-        return $this->psr4Map = $map;
-    }
-
-    private function readComposerJson(): ?string
-    {
-        // Local mode: read directly from the filesystem
-        if ($this->repoPath !== '') {
-            $path = "{$this->repoPath}/composer.json";
-
-            return is_file($path) ? (file_get_contents($path) ?: null) : null;
-        }
-
-        // Remote PR mode: read from the bare clone via git cat-file
-        if ($this->repoDir !== null && $this->headCommit !== '') {
-            $content = shell_exec("git -C {$this->repoDir} cat-file blob {$this->headCommit}:composer.json 2>/dev/null");
-
-            return ($content !== null && $content !== '') ? $content : null;
-        }
-
-        return null;
-    }
-
-    /** @return array<string, string> */
-    private function parsePsr4Map(?string $json): array
-    {
-        if ($json === null) {
-            return [];
-        }
-
-        $decoded = json_decode($json, true);
-        if (! is_array($decoded)) {
-            return [];
-        }
-
-        $map = [];
-        foreach (['autoload', 'autoload-dev'] as $key) {
-            foreach ($decoded[$key]['psr-4'] ?? [] as $ns => $dirs) {
-                $ns = rtrim($ns, '\\').'\\';
-                foreach ((array) $dirs as $dir) {
-                    $map[$ns] = rtrim($dir, '/').'/';
-                }
-            }
-        }
-
-        return $map;
     }
 
     /**
@@ -2377,53 +2471,28 @@ class AnalyzeCode
      */
     private function ensureConnectedNode(string $fqcn): ?string
     {
-        if (isset($this->connectedNodeFqcn[$fqcn])) {
-            return $this->connectedNodeFqcn[$fqcn];
+        if (isset($this->fqcnIndex->resolvedNodes[$fqcn])) {
+            return $this->fqcnIndex->resolvedNodes[$fqcn];
         }
 
-        $path = $this->fqcnToExpectedPath($fqcn);
+        $path = $this->psr4Resolver()->pathForFqcn($fqcn);
         if ($path === null) {
             return null;
         }
 
-        // If this path already exists as a diff node, return that node's ID
-        if (isset($this->pathToNode[$path])) {
-            return $this->pathToNode[$path];
+        $existing = $this->graph->nodeIdForPath($path);
+        if ($existing !== null) {
+            return $existing;
         }
 
-        // For local repos, verify the file actually exists
         if ($this->repoDir === null && $this->repoPath !== '' && ! is_file("{$this->repoPath}/{$path}")) {
             return null;
         }
 
         $label = $this->generateLabel($path);
-        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: basename($path);
-        $folder = dirname($path);
-        $folder = (string) preg_replace('#^app/#', '', $folder);
-        $folder = (string) preg_replace('#^tests/(Unit|Feature)/#', 'tests/', $folder);
-        if ($folder === '.' || $folder === '') {
-            $folder = '';
-        }
-        $domain = explode('/', $folder)[0] ?: '(root)';
-
-        $node = [
-            'id' => $label,
-            'path' => $path,
-            'add' => 0,
-            'del' => 0,
-            'status' => 'modified',
-            'group' => $this->groupResolver->resolve($path)->value,
-            'hash' => hash('sha256', $path),
-            'ext' => $ext,
-            'folder' => $folder,
-            'domain' => $domain,
-            'domainColor' => '#484f58',
-            'isConnected' => true,
-        ];
-
-        $this->connectedNodes[$label] = $node;
-        $this->connectedNodeFqcn[$fqcn] = $label;
-        $this->pathToNode[$path] = $label;
+        $node = $this->connectedNodeFactory->make($path, $label);
+        $this->graph->registerConnectedNode($node);
+        $this->fqcnIndex->resolvedNodes[$fqcn] = $label;
 
         return $label;
     }
@@ -2434,8 +2503,9 @@ class AnalyzeCode
         foreach ($inertiaMatches[1] as $page) {
             foreach (['jsx', 'tsx', 'vue'] as $ext) {
                 $path = "resources/js/Pages/{$page}.{$ext}";
-                if (isset($this->pathToNode[$path])) {
-                    $this->addEdge($sourceNodeId, $this->pathToNode[$path]);
+                $targetId = $this->graph->nodeIdForPath($path);
+                if ($targetId !== null) {
+                    $this->graph->addEdge($sourceNodeId, $targetId);
                     break;
                 }
             }
@@ -2444,22 +2514,64 @@ class AnalyzeCode
         preg_match_all('/\bview\s*\(\s*[\'"]([^\'"]+)[\'"]/m', $content, $viewMatches);
         foreach ($viewMatches[1] as $view) {
             $viewPath = 'resources/views/'.str_replace('.', '/', $view).'.blade.php';
-            if (isset($this->pathToNode[$viewPath])) {
-                $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+            $targetId = $this->graph->nodeIdForPath($viewPath);
+            if ($targetId !== null) {
+                $this->graph->addEdge($sourceNodeId, $targetId);
             }
         }
 
         foreach ((new ViewFileDependencyRule)->resolve($content, $sourcePath) as $viewPath) {
-            if (isset($this->pathToNode[$viewPath])) {
-                $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+            $targetId = $this->graph->nodeIdForPath($viewPath);
+            if ($targetId !== null) {
+                $this->graph->addEdge($sourceNodeId, $targetId);
             }
         }
 
         if (str_ends_with($sourcePath, '.blade.php')) {
             foreach ((new BladeDependencyRule)->resolve($content) as $viewPath) {
-                if (isset($this->pathToNode[$viewPath])) {
-                    $this->addEdge($sourceNodeId, $this->pathToNode[$viewPath]);
+                $targetId = $this->graph->nodeIdForPath($viewPath);
+                if ($targetId !== null) {
+                    $this->graph->addEdge($sourceNodeId, $targetId);
+                } else {
+                    $targetNodeId = $this->ensureConnectedBladeNode($viewPath);
+                    if ($targetNodeId !== null) {
+                        $this->graph->addEdge($sourceNodeId, $targetNodeId);
+                    }
                 }
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $commandSignatureIndex  command-name → relative-file-path
+     */
+    private function matchScheduleReferences(string $content, string $sourceNodeId, array $commandSignatureIndex): void
+    {
+        if (empty($commandSignatureIndex)) {
+            return;
+        }
+
+        $pattern = '/(?:Schedule::command|\$schedule->command)\s*\(\s*[\'"]([^\'"]+)[\'"]/m';
+        if (! preg_match_all($pattern, $content, $matches)) {
+            return;
+        }
+
+        foreach ($matches[1] as $signature) {
+            $commandName = explode(' ', trim($signature))[0];
+            $commandPath = $commandSignatureIndex[$commandName] ?? null;
+            if ($commandPath === null) {
+                continue;
+            }
+
+            if (isset($this->graph->pathToNode[$commandPath])) {
+                $this->graph->addEdge($sourceNodeId, $this->graph->pathToNode[$commandPath], PhpDependencyExtractor::STATIC_CALL);
+
+                continue;
+            }
+
+            $targetId = $this->ensureConnectedBladeNode($commandPath);
+            if ($targetId !== null) {
+                $this->graph->addEdge($sourceNodeId, $targetId, PhpDependencyExtractor::STATIC_CALL);
             }
         }
     }
@@ -2471,42 +2583,9 @@ class AnalyzeCode
 
         foreach ($components as $component) {
             if (isset($componentNameToNode[$component]) && $componentNameToNode[$component] !== $sourceNodeId) {
-                $this->addEdge($sourceNodeId, $componentNameToNode[$component]);
+                $this->graph->addEdge($sourceNodeId, $componentNameToNode[$component]);
             }
         }
-    }
-
-    private function pathToFqcn(string $path): ?string
-    {
-        if (preg_match('#^app/(.+)\.php$#', $path, $m)) {
-            return 'App\\'.str_replace('/', '\\', $m[1]);
-        }
-        if (preg_match('#^database/factories/(.+)\.php$#', $path, $m)) {
-            return 'Database\\Factories\\'.str_replace('/', '\\', $m[1]);
-        }
-        if (preg_match('#^tests/(.+)\.php$#', $path, $m)) {
-            return 'Tests\\'.str_replace('/', '\\', $m[1]);
-        }
-
-        return null;
-    }
-
-    private function fqcnToPath(string $fqcn): ?string
-    {
-        if (str_starts_with($fqcn, 'App\\')) {
-            return 'app/'.str_replace('\\', '/', substr($fqcn, 4)).'.php';
-        }
-        if (str_starts_with($fqcn, 'Database\\Factories\\')) {
-            return 'database/factories/'.str_replace('\\', '/', substr($fqcn, 19)).'.php';
-        }
-        if (str_starts_with($fqcn, 'Database\\Seeders\\')) {
-            return 'database/seeders/'.str_replace('\\', '/', substr($fqcn, 17)).'.php';
-        }
-        if (str_starts_with($fqcn, 'Tests\\')) {
-            return 'tests/'.str_replace('\\', '/', substr($fqcn, 6)).'.php';
-        }
-
-        return null;
     }
 
     /**

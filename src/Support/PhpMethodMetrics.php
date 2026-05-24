@@ -10,6 +10,7 @@ readonly class PhpMethodMetrics
         public int $cc,
         public int $lloc,
         public int $params,
+        public float $flog,
     ) {}
 
     /** @return array<string, mixed> */
@@ -21,6 +22,7 @@ readonly class PhpMethodMetrics
             'cc' => $this->cc,
             'lloc' => $this->lloc,
             'params' => $this->params,
+            'flog' => $this->flog,
         ];
     }
 }

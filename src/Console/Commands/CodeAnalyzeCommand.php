@@ -44,8 +44,10 @@ class CodeAnalyzeCommand extends Command
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
         {--folder=* : Only analyze files under this directory prefix (can be repeated, e.g. --folder=src)}
         {--ext=* : Only analyze files with this extension (can be repeated, e.g. --ext=php)}
-        {--open : Open the generated file in the browser when done}
-        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (increases report size)}
+        {--open : Open the generated file in the browser when done (enabled by default)}
+        {--no-open : Do not open the generated file in the browser}
+        {--full-files : Embed full file contents in the report to enable the "Full file" diff view (enabled by default)}
+        {--no-full-files : Do not embed full file contents in the report}
         {--github-metrics : Include per-class and per-method PHP metrics as inline annotations (only applies to --format=github)}
         {--coverage-xml= : Path to a PHPUnit --coverage-xml directory — overlays per-line coverage on the diff and uses coverage as a signal}
         {--review : Generate an AI review summary and embed it in the HTML report (requires Ollama running locally)}';
@@ -70,8 +72,8 @@ class CodeAnalyzeCommand extends Command
             $formatString = $this->option('format') ?? $config['format'] ?? 'html';
             $format = OutputFormat::tryFrom($formatString)
                 ?? throw new RuntimeException("Invalid format: {$formatString}. Valid options: html, md, json, metrics, llm, github");
-            $openFile = $this->option('open') || ($config['open'] ?? false);
-            $includeFileContents = $this->option('full-files') || ($config['full_files'] ?? false);
+            $openFile = ! $this->option('no-open') && ($this->option('open') || ($config['open'] ?? true));
+            $includeFileContents = ! $this->option('no-full-files') && ($this->option('full-files') || ($config['full_files'] ?? true));
             $githubMetrics = $this->option('github-metrics') || ($config['github_metrics'] ?? false);
 
             if ($openFile && $outputPath === null) {
@@ -127,6 +129,8 @@ class CodeAnalyzeCommand extends Command
 
             $onPayloadReady = $this->buildOnPayloadReady($format, $repoPath, $baseBranch, $prUrl, $full, $filePatterns, $fromCommit, $toCommit, $minSeverity, $focusFiles);
 
+            $rateLimitBefore = $this->fetchGitHubRateLimit();
+
             $result = $action->execute(
                 repoPath: $repoPath,
                 outputPath: $outputPath,
@@ -152,6 +156,8 @@ class CodeAnalyzeCommand extends Command
                 coverageXmlDir: $this->option('coverage-xml'),
                 onPayloadReady: $onPayloadReady,
             );
+
+            $this->printRateLimitSummary($rateLimitBefore);
 
             if ($this->output->isVerbose() && ! empty($result['files'])) {
                 foreach ($result['files'] as $layoutValue => $file) {
@@ -258,6 +264,45 @@ class CodeAnalyzeCommand extends Command
     private function resolveGroupResolver(array $fileGroups): FileGroupResolver
     {
         return new ArrayFileGroupResolver($fileGroups);
+    }
+
+    /** @return array{remaining: int, limit: int}|null */
+    private function fetchGitHubRateLimit(): ?array
+    {
+        $output = shell_exec('gh api rate_limit 2>/dev/null');
+        if ($output === null) {
+            return null;
+        }
+
+        $data = json_decode($output, true);
+        $core = $data['resources']['core'] ?? null;
+
+        if (! is_array($core)) {
+            return null;
+        }
+
+        return ['remaining' => (int) $core['remaining'], 'limit' => (int) $core['limit']];
+    }
+
+    /** @param array{remaining: int, limit: int}|null $before */
+    private function printRateLimitSummary(?array $before): void
+    {
+        $after = $this->fetchGitHubRateLimit();
+
+        if ($before === null || $after === null) {
+            return;
+        }
+
+        $spent = $before['remaining'] - $after['remaining'];
+        $remaining = $after['remaining'];
+        $limit = $after['limit'];
+
+        $this->line(sprintf(
+            '<fg=gray>GitHub API rate limit: <fg=yellow>%d</> used this run · <fg=green>%d</><fg=gray>/%d remaining</>',
+            $spent,
+            $remaining,
+            $limit,
+        ));
     }
 
     /**

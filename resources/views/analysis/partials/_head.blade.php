@@ -53,6 +53,16 @@ tailwind.config = {
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #484f58; }
 
+  /* ── Metric chip tooltip ── */
+  #metric-tooltip {
+    position: fixed; pointer-events: none; z-index: 100;
+    background: #1c2128; border: 1px solid rgba(48,54,61,0.8);
+    border-radius: 8px; padding: 7px 11px;
+    font-size: 12px; line-height: 1.5; color: #8b949e;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04) inset;
+    max-width: 260px; display: none; white-space: normal;
+  }
+
   /* ── Hover tooltip (JS-positioned) ── */
   .tooltip {
     position: absolute; pointer-events: none;
@@ -208,15 +218,19 @@ tailwind.config = {
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: #2d333b; border-radius: 10px; }
 
-  /* ── Panel close/back ── */
+  /* ── Panel topbar (breadcrumbs + back + close) ── */
+  #panel-topbar {
+    display: flex; align-items: center; flex-shrink: 0;
+    border-bottom: 1px solid #21262d; min-height: 36px; gap: 2px; padding-right: 4px;
+  }
   .panel-close {
-    position: absolute; top: 14px; right: 14px; background: none; border: none;
-    color: #6e7681; font-size: 18px; cursor: pointer; line-height: 1; padding: 4px;
+    flex-shrink: 0; background: none; border: none;
+    color: #6e7681; font-size: 18px; cursor: pointer; line-height: 1; padding: 4px 8px;
     border-radius: 6px; transition: color 0.15s, background 0.15s;
   }
   .panel-close:hover { color: #e6edf3; background: #21262d; }
   .panel-back {
-    position: absolute; top: 14px; right: 44px; background: none; border: none;
+    flex-shrink: 0; background: none; border: none;
     color: #6e7681; font-size: 12px; cursor: pointer; padding: 4px 8px;
     display: none; align-items: center; gap: 4px; border-radius: 6px;
     transition: color 0.15s, background 0.15s; font-family: inherit;
@@ -225,15 +239,15 @@ tailwind.config = {
   .panel-back.visible { display: inline-flex; }
 
   #panel-breadcrumbs {
-    display: none; padding: 6px 24px 4px; border-bottom: 1px solid #21262d;
-    flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px;
+    flex: 1; min-width: 0;
+    display: flex; padding: 6px 8px 6px 16px; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px;
   }
   .bc-item {
     color: #58a6ff; cursor: pointer; padding: 2px 4px; border-radius: 4px;
     white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
   }
   .bc-item:hover { background: #21262d; }
-  .bc-current { color: #8b949e; cursor: default; }
+  .bc-current { color: #3fb950; cursor: default; }
   .bc-current:hover { background: none; }
   .bc-sep { color: #484f58; padding: 0 1px; font-size: 11px; }
 
@@ -257,6 +271,9 @@ tailwind.config = {
   #diff-nav button:first-child { border-radius: 8px 0 0 8px; border-right: none; }
   #diff-nav button:last-child  { border-radius: 0 8px 8px 0; }
   #diff-nav button:hover { background: #2d333b; color: #c9d1d9; border-color: #484f58; }
+
+  /* ── Metric chip tooltips ── */
+  .mc-tip { cursor: default; }
 
   /* ── Complexity scroll button ── */
   #complexity-scroll-btn {

@@ -1,6 +1,7 @@
 <?php
 
 use Vistik\LaravelCodeAnalytics\Actions\AnalyzeCode;
+use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\Psr4Resolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -172,60 +173,60 @@ describe('matchesWatchPattern', function () {
     });
 });
 
-// ── pathToFqcn ────────────────────────────────────────────────────────────────
+// ── Psr4Resolver::fqcnForPath ────────────────────────────────────────────────
 
-describe('pathToFqcn', function () {
+describe('Psr4Resolver::fqcnForPath', function () {
     it('converts app path to App namespace FQCN', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'app/Models/User.php'))->toBe('App\\Models\\User');
+        expect((new Psr4Resolver)->fqcnForPath('app/Models/User.php'))->toBe('App\\Models\\User');
     });
 
     it('converts nested app path correctly', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'app/Http/Controllers/UserController.php'))
+        expect((new Psr4Resolver)->fqcnForPath('app/Http/Controllers/UserController.php'))
             ->toBe('App\\Http\\Controllers\\UserController');
     });
 
     it('converts database/factories path to Database\\Factories FQCN', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'database/factories/UserFactory.php'))
+        expect((new Psr4Resolver)->fqcnForPath('database/factories/UserFactory.php'))
             ->toBe('Database\\Factories\\UserFactory');
     });
 
     it('converts tests path to Tests namespace FQCN', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'tests/Feature/UserTest.php'))
+        expect((new Psr4Resolver)->fqcnForPath('tests/Feature/UserTest.php'))
             ->toBe('Tests\\Feature\\UserTest');
     });
 
     it('returns null for unrecognised paths', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'some/unknown/path.php'))->toBeNull();
+        expect((new Psr4Resolver)->fqcnForPath('some/unknown/path.php'))->toBeNull();
     });
 
     it('returns null for non-PHP files', function () {
-        expect(analyzeCodeMethod('pathToFqcn', 'resources/js/app.js'))->toBeNull();
+        expect((new Psr4Resolver)->fqcnForPath('resources/js/app.js'))->toBeNull();
     });
 });
 
-// ── fqcnToPath ────────────────────────────────────────────────────────────────
+// ── Psr4Resolver::pathForFqcn ────────────────────────────────────────────────
 
-describe('fqcnToPath', function () {
+describe('Psr4Resolver::pathForFqcn', function () {
     it('converts App namespace FQCN to app path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'App\\Models\\User'))->toBe('app/Models/User.php');
+        expect((new Psr4Resolver)->pathForFqcn('App\\Models\\User'))->toBe('app/Models/User.php');
     });
 
     it('converts Database\\Factories FQCN to database/factories path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'Database\\Factories\\UserFactory'))
+        expect((new Psr4Resolver)->pathForFqcn('Database\\Factories\\UserFactory'))
             ->toBe('database/factories/UserFactory.php');
     });
 
     it('converts Database\\Seeders FQCN to database/seeders path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'Database\\Seeders\\DatabaseSeeder'))
+        expect((new Psr4Resolver)->pathForFqcn('Database\\Seeders\\DatabaseSeeder'))
             ->toBe('database/seeders/DatabaseSeeder.php');
     });
 
     it('converts Tests FQCN to tests path', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'Tests\\Unit\\FooTest'))->toBe('tests/Unit/FooTest.php');
+        expect((new Psr4Resolver)->pathForFqcn('Tests\\Unit\\FooTest'))->toBe('tests/Unit/FooTest.php');
     });
 
     it('returns null for unknown namespaces', function () {
-        expect(analyzeCodeMethod('fqcnToPath', 'SomeVendor\\Package\\SomeClass'))->toBeNull();
+        expect((new Psr4Resolver)->pathForFqcn('SomeVendor\\Package\\SomeClass'))->toBeNull();
     });
 });
 
@@ -1088,9 +1089,9 @@ function computeSignalScoresWithEdges(array $nodes, array $edges, int $baseScore
 
     $obj = new AnalyzeCode(fileSignalScorer: $scorer);
 
-    $edgesProp = new ReflectionProperty($obj, 'edges');
-    $edgesProp->setAccessible(true);
-    $edgesProp->setValue($obj, $edges);
+    $graphProp = new ReflectionProperty($obj, 'graph');
+    $graphProp->setAccessible(true);
+    $graphProp->getValue($obj)->edges = $edges;
 
     $method = new ReflectionMethod($obj, 'computeSignalScores');
     $method->setAccessible(true);
@@ -1344,6 +1345,39 @@ class HomeController {}');
         expect($content['dependencies'])->not->toBeEmpty();
     });
 
+    it('adds a non-diff blade file as a connected node when a changed blade partial @includes it', function () {
+        $dir = makeTempGitRepo();
+
+        // The included layout exists before the diff — it is NOT a diff node
+        addAndStageFile($dir, 'resources/views/layouts/app.blade.php', '<html>{{ $slot }}</html>');
+        shell_exec("git -C {$dir} commit -m 'add layout' 2>&1");
+
+        // Stage the partial — it IS in the diff, and it @includes the layout
+        addAndStageFile($dir, 'resources/views/partials/_script-panel.blade.php', "@extends('layouts.app')\n<script>/* panel */</script>");
+
+        $result = (new AnalyzeCode)->execute(
+            repoPath: $dir,
+            format: OutputFormat::JSON,
+            raw: true,
+        );
+
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('resources/views/partials/_script-panel.blade.php')
+            ->and($paths)->toContain('resources/views/layouts/app.blade.php');
+
+        // The connected layout has zero additions/deletions
+        $layoutFile = collect($content['files'])->firstWhere('path', 'resources/views/layouts/app.blade.php');
+        expect($layoutFile['additions'])->toBe(0)
+            ->and($layoutFile['deletions'])->toBe(0);
+
+        // An edge exists from the partial to the layout
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+
     it('handles multiple non-diff blade files referencing the same changed blade', function () {
         $dir = makeTempGitRepo();
 
@@ -1456,5 +1490,277 @@ describe('applyFilePatternFilter — path/substring patterns', function () {
             'app/Services/Foo.php',
             'app/Models/Bar.php',
         ]);
+    });
+});
+
+// ── execute — migration model edges ──────────────────────────────────────────
+
+describe('execute — migration model edges', function () {
+    it('creates a dependency edge from a migration to its correlated model when both are in the diff', function () {
+        $dir = makeTempGitRepo(withArtisan: true);
+
+        addAndStageFile($dir, 'database/migrations/2024_01_01_000000_create_users_table.php', '<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+return new class extends Migration {
+    public function up(): void {
+        Schema::create(\'users\', function (Blueprint $table) {
+            $table->id();
+        });
+    }
+};');
+
+        addAndStageFile($dir, 'app/Models/User.php', '<?php
+namespace App\Models;
+use Illuminate\Database\Eloquent\Model;
+class User extends Model {}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+});
+
+// ── execute — schedule command links ─────────────────────────────────────────
+
+describe('execute — schedule command links', function () {
+    it('adds the command class as a connected node when routes/console.php schedules it by signature', function () {
+        $dir = makeTempGitRepo();
+
+        // Commit the command file — it will not be in the diff
+        addAndStageFile($dir, 'app/Console/Commands/ProcessData.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class ProcessData extends Command {
+    protected $signature = \'app:process-data\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        // Stage routes/console.php — this IS the diff
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:process-data\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/ProcessData.php')
+            ->and($paths)->toContain('routes/console.php');
+    });
+
+    it('creates a dependency edge from the schedule file to the command class', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Console/Commands/RunReport.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class RunReport extends Command {
+    protected $signature = \'app:run-report\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:run-report\')->everyHour();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+
+        expect($content['dependencies'])->not->toBeEmpty();
+    });
+
+    it('links via legacy $schedule->command() style', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Console/Commands/SyncUsers.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class SyncUsers extends Command {
+    protected $signature = \'users:sync\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+class Kernel extends ConsoleKernel {
+    protected function schedule(\Illuminate\Console\Scheduling\Schedule $schedule) {
+        $schedule->command(\'users:sync\')->daily();
+    }
+}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/SyncUsers.php');
+    });
+
+    it('links command with arguments in signature by base command name', function () {
+        $dir = makeTempGitRepo();
+
+        // Signature contains arguments and options — only the base name before the first space is the command name
+        addAndStageFile($dir, 'app/Console/Commands/ImportData.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class ImportData extends Command {
+    protected $signature = \'app:import {file} {--queue=}\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:import\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/ImportData.php');
+    });
+
+    it('links command when it is also in the diff (not just a connected node)', function () {
+        $dir = makeTempGitRepo();
+
+        // Both files staged — the command file is a diff node, not a connected node
+        addAndStageFile($dir, 'app/Console/Commands/Cleanup.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class Cleanup extends Command {
+    protected $signature = \'app:cleanup\';
+    public function handle(): void {}
+}');
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:cleanup\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/Cleanup.php')
+            ->and($paths)->toContain('routes/console.php')
+            ->and($content['dependencies'])->not->toBeEmpty();
+    });
+
+    it('does not error when a scheduled command signature has no matching class', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'nonexistent:command\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        // The schedule file itself should still appear; no crash
+        expect($paths)->toContain('routes/console.php');
+    });
+
+    it('links multiple scheduled commands in the same file', function () {
+        $dir = makeTempGitRepo();
+
+        addAndStageFile($dir, 'app/Console/Commands/Foo.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class Foo extends Command {
+    protected $signature = \'app:foo\';
+    public function handle(): void {}
+}');
+        addAndStageFile($dir, 'app/Console/Commands/Bar.php', '<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command;
+class Bar extends Command {
+    protected $signature = \'app:bar\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add commands' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'app:foo\')->daily();
+Schedule::command(\'app:bar\')->weekly();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/Foo.php')
+            ->and($paths)->toContain('app/Console/Commands/Bar.php');
+    });
+
+    it('finds commands in non-standard paths outside app/Console/Commands/', function () {
+        $dir = makeTempGitRepo();
+
+        // Command lives in a domain-style directory, not app/Console/Commands/
+        addAndStageFile($dir, 'app/Domain/Billing/Commands/ChargeSubscription.php', '<?php
+namespace App\Domain\Billing\Commands;
+use Illuminate\Console\Command;
+class ChargeSubscription extends Command {
+    protected $signature = \'billing:charge-subscriptions\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'billing:charge-subscriptions\')->daily();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Domain/Billing/Commands/ChargeSubscription.php');
+    });
+
+    it('finds commands nested in subdirectories of app/Console/Commands/', function () {
+        $dir = makeTempGitRepo();
+
+        // Command is nested one level deeper than the standard path
+        addAndStageFile($dir, 'app/Console/Commands/Reporting/GenerateMonthlyReport.php', '<?php
+namespace App\Console\Commands\Reporting;
+use Illuminate\Console\Command;
+class GenerateMonthlyReport extends Command {
+    protected $signature = \'reports:monthly\';
+    public function handle(): void {}
+}');
+        shell_exec("git -C {$dir} commit -m 'add command' 2>&1");
+
+        addAndStageFile($dir, 'routes/console.php', '<?php
+use Illuminate\Support\Facades\Schedule;
+Schedule::command(\'reports:monthly\')->monthly();');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $paths = array_column($content['files'], 'path');
+
+        expect($paths)->toContain('app/Console/Commands/Reporting/GenerateMonthlyReport.php');
     });
 });

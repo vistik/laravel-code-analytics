@@ -54,28 +54,29 @@ class GenerateLlmReport extends GenerateMetricsReport implements ReportGenerator
             $hasBefore = ! empty($beforeMethods);
 
             $methodLines[] = sprintf('  %s — methods:', $path);
-            $methodLines[] = sprintf('    %-30s  %6s  %6s  %6s', '', 'CC', 'LLOC', 'Params');
-            $methodLines[] = '    '.str_repeat('─', 52);
+            $methodLines[] = sprintf('    %-30s  %6s  %6s  %6s  %6s', '', 'CC', 'LLOC', 'Params', 'Flog');
+            $methodLines[] = '    '.str_repeat('─', 60);
 
-            usort($methods, fn ($a, $b) => $b['cc'] <=> $a['cc'] ?: $b['lloc'] <=> $a['lloc']);
+            usort($methods, fn ($a, $b) => $b['flog'] <=> $a['flog'] ?: $b['cc'] <=> $a['cc'] ?: $b['lloc'] <=> $a['lloc']);
 
             foreach ($methods as $method) {
                 $name = $method['name'];
                 $methodLines[] = sprintf(
-                    '    %-30s  %6s  %6s  %6s',
+                    '    %-30s  %6s  %6s  %6s  %6s',
                     $name,
                     $method['cc'],
                     $method['lloc'],
                     $method['params'],
+                    $method['flog'] ?? '',
                 );
 
                 if ($hasBefore) {
                     $bm = $beforeMethods[$name] ?? null;
                     $d = fn (string $key) => $this->methodDelta($method[$key], $bm[$key] ?? null);
-                    $deltas = [$d('cc'), $d('lloc'), $d('params')];
+                    $deltas = [$d('cc'), $d('lloc'), $d('params'), $d('flog')];
                     if (array_filter($deltas, fn ($v) => $v !== '=')) {
                         $methodLines[] = sprintf(
-                            '    %-30s  %6s  %6s  %6s',
+                            '    %-30s  %6s  %6s  %6s  %6s',
                             '  delta',
                             ...$deltas,
                         );

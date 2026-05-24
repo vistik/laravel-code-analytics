@@ -31,17 +31,20 @@ class LaravelMigrationModelCorrelator
      * @param  array<string, FileReport>  $fileReports
      * @param  array<string, string|null>  $headContents  Source of all PR PHP files
      * @param  ?string  $repoDir  Local repo clone for scanning non-PR models
-     * @return array<string, FileReport>
+     * @return array{0: array<string, FileReport>, 1: list<array{0: string, 1: string}>}
      */
     public function correlate(array $fileReports, array $headContents, ?string $repoDir): array
     {
         $migrationTables = $this->extractMigrationTables($headContents);
 
         if (empty($migrationTables)) {
-            return $fileReports;
+            return [$fileReports, []];
         }
 
         $tableToModel = $this->buildTableModelMap($headContents, $repoDir);
+
+        /** @var list<array{0: string, 1: string}> */
+        $pairs = [];
 
         foreach ($migrationTables as $migrationPath => $tables) {
             if (! isset($fileReports[$migrationPath])) {
@@ -56,6 +59,8 @@ class LaravelMigrationModelCorrelator
                 if ($modelPath === null) {
                     continue;
                 }
+
+                $pairs[] = [$migrationPath, $modelPath];
 
                 if (isset($fileReports[$modelPath])) {
                     $additionalChanges[] = new ClassifiedChange(
@@ -84,7 +89,7 @@ class LaravelMigrationModelCorrelator
             }
         }
 
-        return $fileReports;
+        return [$fileReports, $pairs];
     }
 
     /**
