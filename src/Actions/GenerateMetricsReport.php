@@ -80,6 +80,13 @@ class GenerateMetricsReport implements ReportGenerator
             }
         }
 
+        $nodeCoverage = [];
+        foreach ($nodes as $node) {
+            if (isset($node['coverage'])) {
+                $nodeCoverage[$node['path']] = $node['coverage'];
+            }
+        }
+
         if (! empty($metricsData)) {
             $lines[] = '';
             $lines[] = 'PHP Metrics:';
@@ -88,8 +95,9 @@ class GenerateMetricsReport implements ReportGenerator
 
             foreach ($metricsData as $path => $m) {
                 $before = $m['before'] ?? null;
+                $cov = isset($nodeCoverage[$path]) ? sprintf('%d%%', round($nodeCoverage[$path] * 100)) : null;
 
-                $lines[] = sprintf('  %s', $path);
+                $lines[] = sprintf('  %s%s', $path, $cov !== null ? "  (cov: {$cov})" : '');
                 $lines[] = $this->metricsRow('after', $m);
 
                 if ($before !== null) {

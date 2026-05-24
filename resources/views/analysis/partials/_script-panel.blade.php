@@ -581,6 +581,97 @@ function openPanel(n) {
     });
   }
 
+  // Inject per-line coverage indicators in the diff gutter
+  var covLines = lineCoverageData && lineCoverageData[n.path];
+  if (covLines) {
+    // Ensure a single shared tooltip element exists in the document
+    var covTip = document.getElementById('coverage-tooltip');
+    if (!covTip) {
+      covTip = document.createElement('div');
+      covTip.id = 'coverage-tooltip';
+      document.body.appendChild(covTip);
+      // Keep the tooltip open while the mouse is inside it (allows scrolling)
+      covTip.addEventListener('mouseenter', function() { clearTimeout(covTip._hideTimer); });
+      covTip.addEventListener('mouseleave', function() {
+        covTip._hideTimer = setTimeout(function() { covTip.style.display = 'none'; }, 300);
+      });
+    }
+
+    document.querySelectorAll('.diff-table tr[data-new-ln]').forEach(function(row) {
+      var ln = parseInt(row.getAttribute('data-new-ln'));
+      if (!(ln in covLines)) return; // non-executable line — no indicator
+      var entry = covLines[ln];
+      // Compressed format: 0 = uncovered, [idx,...] = covered (indices into testIndex)
+      var count = Array.isArray(entry) ? entry.length : 0;
+      var tests = Array.isArray(entry) ? entry.map(function(i) { return testIndex[i]; }) : [];
+      var gutterCell = row.querySelector('td.diff-ln');
+      if (!gutterCell) return;
+
+      var color = count > 0 ? '#3fb950' : '#f85149';
+      if (count === 0) {
+        gutterCell.style.borderLeft = '3px solid #f85149';
+      }
+      gutterCell.style.cursor = 'default';
+
+      gutterCell.addEventListener('mouseenter', function(e) {
+        clearTimeout(covTip._hideTimer);
+        var headerText = count > 0
+          ? count + ' hit' + (count !== 1 ? 's' : '')
+          : 'Not covered';
+        var testsHtml = '';
+        if (tests.length > 0) {
+          // Group by test class (part before ::), show just the class basename as headline
+          var groups = {};
+          var groupOrder = [];
+          tests.forEach(function(t) {
+            var sep = t.indexOf('::');
+            var cls = sep !== -1 ? t.slice(0, sep) : t;
+            var method = sep !== -1 ? t.slice(sep + 2) : '';
+            var basename = cls.split('\\').pop();
+            if (!groups[basename]) { groups[basename] = []; groupOrder.push(basename); }
+            groups[basename].push(method);
+          });
+          var esc = function(s) { return s.replace(/[<>&]/g, function(c) { return c==='<'?'&lt;':c==='>'?'&gt;':'&amp;'; }); };
+          var humanize = function(m) {
+            m = m.replace(/^__pest_evaluable_/, '');
+            m = m.replace(/_/g, ' ');
+            // Strip first describe-block prefix up to the first — or → separator
+            m = m.replace(/^[^—→]+[—→]\s*/, '');
+            return m.trim().replace(/\s+/g, ' ');
+          };
+          var multiGroup = groupOrder.length > 1;
+          testsHtml = '<div class="cov-tests">';
+          groupOrder.forEach(function(cls) {
+            if (multiGroup) testsHtml += '<div class="cov-group-header">' + esc(cls) + '</div>';
+            groups[cls].forEach(function(m) {
+              testsHtml += '<div class="cov-test">' + esc(humanize(m)) + '</div>';
+            });
+          });
+          testsHtml += '</div>';
+        }
+        covTip.innerHTML = '<div class="cov-header" style="color:' + color + '">' + headerText + '</div>' + testsHtml;
+
+        // Position near cursor so there's no gap to cross
+        covTip.style.left = '-9999px';
+        covTip.style.top = '0';
+        covTip.style.display = 'block';
+        var tipW = covTip.offsetWidth;
+        var tipH = covTip.offsetHeight;
+        var cx = e.clientX + 16;
+        var cy = e.clientY - Math.round(tipH / 4);
+        if (cx + tipW > window.innerWidth - 8) cx = e.clientX - tipW - 8;
+        if (cy + tipH > window.innerHeight - 8) cy = window.innerHeight - tipH - 8;
+        if (cy < 8) cy = 8;
+        covTip.style.left = cx + 'px';
+        covTip.style.top = cy + 'px';
+      });
+
+      gutterCell.addEventListener('mouseleave', function() {
+        covTip._hideTimer = setTimeout(function() { covTip.style.display = 'none'; }, 600);
+      });
+    });
+  }
+
   // Wire up "Methods by Complexity" rows to scroll to method in diff
   document.querySelectorAll('tr[data-method-line]').forEach(function(row) {
     var ln = row.getAttribute('data-method-line');

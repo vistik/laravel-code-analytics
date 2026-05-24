@@ -67,15 +67,16 @@ class GenerateMdReport implements ReportGenerator
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
 
-        $lines[] = '| File | Status | +/- | Severity | Signal | Cycle |';
-        $lines[] = '|------|--------|----:|----------|-------:|------:|';
+        $lines[] = '| File | Status | +/- | Cov | Severity | Signal | Cycle |';
+        $lines[] = '|------|--------|----:|----:|----------|-------:|------:|';
 
         foreach ($sorted as $node) {
             $sev = $node['severity'] ? ucfirst($node['severity']) : '—';
             $signal = $node['_signal'] ?? 0;
             $status = ucfirst($node['status']);
             $cycle = ($node['cycleId'] ?? null) !== null ? "↻ {$node['cycleId']}" : '—';
-            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} | {$cycle} |";
+            $cov = isset($node['coverage']) ? round($node['coverage'] * 100).'%' : '—';
+            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$cov} | {$sev} | {$signal} | {$cycle} |";
         }
         $lines[] = '';
 

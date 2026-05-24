@@ -15,5 +15,6 @@ class GraphPayload
         public readonly array $fileContents = [],
         public readonly array $filterDefaults = [],
         public readonly ?RiskScore $riskScore = null,
+        public readonly array $lineCoverageData = [],
     ) {}
 }

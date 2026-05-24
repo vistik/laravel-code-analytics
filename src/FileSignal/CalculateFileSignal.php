@@ -32,6 +32,16 @@ class CalculateFileSignal implements FileSignalScoring
             }
         }
 
+        // Coverage penalty: low coverage boosts the signal. Doubled when CC > 10 ("complex and untested").
+        $coverage = $node['coverage'] ?? null;
+        if ($coverage !== null && $coverage < 0.5) {
+            $coveragePenalty = (0.5 - $coverage) * 100;
+            if (($metrics['cc'] ?? 0) > 10) {
+                $coveragePenalty *= 2;
+            }
+            $score += $coveragePenalty;
+        }
+
         return (int) round($score);
     }
 }
