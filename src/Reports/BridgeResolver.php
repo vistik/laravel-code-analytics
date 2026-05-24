@@ -22,13 +22,13 @@ class BridgeResolver
         foreach (array_intersect(array_keys($aByPath), array_keys($bByPath)) as $path) {
             $nodeA = $aByPath[$path];
             $nodeB = $bByPath[$path];
-            if (!($nodeA['isConnected'] ?? false) || !($nodeB['isConnected'] ?? false)) {
+            if (! ($nodeA['isConnected'] ?? false) || ! ($nodeB['isConnected'] ?? false)) {
                 $sharedPaths[] = $path;
                 $bridges[$nodeA['id']] = $nodeB['id'];
             }
         }
 
-        if (!empty($bridges)) {
+        if (! empty($bridges)) {
             return new BridgeResult($bridges, $sharedPaths);
         }
 
@@ -40,7 +40,7 @@ class BridgeResolver
         // Build fqcn => nodeId maps for each side's connected nodes
         $bConnectedByFqcn = [];
         foreach ($b->nodes as $node) {
-            if (!($node['isConnected'] ?? false)) {
+            if (! ($node['isConnected'] ?? false)) {
                 continue;
             }
             $fqcn = $bFqcns[$node['id']] ?? null;
@@ -51,7 +51,7 @@ class BridgeResolver
 
         $aConnectedByFqcn = [];
         foreach ($a->nodes as $node) {
-            if (!($node['isConnected'] ?? false)) {
+            if (! ($node['isConnected'] ?? false)) {
                 continue;
             }
             $fqcn = $aFqcns[$node['id']] ?? null;
