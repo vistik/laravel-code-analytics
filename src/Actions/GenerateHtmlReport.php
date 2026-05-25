@@ -98,7 +98,7 @@ class GenerateHtmlReport implements ReportGenerator
         $diffsJson = json_encode($payload->fileDiffs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $analysisJson = json_encode($payload->analysisData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $metricsJson = json_encode($payload->metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
-        $fileContentsJson = json_encode((object) $payload->fileContents, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+        $fileContentsJson = json_encode((object) $payload->fileContents, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_INVALID_UTF8_SUBSTITUTE);
 
         $methodThresholds = config('laravel-code-analytics.method_metric_thresholds', [
             'cc' => ['warn' => 5,  'bad' => 10],
@@ -674,7 +674,15 @@ class GenerateHtmlReport implements ReportGenerator
             kind: $this->buildKindToggles($payload->nodes, $payload->filterDefaults['hidden_kinds'] ?? []),
         );
 
-        return $this->buildWrapperHtml($payload, $pr, $toggles, $layerStack, defaultView: $defaultView ?? GraphLayout::Force);
+        $effectiveDefault = $defaultView ?? GraphLayout::Force;
+        if ($effectiveDefault === GraphLayout::Force) {
+            $diffNodeCount = count(array_filter($payload->nodes, fn ($n) => ! ($n['isConnected'] ?? false)));
+            if ($diffNodeCount > 300) {
+                $effectiveDefault = GraphLayout::Grouped;
+            }
+        }
+
+        return $this->buildWrapperHtml($payload, $pr, $toggles, $layerStack, defaultView: $effectiveDefault);
     }
 
     public function writeFile(string $outputPath, string $content): void
@@ -702,16 +710,23 @@ class GenerateHtmlReport implements ReportGenerator
         GraphLayout $defaultView = GraphLayout::Grouped,
     ): string {
         // Risk panel lives in the wrapper topbar — suppress it in each inner iframe.
+        // fileContents is stripped here and stored once in the wrapper JS instead;
+        // iframes read it from window.parent.sharedFileContents (same-origin srcdoc).
         $innerPayload = new GraphPayload(
             nodes: $payload->nodes,
             edges: $payload->edges,
             fileDiffs: $payload->fileDiffs,
             analysisData: $payload->analysisData,
             metricsData: $payload->metricsData,
-            fileContents: $payload->fileContents,
+            fileContents: [],
             filterDefaults: $payload->filterDefaults,
             riskScore: null,
             affectedEndpoints: $payload->affectedEndpoints,
+        );
+
+        $sharedFileContentsJson = json_encode(
+            (object) $payload->fileContents,
+            JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_INVALID_UTF8_SUBSTITUTE,
         );
 
         $jsEntries = [];
@@ -748,6 +763,7 @@ class GenerateHtmlReport implements ReportGenerator
             'wrapperAnalysisJson' => json_encode($payload->analysisData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
             'wrapperMetricsJson' => json_encode($payload->metricsData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
             'jsLayoutData' => implode(",\n    ", $jsEntries),
+            'sharedFileContentsJson' => $sharedFileContentsJson,
             'defaultView' => $defaultView->value,
             'aiReviewMarkdown' => $this->aiReview ?? '',
             'prUrl' => $pr->prUrl,

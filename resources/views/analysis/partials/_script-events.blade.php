@@ -162,6 +162,10 @@ window.addEventListener('message', function(e) {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.delete(n.id); updateReviewedCount(); clearHidden(); }
   }
+  if (e.data.type === 'injectFileContents') {
+    Object.assign(fileContents, e.data.fileContents);
+    if (selectedNode) openPanel(selectedNode);
+  }
   if (e.data.type === 'applyFilters') {
     var s = e.data.state;
     hideConnected = s.hideConnected;
