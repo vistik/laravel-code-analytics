@@ -47,8 +47,9 @@ function simulate() {
   const grid = Object.create(null);
   for (let i = 0; i < cnt; i++) {
     vis[i]._vi = i;
-    const k = (Math.floor(vis[i].x / cell) + 500) * 1000 + (Math.floor(vis[i].y / cell) + 500);
-    grid[k] ? grid[k].push(vis[i]) : (grid[k] = [vis[i]]);
+    const gk = (Math.floor(vis[i].x / cell) + 500) * 1000 + (Math.floor(vis[i].y / cell) + 500);
+    if (!grid[gk]) { grid[gk] = []; }
+    grid[gk].push(vis[i]);
   }
   for (let i = 0; i < cnt; i++) {
     const a = vis[i];
@@ -57,8 +58,8 @@ function simulate() {
       for (let ddy = -1; ddy <= 1; ddy++) {
         const bucket = grid[(gx + ddx + 500) * 1000 + (gy + ddy + 500)];
         if (!bucket) continue;
-        for (let k = 0; k < bucket.length; k++) {
-          const b = bucket[k];
+        for (let bi = 0; bi < bucket.length; bi++) {
+          const b = bucket[bi];
           if (b._vi <= a._vi) continue; // each pair once
           let dx = a.x - b.x, dy = a.y - b.y;
           let dist = Math.sqrt(dx*dx + dy*dy) || 1;

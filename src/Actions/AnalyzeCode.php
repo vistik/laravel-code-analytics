@@ -232,9 +232,14 @@ class AnalyzeCode
                 $fileContents = $this->collectFileContents($fileDiffs, $headContents);
                 $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
             } else {
-                // Full/repo mode: no diff — collect contents for every analyzed node.
-                $allNodePaths = array_fill_keys(array_column($nodes, 'path'), '');
-                $fileContents = $this->collectFileContents($allNodePaths, $headContents);
+                // Full/repo mode: scope to PHP/frontend files already in headContents.
+                // Fetching all 700+ node paths (JSON, YAML, markdown, etc.) wastes memory
+                // and those file types aren't useful in the code viewer anyway.
+                $analyzedPaths = array_fill_keys(
+                    array_keys(array_filter($headContents, fn ($c) => $c !== null)),
+                    '',
+                );
+                $fileContents = $this->collectFileContents($analyzedPaths, $headContents);
                 $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading full-repo file contents');
             }
         } else {
@@ -318,6 +323,7 @@ class AnalyzeCode
             layerStack: $layerStack,
             payload: $payload,
             pr: $pr,
+            defaultView: $view,
         );
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
 

@@ -825,6 +825,7 @@ tailwind.config = {
   }
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
+  var sharedFileContents = {!! $sharedFileContentsJson !!};
 
   // ── Circular dependencies ──
   (function() {
@@ -1245,9 +1246,15 @@ tailwind.config = {
   var initialViewLoaded = false;
   function show(name) {
     document.querySelectorAll('.tab[data-layout]').forEach(t => t.classList.toggle('active', t.dataset.layout === name));
-    document.getElementById('view').srcdoc = atob(layouts[name]);
+    var iframe = document.getElementById('view');
+    iframe.srcdoc = atob(layouts[name]);
     if (initialViewLoaded) pendingFilterApply = true;
     initialViewLoaded = true;
+    if (Object.keys(sharedFileContents).length > 0) {
+      iframe.addEventListener('load', function() {
+        iframe.contentWindow.postMessage({ type: 'injectFileContents', fileContents: sharedFileContents }, '*');
+      }, { once: true });
+    }
   }
 
   document.querySelectorAll('.tab[data-layout]').forEach(t => t.addEventListener('click', () => show(t.dataset.layout)));
