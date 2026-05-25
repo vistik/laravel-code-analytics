@@ -158,7 +158,10 @@ canvas.addEventListener('mouseup', e => {
       openPanel(_dn);
       if (canPin) _dn.pinned = true;
     }
-  } else if (dragNode && didDrag && canPin) { dragNode.pinned = true; }
+  } else if (dragNode && didDrag && canPin) {
+    dragNode.pinned = true;
+    if (typeof cakeAlpha !== 'undefined') cakeAlpha = 0.3;
+  }
   else if (isPanning && !didDrag) { closeLegend(); closePanel(); clearPathfinding(); }
   dragNode = null; dragGroup = null; isPanning = false;
 });
@@ -173,16 +176,21 @@ function draw() {
 
   var extActive = externalHighlightNodes.size > 0;
   var ehov = hoveredNode;
-  var activeRef = extActive || ehov || selectedNode;
+  var activeRef = ehov || selectedNode;
   var pathActive = pathfindNodes.size >= 2;
   for (const l of links) {
     if (!isLinkVisible(l)) continue;
     const isSelected = selectedNode && (l.source === selectedNode || l.target === selectedNode);
-    const isHovered = (ehov && (l.source === ehov || l.target === ehov)) ||
-                      (extActive && externalHighlightNodes.has(l.source) && externalHighlightNodes.has(l.target));
+    const isEndpointEdge = extActive && externalHighlightNodes.has(l.source) && externalHighlightNodes.has(l.target);
+    const isHovered = (ehov && (l.source === ehov || l.target === ehov));
     const isPath = pathActive && pathResult.edges.has(l);
-    const highlight = isSelected || isHovered || isPath;
+    const highlight = isSelected || isHovered || isPath || isEndpointEdge;
     const dimmed = pathActive ? (!isPath && !isHovered) : (activeRef && !highlight);
+    var edgeDepthAlpha = null;
+    if (isEndpointEdge) {
+      var _d = Math.max(externalHighlightDepths.get(l.source) ?? 0, externalHighlightDepths.get(l.target) ?? 0);
+      edgeDepthAlpha = [0.85, 0.85, 0.55, 0.3, 0.15, 0.07][Math.min(_d, 5)];
+    }
     const isConnEdge = l.source.isConnected || l.target.isConnected;
     const isCycleEdge = !isConnEdge && l.source.cycleId != null && l.source.cycleId === l.target.cycleId;
 
@@ -201,7 +209,7 @@ function draw() {
     } else {
       ctx.setLineDash([]);
       const cycleEdgeColor = isCycleEdge ? hexAlpha(l.source.cycleColor, dimmed ? 0.15 : 0.7) : null;
-      ctx.strokeStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleEdgeColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.3)');
+      ctx.strokeStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleEdgeColor || (isEndpointEdge ? 'rgba(88,166,255,' + edgeDepthAlpha + ')' : highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.3)');
     }
     var depWidth = (l.depType === 'constructor_injection' || l.depType === 'container_resolved') ? 2 : 1.5;
     ctx.lineWidth = isPath ? 3 : highlight ? 2.5 : (isCycleEdge ? 2 : depWidth); ctx.stroke(); ctx.setLineDash([]);
@@ -217,13 +225,13 @@ function draw() {
     ctx.lineTo(tipX - ux*size + uy*size*0.5, tipY - uy*size - ux*size*0.5);
     ctx.closePath();
     const cycleArrowColor = isCycleEdge ? hexAlpha(l.source.cycleColor, dimmed ? 0.15 : 0.7) : null;
-    ctx.fillStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleArrowColor || (highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.35)');
+    ctx.fillStyle = isPath ? 'rgba(247,129,102,0.9)' : dirColor || cycleArrowColor || (isEndpointEdge ? 'rgba(88,166,255,' + edgeDepthAlpha + ')' : highlight ? 'rgba(88,166,255,0.85)' : dimmed ? 'rgba(48,54,61,0.2)' : 'rgba(139,148,158,0.35)');
     ctx.fill();
   }
 
   for (const n of nodes) {
     if (!isVisible(n)) continue;
-    const isHov = n === ehov || (extActive && externalHighlightNodes.has(n)), isSel = n === selectedNode;
+    const isHov = n === ehov, isSel = n === selectedNode;
     const isConn = (ehov && links.some(l => isLinkVisible(l) && ((l.source === ehov && l.target === n) || (l.target === ehov && l.source === n)))) ||
                    (selectedNode && links.some(l => isLinkVisible(l) && ((l.source === selectedNode && l.target === n) || (l.target === selectedNode && l.source === n))));
     const isPathNode = pathActive && pathResult.nodes.has(n.id);
@@ -270,7 +278,8 @@ function draw() {
     if (n.isConnected) {
       ctx.fillStyle = dim ? '#48405810' : ((isHov || isSel || isPathSelected) ? '#484f5860' : isPathNode ? '#484f5850' : '#484f5830');
     } else {
-      ctx.fillStyle = dim ? (n.color + '25') : (n.color + ((isHov || isSel || isPathSelected) ? 'ff' : isPathNode ? 'dd' : (n.status === 'deleted' ? '65' : 'bb')));
+      const fillAlpha = isSel || isPathSelected ? 'ff' : (isPathNode ? 'dd' : (n.status === 'deleted' ? '65' : 'bb'));
+      ctx.fillStyle = dim ? (n.color + '25') : (n.color + fillAlpha);
     }
     ctx.fill();
     if (n.isConnected) {
@@ -349,7 +358,8 @@ function draw() {
 
     ctx.font = ((isHov || isSel || isPathSelected) ? 'bold ' : '') + fontSize + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = dim ? '#8b949e30' : (n.isConnected ? '#8b949e' : (n.status === 'deleted' ? '#8b949ecc' : '#e6edf3'));
+    const baseLabelColor = n.isConnected ? '#8b949e' : (n.status === 'deleted' ? '#8b949ecc' : '#e6edf3');
+    ctx.fillStyle = dim ? '#8b949e30' : baseLabelColor;
     ctx.fillText(n.displayLabel || n.id, n.x, labelY);
     if (n.status === 'deleted' && !n.isConnected) {
       const textW = ctx.measureText(n.displayLabel || n.id).width;

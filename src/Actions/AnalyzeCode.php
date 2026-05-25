@@ -21,6 +21,9 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
+use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpoint;
+use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpointResolver;
+use Vistik\LaravelCodeAnalytics\Endpoints\RouteIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -274,6 +277,12 @@ class AnalyzeCode
         $t = microtime(true);
         $this->progress('info', "Generating {$format->value} report...");
 
+        $t = microtime(true);
+        $affectedEndpoints = $this->findAffectedEndpoints($nodes, $this->graph->edges, $fqcnToFilePath);
+        if (! empty($affectedEndpoints)) {
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected endpoints ('.count($affectedEndpoints).')');
+        }
+
         $layerStack = LayerStack::fromConfig($this->projectType);
         $payload = new GraphPayload(
             nodes: $nodes,
@@ -284,6 +293,7 @@ class AnalyzeCode
             fileContents: $fileContents,
             filterDefaults: $this->resolveFilterDefaults($filterDefaults),
             riskScore: $riskResult,
+            affectedEndpoints: array_map(fn ($e) => $e->toArray(), $affectedEndpoints),
         );
         $pr = new PullRequestContext(
             prTitle: $prTitle,
@@ -2040,6 +2050,72 @@ class AnalyzeCode
         unset($node);
 
         return $nodes;
+    }
+
+    // ── Endpoint analysis ────────────────────────────────────────────────────
+
+    /**
+     * Scan route files, build a controller-path → RouteDefinition[] index, then
+     * walk the dependency graph in reverse to find which endpoints this PR touches.
+     *
+     * @param  array<string, string>  $fqcnToFilePath
+     * @return AffectedEndpoint[]
+     */
+    private function findAffectedEndpoints(array $nodes, array $edges, array $fqcnToFilePath): array
+    {
+        $routePaths = $this->listRouteFiles();
+        if (empty($routePaths)) {
+            return [];
+        }
+
+        $routeContents = $this->readBulkFileContents($routePaths);
+        $filePathToFqcn = array_flip($fqcnToFilePath);
+
+        $routeIndex = (new RouteIndexBuilder)->build(
+            routeFileContents: $routeContents,
+            fqcnToPath: function (string $fqcn) use ($fqcnToFilePath): ?string {
+                return $fqcnToFilePath[$fqcn] ?? $this->psr4Resolver()->pathForFqcn($fqcn);
+            },
+        );
+
+        if (empty($routeIndex)) {
+            return [];
+        }
+
+        $nodeIdToPath = [];
+        foreach ($nodes as $node) {
+            $nodeIdToPath[$node['id']] = $node['path'];
+        }
+
+        $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected'])));
+
+        return (new AffectedEndpointResolver)->resolve(
+            routeIndex: $routeIndex,
+            edges: $edges,
+            nodeIdToPath: $nodeIdToPath,
+            diffNodes: $diffNodes,
+        );
+    }
+
+    /** @return list<string> */
+    private function listRouteFiles(): array
+    {
+        if ($this->repoDir !== null) {
+            $output = trim(shell_exec("git -C {$this->repoDir} ls-tree -r {$this->headCommit} --name-only 2>/dev/null") ?? '');
+        } elseif ($this->repoPath !== '') {
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files 'routes/*.php' 2>/dev/null") ?? '');
+        } else {
+            return [];
+        }
+
+        if (empty($output)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            explode("\n", $output),
+            fn ($p) => str_starts_with($p, 'routes/') && str_ends_with($p, '.php'),
+        ));
     }
 
     // ── Old source fetching ──────────────────────────────────────────────────

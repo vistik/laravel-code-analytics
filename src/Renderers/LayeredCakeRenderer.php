@@ -90,21 +90,31 @@ function computeCakeLayout() {
     }
   }
 
-  // Position inner nodes on their ring with slight randomness
+  // Position inner nodes on their ring — only if not already placed (preserves positions across filter changes)
   for (var ri = 1; ri < cakeRingData.length; ri++) {
     var ring = cakeRingData[ri];
     var rNodes = ring.nodes;
     for (var i = 0; i < rNodes.length; i++) {
       if (rNodes[i].pinned) continue;
-      var angle = (i / rNodes.length) * Math.PI * 2 - Math.PI / 2 + (Math.random() - 0.5) * 0.3;
-      rNodes[i].x = cx + Math.cos(angle) * ring.midR;
-      rNodes[i].y = cy + Math.sin(angle) * ring.midR;
       rNodes[i].cakePinned = false;
+      if (!rNodes[i]._cakePlaced) {
+        var angle = (i / rNodes.length) * Math.PI * 2 - Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+        rNodes[i].x = cx + Math.cos(angle) * ring.midR;
+        rNodes[i].y = cy + Math.sin(angle) * ring.midR;
+        rNodes[i]._cakePlaced = true;
+      }
     }
   }
 }
 
-var recomputeLayout = computeCakeLayout;
+var cakeAlpha = 1.0;
+var cakeAlphaDecay = 0.025;
+var cakeAlphaMin = 0.001;
+
+var recomputeLayout = function() {
+  computeCakeLayout();
+  cakeAlpha = Math.max(cakeAlpha, 0.3);
+};
 computeCakeLayout();
 JS;
     }
@@ -114,11 +124,16 @@ JS;
         return <<<'JS'
 // ── Layered Cake physics: force-directed with radial constraints ─────────────
 function simulate() {
-  var repulsion = 3000, attraction = 0.005, damping = 0.85;
+  var vis = nodes.filter(isVisible);
+  if (cakeAlpha < cakeAlphaMin) {
+    for (var i = 0; i < vis.length; i++) { vis[i].vx = 0; vis[i].vy = 0; }
+    return;
+  }
+  cakeAlpha *= (1 - cakeAlphaDecay);
+
+  var repulsion = 3000, attraction = 0.005, damping = 0.75;
   var radialStrength = 0.06;
   var cx = W / 2, cy = H / 2;
-
-  var vis = nodes.filter(isVisible);
 
   // Repulsion between all visible nodes
   for (var i = 0; i < vis.length; i++) {
@@ -126,7 +141,7 @@ function simulate() {
       var a = vis[i], b = vis[j];
       var dx = a.x - b.x, dy = a.y - b.y;
       var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      var force = repulsion / (dist * dist);
+      var force = repulsion / (dist * dist) * cakeAlpha;
       var fx = (dx / dist) * force, fy = (dy / dist) * force;
       if (!a.pinned && !a.cakePinned) { a.vx += fx; a.vy += fy; }
       if (!b.pinned && !b.cakePinned) { b.vx -= fx; b.vy -= fy; }
@@ -139,7 +154,7 @@ function simulate() {
     if (!isLinkVisible(l)) continue;
     var dx = l.target.x - l.source.x, dy = l.target.y - l.source.y;
     var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    var force = (dist - 100) * attraction;
+    var force = (dist - 100) * attraction * cakeAlpha;
     var fx = (dx / dist) * force, fy = (dy / dist) * force;
     if (!l.source.pinned && !l.source.cakePinned) { l.source.vx += fx; l.source.vy += fy; }
     if (!l.target.pinned && !l.target.cakePinned) { l.target.vx -= fx; l.target.vy -= fy; }
@@ -147,7 +162,6 @@ function simulate() {
 
   // Radial constraint: pull each node toward its ring's midR
   if (typeof cakeRingData !== 'undefined') {
-    // Build layer-to-ring lookup
     var ringByLayer = {};
     for (var ri = 0; ri < cakeRingData.length; ri++) {
       ringByLayer[cakeRingData[ri].layer] = cakeRingData[ri];
@@ -164,9 +178,8 @@ function simulate() {
       var targetR = ring.midR;
       var diff = targetR - currentR;
 
-      // Push node toward target radius
-      n.vx += (dx / currentR) * diff * radialStrength;
-      n.vy += (dy / currentR) * diff * radialStrength;
+      n.vx += (dx / currentR) * diff * radialStrength * cakeAlpha;
+      n.vy += (dy / currentR) * diff * radialStrength * cakeAlpha;
     }
   }
 

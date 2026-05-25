@@ -131,6 +131,7 @@ class GenerateHtmlReport implements ReportGenerator
             fileContents: $payload->fileContents,
         );
         $graphIndexJson = json_encode($graphIndex, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+        $affectedEndpointsJson = json_encode($payload->affectedEndpoints, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
         return view()->file(__DIR__.'/../../resources/views/analysis/inner.blade.php', [
             'prNumber' => $pr->prNumber,
@@ -163,6 +164,7 @@ class GenerateHtmlReport implements ReportGenerator
             'graphIndexJson' => $graphIndexJson,
             'parsedDiffsJson' => $parsedDiffsJson,
             'inlineCommentsJson' => json_encode((object) $pr->inlineComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE),
+            'affectedEndpointsJson' => $affectedEndpointsJson,
         ])->render();
     }
 
@@ -709,13 +711,14 @@ class GenerateHtmlReport implements ReportGenerator
             fileContents: $payload->fileContents,
             filterDefaults: $payload->filterDefaults,
             riskScore: null,
+            affectedEndpoints: $payload->affectedEndpoints,
         );
 
         $jsEntries = [];
         foreach (GraphLayout::cases() as $graphLayout) {
             $html = $this->execute($innerPayload, $pr, $toggles, $graphLayout, $layerStack);
-            // Hide the title-bar inside the iframe — it lives in the wrapper now
-            $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}</style></head>', $html);
+            // Hide the title-bar and endpoints panel inside the iframe — they live in the wrapper now
+            $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}#endpointsPanel{display:none!important}</style></head>', $html);
             $jsEntries[] = "'{$graphLayout->value}':'".base64_encode($htmlForWrapper)."'";
         }
 
@@ -747,9 +750,11 @@ class GenerateHtmlReport implements ReportGenerator
             'jsLayoutData' => implode(",\n    ", $jsEntries),
             'defaultView' => $defaultView->value,
             'aiReviewMarkdown' => $this->aiReview ?? '',
+            'prUrl' => $pr->prUrl,
             'prCommentsJson' => json_encode($pr->prComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE),
             'prCommentCount' => count($pr->prComments),
             'prInlineCommentCount' => array_sum(array_map('count', $pr->inlineComments)),
+            'wrapperAffectedEndpointsJson' => json_encode($payload->affectedEndpoints, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
         ])->render();
     }
 }
