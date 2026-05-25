@@ -5,9 +5,9 @@ namespace Vistik\LaravelCodeAnalytics\Endpoints;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\ParentConnectingVisitor;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
-use PhpParser\NodeVisitor\ParentConnectingVisitor;
 
 /**
  * Parses Laravel route files and builds an index of controller file paths to their routes.
@@ -17,11 +17,10 @@ use PhpParser\NodeVisitor\ParentConnectingVisitor;
  */
 class RouteIndexBuilder
 {
-
     /**
      * @param  array<string, string|null>  $routeFileContents  path => source
      * @param  callable(string): ?string  $fqcnToPath  resolves FQCN to file path
-     * @return array<string, RouteDefinition[]>  controller file path => routes handled by that file
+     * @return array<string, RouteDefinition[]> controller file path => routes handled by that file
      */
     public function build(array $routeFileContents, callable $fqcnToPath): array
     {
@@ -75,20 +74,20 @@ class RouteCollectorVisitor extends NodeVisitorAbstract
     private const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'any', 'match'];
 
     private const API_RESOURCE_METHODS = [
-        'index'   => ['GET',    ''],
-        'store'   => ['POST',   ''],
-        'show'    => ['GET',    '/{id}'],
-        'update'  => ['PUT',    '/{id}'],
+        'index' => ['GET',    ''],
+        'store' => ['POST',   ''],
+        'show' => ['GET',    '/{id}'],
+        'update' => ['PUT',    '/{id}'],
         'destroy' => ['DELETE', '/{id}'],
     ];
 
     private const RESOURCE_METHODS = [
-        'index'   => ['GET',    ''],
-        'create'  => ['GET',    '/create'],
-        'store'   => ['POST',   ''],
-        'show'    => ['GET',    '/{id}'],
-        'edit'    => ['GET',    '/{id}/edit'],
-        'update'  => ['PUT',    '/{id}'],
+        'index' => ['GET',    ''],
+        'create' => ['GET',    '/create'],
+        'store' => ['POST',   ''],
+        'show' => ['GET',    '/{id}'],
+        'edit' => ['GET',    '/{id}/edit'],
+        'update' => ['PUT',    '/{id}'],
         'destroy' => ['DELETE', '/{id}'],
     ];
 

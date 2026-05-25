@@ -9,8 +9,6 @@ use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\ConnectedNodeFactory;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\DependencyGraph;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\FqcnNodeIndex;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyGraph\Psr4Resolver;
-use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpointResolver;
-use Vistik\LaravelCodeAnalytics\Endpoints\RouteIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\BladeDependencyRule;
 use Vistik\LaravelCodeAnalytics\Actions\DependencyRules\ViewFileDependencyRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
@@ -23,6 +21,9 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\LaravelMigrationModelCorrelator;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
+use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpoint;
+use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpointResolver;
+use Vistik\LaravelCodeAnalytics\Endpoints\RouteIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -1961,7 +1962,7 @@ class AnalyzeCode
      * walk the dependency graph in reverse to find which endpoints this PR touches.
      *
      * @param  array<string, string>  $fqcnToFilePath
-     * @return \Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpoint[]
+     * @return AffectedEndpoint[]
      */
     private function findAffectedEndpoints(array $nodes, array $edges, array $fqcnToFilePath): array
     {

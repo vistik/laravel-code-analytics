@@ -86,7 +86,7 @@ class AffectedEndpointResolver
     /**
      * BFS from a changed node through reverse edges, collecting any controller paths hit.
      *
-     * @return array<array{0: string, 1: string[]}>  [[controllerPath, chain], ...]
+     * @return array<array{0: string, 1: string[]}> [[controllerPath, chain], ...]
      */
     private function bfsToControllers(
         string $startNodeId,
@@ -138,7 +138,7 @@ class AffectedEndpointResolver
      * BFS forward from a controller node, returning each reachable node ID mapped to its depth.
      * Depth 0 = the controller itself; depth N = N hops away.
      *
-     * @return array<string, int>  nodeId => depth
+     * @return array<string, int> nodeId => depth
      */
     private function forwardReachable(string $startId, array $forwardEdges): array
     {
@@ -160,7 +160,7 @@ class AffectedEndpointResolver
 
     /**
      * @param  array<int, array{0: string, 1: string, 2?: string}>  $edges
-     * @return array<string, string[]>  targetId => [sourceId, ...]
+     * @return array<string, string[]> targetId => [sourceId, ...]
      */
     private function buildReverseEdges(array $edges): array
     {
@@ -174,7 +174,7 @@ class AffectedEndpointResolver
 
     /**
      * @param  array<int, array{0: string, 1: string, 2?: string}>  $edges
-     * @return array<string, string[]>  sourceId => [targetId, ...]
+     * @return array<string, string[]> sourceId => [targetId, ...]
      */
     private function buildForwardEdges(array $edges): array
     {
