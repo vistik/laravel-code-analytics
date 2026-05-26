@@ -5,7 +5,7 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateMetricsReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
-function metricsNode(string $path, ?int $cycleId = null): array
+function metricsNode(string $path, ?int $cycleId = null, ?int $clusterId = null, ?int $clusterSize = null): array
 {
     return [
         'path' => $path,
@@ -17,6 +17,8 @@ function metricsNode(string $path, ?int $cycleId = null): array
         'cycleId' => $cycleId,
         'cycleColor' => $cycleId !== null ? '#f0883e' : null,
         '_cycleBoost' => $cycleId !== null ? 100 : null,
+        'clusterId' => $clusterId,
+        'clusterSize' => $clusterSize,
         'veryHighCount' => 0, 'highCount' => 0, 'mediumCount' => 0, 'lowCount' => 0, 'infoCount' => 0, 'analysisCount' => 0,
     ];
 }
@@ -86,4 +88,53 @@ test('metrics details report omits circular deps line when no cycles', function 
     $output = generateMetricsDetails([metricsNode('app/Foo.php')]);
 
     expect($output)->not->toContain('Circular deps');
+});
+
+// ── Review clusters line ──────────────────────────────────────────────────────
+
+test('review clusters line is absent when no clusters exist', function () {
+    $output = generateMetrics([metricsNode('app/Foo.php'), metricsNode('app/Bar.php')]);
+
+    expect($output)->not->toContain('Review clusters');
+});
+
+test('review clusters line is present when clusters exist', function () {
+    $output = generateMetrics([metricsNode('app/Foo.php', clusterId: 1, clusterSize: 1)]);
+
+    expect($output)->toContain('Review clusters');
+});
+
+test('review clusters line shows correct cluster and file counts', function () {
+    $output = generateMetrics([
+        metricsNode('app/Foo.php', clusterId: 1, clusterSize: 3),
+        metricsNode('app/Bar.php', clusterId: 1, clusterSize: 3),
+        metricsNode('app/Baz.php', clusterId: 2, clusterSize: 2),
+    ]);
+
+    expect($output)->toContain('2 cluster(s)  3 file(s)');
+});
+
+test('review clusters line counts unique clusters not total files', function () {
+    $output = generateMetrics([
+        metricsNode('app/A.php', clusterId: 1, clusterSize: 3),
+        metricsNode('app/B.php', clusterId: 1, clusterSize: 3),
+        metricsNode('app/C.php', clusterId: 1, clusterSize: 3),
+    ]);
+
+    expect($output)->toContain('1 cluster(s)  3 file(s)');
+});
+
+test('metrics details report also shows review clusters line', function () {
+    $output = generateMetricsDetails([
+        metricsNode('app/Foo.php', clusterId: 1, clusterSize: 2),
+        metricsNode('app/Bar.php', clusterId: 1, clusterSize: 2),
+    ]);
+
+    expect($output)->toContain('Review clusters');
+});
+
+test('metrics details report omits review clusters line when no clusters', function () {
+    $output = generateMetricsDetails([metricsNode('app/Foo.php')]);
+
+    expect($output)->not->toContain('Review clusters');
 });

@@ -1,5 +1,9 @@
 <body>
 <canvas id="canvas"></canvas>
+<div id="clusterFilterBanner" style="display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:10;background:#0d1117;border:1px solid;border-radius:999px;padding:5px 10px 5px 14px;font-size:12px;font-weight:500;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);white-space:nowrap">
+  <span id="clusterFilterLabel"></span>
+  <button onclick="clearClusterFilter()" style="background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-size:14px;line-height:1;color:inherit;opacity:0.6;font-family:inherit" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">&times;</button>
+</div>
 <div class="diff-annotation-tip" id="diffTip"></div>
 <div id="caller-popup"></div>
 <div class="tooltip" id="tooltip"></div>
@@ -26,6 +30,7 @@
       <span class="text-danger">&minus;{{ $prDeletions }}</span>
       <span id="reviewedCount" class="text-success font-medium"></span>
       <span id="cycleCount" class="text-severe"></span>
+      <span id="clusterCount" style="color:#4d96ff"></span>
     </p>
   </div>
   @if($layoutSwitcher)

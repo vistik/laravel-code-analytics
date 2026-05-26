@@ -88,7 +88,7 @@ class AnalyzeCode
     /** Count of outbound network calls made to GitHub during this analysis */
     private int $githubCallCount = 0;
 
-    private ?Closure $onProgress;
+    private ?Closure $onProgress = null;
 
     private float $analyzeStart = 0.0;
 
@@ -195,6 +195,7 @@ class AnalyzeCode
 
         $t = microtime(true);
         [$nodes, $cycleMap] = $this->detectAndAnnotateCycles($nodes);
+        [$nodes] = $this->detectAndAnnotateClusters($nodes);
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
         $t = microtime(true);
@@ -788,6 +789,167 @@ class AnalyzeCode
         }
 
         return [$nodes, $cycleMap];
+    }
+
+    /** @return array{0: array, 1: array<string, int>} */
+    private function detectAndAnnotateClusters(array $nodes): array
+    {
+        $clusterColorPalette = ['#4d96ff', '#6bcb77', '#ffd93d', '#a371f7', '#ff6b9d', '#3dcfcf', '#f0883e', '#ff6b6b'];
+
+        $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected']) && ! $this->isTestFile($n['path'])));
+        $diffIds = array_flip(array_column($diffNodes, 'id'));
+
+        $diffEdges = array_values(array_filter(
+            $this->graph->edges,
+            fn ($e) => isset($diffIds[$e[0]], $diffIds[$e[1]])
+        ));
+
+        $clusterMap = $this->detectClusters($diffNodes, $diffEdges);
+
+        $multiNodeClusters = array_count_values($clusterMap);
+
+        foreach ($nodes as &$node) {
+            $clusterId = $clusterMap[$node['id']] ?? null;
+            $size = $clusterId !== null ? ($multiNodeClusters[$clusterId] ?? 1) : 0;
+            if ($size <= 1) {
+                $clusterId = null;
+            }
+            $node['clusterId'] = $clusterId;
+            $node['clusterSize'] = $clusterId !== null ? $size : null;
+            $node['clusterColor'] = $clusterId !== null
+                ? $clusterColorPalette[($clusterId - 1) % count($clusterColorPalette)]
+                : null;
+        }
+        unset($node);
+
+        $multiCount = count(array_filter($multiNodeClusters, fn ($c) => $c > 1));
+        if ($multiCount > 0) {
+            $this->progress('line', "  Detected {$multiCount} review cluster(s) among changed files.");
+        }
+
+        return [$nodes, $clusterMap];
+    }
+
+    /**
+     * Greedy Louvain-style modularity clustering.
+     *
+     * Unlike plain BFS (which makes everything one cluster when the graph is dense),
+     * Louvain penalises merging high-degree nodes: an edge only contributes a positive
+     * modularity gain when it exceeds the expected number of edges by chance.  Hub files
+     * that many actions share therefore cannot force unrelated files into the same cluster.
+     *
+     * @return array<string, int> nodeId → clusterId (1-based)
+     */
+    private function detectClusters(array $nodes, array $edges): array
+    {
+        if (empty($nodes)) {
+            return [];
+        }
+
+        $ids = array_column($nodes, 'id');
+        $idSet = array_flip($ids);
+        $degree = array_fill_keys($ids, 0);
+        $adj = array_fill_keys($ids, []);
+
+        foreach ($edges as [$src, $tgt]) {
+            if ($src === $tgt || ! isset($idSet[$src], $idSet[$tgt])) {
+                continue;
+            }
+            $adj[$src][] = $tgt;
+            $adj[$tgt][] = $src;
+            $degree[$src]++;
+            $degree[$tgt]++;
+        }
+
+        $m = array_sum($degree) / 2;
+
+        if ($m == 0) {
+            $clusters = [];
+            $i = 1;
+            foreach ($ids as $id) {
+                $clusters[$id] = $i++;
+            }
+
+            return $clusters;
+        }
+
+        // Each node starts in its own community.
+        $community = [];
+        $commDegSum = []; // Σ_C: sum of degrees in community C
+        foreach ($ids as $i => $id) {
+            $community[$id] = $i;
+            $commDegSum[$i] = $degree[$id];
+        }
+
+        $twoM = 2.0 * $m;
+
+        for ($iter = 0; $iter < 20; $iter++) {
+            $moved = false;
+
+            foreach ($ids as $nodeId) {
+                $currentComm = $community[$nodeId];
+                $ki = $degree[$nodeId];
+
+                // Tally edges to each neighbouring community.
+                $edgesToComm = [];
+                foreach ($adj[$nodeId] as $nb) {
+                    $nc = $community[$nb];
+                    $edgesToComm[$nc] = ($edgesToComm[$nc] ?? 0) + 1;
+                }
+
+                // Modularity gain of leaving the current community.
+                $eInCurrent = $edgesToComm[$currentComm] ?? 0;
+                $scoreLeaveCurrent = $eInCurrent - $ki * ($commDegSum[$currentComm] - $ki) / $twoM;
+
+                $bestComm = $currentComm;
+                $bestGain = 0.0;
+
+                foreach ($edgesToComm as $nc => $eToNc) {
+                    if ($nc === $currentComm) {
+                        continue;
+                    }
+                    // Modularity gain of joining community $nc.
+                    $gain = ($eToNc - $ki * $commDegSum[$nc] / $twoM) - $scoreLeaveCurrent;
+                    if ($gain > $bestGain) {
+                        $bestGain = $gain;
+                        $bestComm = $nc;
+                    }
+                }
+
+                if ($bestComm !== $currentComm) {
+                    $commDegSum[$currentComm] -= $ki;
+                    $commDegSum[$bestComm] += $ki;
+                    $community[$nodeId] = $bestComm;
+                    $moved = true;
+                }
+            }
+
+            if (! $moved) {
+                break;
+            }
+        }
+
+        // Compact community IDs to 1-based contiguous integers.
+        $remap = [];
+        $next = 0;
+        $clusters = [];
+        foreach ($ids as $id) {
+            $c = $community[$id];
+            if (! isset($remap[$c])) {
+                $remap[$c] = ++$next;
+            }
+            $clusters[$id] = $remap[$c];
+        }
+
+        return $clusters;
+    }
+
+    private function isTestFile(string $path): bool
+    {
+        return str_starts_with($path, 'tests/')
+            || str_starts_with($path, 'test/')
+            || str_ends_with($path, 'Test.php')
+            || (bool) preg_match('/\.(test|spec)\.[jt]sx?$/', $path);
     }
 
     /**

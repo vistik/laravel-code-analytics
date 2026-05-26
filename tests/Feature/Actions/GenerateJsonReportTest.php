@@ -4,7 +4,7 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
-function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null): array
+function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null): array
 {
     return [
         'path' => $path,
@@ -18,6 +18,8 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
         '_cycleBoost' => $cycleBoost,
         '_connectionBoost' => $connectionBoost,
         '_connections' => $connections,
+        'clusterId' => $clusterId,
+        'clusterSize' => $clusterSize,
         'veryHighCount' => 0, 'highCount' => 0, 'mediumCount' => 0, 'lowCount' => 0, 'infoCount' => 0, 'analysisCount' => 0,
     ];
 }
@@ -140,4 +142,84 @@ test('files are sorted by signal descending when connection boosts differ', func
     expect($data['files'][0]['path'])->toBe('app/High.php')
         ->and($data['files'][1]['path'])->toBe('app/Mid.php')
         ->and($data['files'][2]['path'])->toBe('app/Low.php');
+});
+
+// ── cluster_id / cluster_size fields ─────────────────────────────────────────
+
+test('file entry includes cluster_id when node is in a cluster', function () {
+    $data = generateJson([makeJsonNode('app/Foo.php', clusterId: 2, clusterSize: 5)]);
+
+    expect($data['files'][0]['cluster_id'])->toBe(2);
+});
+
+test('file entry cluster_id is null when node has no cluster', function () {
+    $data = generateJson([makeJsonNode('app/Bar.php')]);
+
+    expect($data['files'][0]['cluster_id'])->toBeNull();
+});
+
+test('file entry includes cluster_size when node is in a cluster', function () {
+    $data = generateJson([makeJsonNode('app/Foo.php', clusterId: 2, clusterSize: 5)]);
+
+    expect($data['files'][0]['cluster_size'])->toBe(5);
+});
+
+test('file entry cluster_size is null when node has no cluster', function () {
+    $data = generateJson([makeJsonNode('app/Bar.php')]);
+
+    expect($data['files'][0]['cluster_size'])->toBeNull();
+});
+
+// ── review_clusters section ───────────────────────────────────────────────────
+
+test('review_clusters is empty array when no clusters exist', function () {
+    $data = generateJson([makeJsonNode('app/Foo.php'), makeJsonNode('app/Bar.php')]);
+
+    expect($data['review_clusters'])->toBe([]);
+});
+
+test('review_clusters lists files grouped by cluster', function () {
+    $data = generateJson([
+        makeJsonNode('app/Foo.php', clusterId: 1, clusterSize: 2),
+        makeJsonNode('app/Bar.php', clusterId: 1, clusterSize: 2),
+        makeJsonNode('app/Baz.php', clusterId: 2, clusterSize: 1),
+        makeJsonNode('app/Clean.php'),
+    ]);
+
+    expect($data['review_clusters'])->toHaveCount(2);
+    expect($data['review_clusters'][0]['files'])->toContain('app/Foo.php');
+    expect($data['review_clusters'][0]['files'])->toContain('app/Bar.php');
+    expect($data['review_clusters'][1]['files'])->toContain('app/Baz.php');
+});
+
+test('review_clusters entries include cluster_id and size', function () {
+    $data = generateJson([
+        makeJsonNode('app/Foo.php', clusterId: 3, clusterSize: 4),
+        makeJsonNode('app/Bar.php', clusterId: 3, clusterSize: 4),
+    ]);
+
+    expect($data['review_clusters'][0]['cluster_id'])->toBe(3);
+    expect($data['review_clusters'][0]['size'])->toBe(2);
+});
+
+test('review_clusters does not include non-cluster files', function () {
+    $data = generateJson([
+        makeJsonNode('app/Foo.php', clusterId: 1, clusterSize: 1),
+        makeJsonNode('app/Clean.php'),
+    ]);
+
+    $allFiles = array_merge(...array_column($data['review_clusters'], 'files'));
+    expect($allFiles)->not->toContain('app/Clean.php');
+});
+
+test('review_clusters groups are ordered by cluster id', function () {
+    $data = generateJson([
+        makeJsonNode('app/C.php', clusterId: 3, clusterSize: 1),
+        makeJsonNode('app/A.php', clusterId: 1, clusterSize: 1),
+        makeJsonNode('app/B.php', clusterId: 2, clusterSize: 1),
+    ]);
+
+    expect($data['review_clusters'][0]['cluster_id'])->toBe(1);
+    expect($data['review_clusters'][1]['cluster_id'])->toBe(2);
+    expect($data['review_clusters'][2]['cluster_id'])->toBe(3);
 });

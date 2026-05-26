@@ -292,6 +292,58 @@ tailwind.config = {
   }
   .cycles-panel.open { right: 0; }
 
+  /* ── Review clusters panel (slides from left) ── */
+  .clusters-panel {
+    position: absolute; top: 0; left: -100%; height: 100%;
+    background: #0d1117; border-right: 1px solid #21262d; z-index: 30;
+    display: flex; flex-direction: column;
+    box-shadow: 8px 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03) inset;
+    transition: left 0.28s cubic-bezier(0.22,1,0.36,1); width: 360px;
+  }
+  .clusters-panel.open { left: 0; }
+
+  /* ── Cluster group card ── */
+  .cluster-group { border-bottom: 1px solid #161b22; }
+  .cluster-group-btn {
+    width: 100%; background: none; border: none; padding: 0; cursor: pointer;
+    text-align: left; display: block;
+  }
+  .cluster-header-inner {
+    display: flex; align-items: stretch; transition: background 0.12s;
+  }
+  .cluster-group-btn:hover .cluster-header-inner { background: rgba(255,255,255,0.04); }
+  .cluster-color-bar { width: 3px; flex-shrink: 0; border-radius: 0 2px 2px 0; }
+  .cluster-header-content {
+    flex: 1; min-width: 0; display: flex; align-items: center;
+    justify-content: space-between; padding: 11px 14px 11px 12px; gap: 8px;
+  }
+  .cluster-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .cluster-header-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .cluster-view-badge {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px; border: 1px solid; flex-shrink: 0;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .cluster-group-btn:hover .cluster-view-badge { opacity: 1; }
+  .cluster-group-btn.cluster-filter-active .cluster-view-badge { opacity: 1; }
+  .cluster-hide-btn {
+    background: none; border: none; cursor: pointer; padding: 3px 5px; border-radius: 4px;
+    color: #484f58; line-height: 1; flex-shrink: 0; display: flex; align-items: center;
+    opacity: 0; transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  .cluster-group-btn:hover .cluster-hide-btn { opacity: 1; }
+  .cluster-hide-btn.is-hidden { opacity: 1; color: #f85149; }
+  .cluster-hide-btn:hover { background: rgba(255,255,255,0.08); color: #c9d1d9; }
+  .cluster-group.cluster-hidden .cluster-file-row { opacity: 0.35; pointer-events: none; }
+  .cluster-group.cluster-hidden .cluster-header-title,
+  .cluster-group.cluster-hidden .cycle-pill { opacity: 0.45; }
+  .cluster-file-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 14px 6px 18px; cursor: pointer; transition: background 0.1s;
+    border-top: 1px solid rgba(33,38,45,0.6);
+  }
+  .cluster-file-row:hover { background: #161b22; }
+
   /* ── PR Comments panel ── */
   .comments-panel {
     position: absolute; top: 0; left: -100%; height: 100%;
@@ -490,6 +542,9 @@ tailwind.config = {
     <button class="tab" id="filesTab" onclick="toggleFilesPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0110.25 10H7.061l-2.574 2.573A.25.25 0 014 12.354V10h-.25A1.75 1.75 0 012 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 00-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 01.75.75v1.19l2.06-2.06a.75.75 0 01.53-.22h3.41a.25.25 0 00.25-.25v-5.5a.25.25 0 00-.25-.25h-8.5z"/></svg>Files
     </button>
+    <button class="tab" id="clustersTab" onclick="toggleClustersPanel()" style="display:none">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4 4 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5ZM11 4a3.001 3.001 0 0 1 2.22 5.018 5.01 5.01 0 0 1 2.56 3.012.749.749 0 0 1-.885.954.752.752 0 0 1-.549-.514 3.507 3.507 0 0 0-2.522-2.372.75.75 0 0 1-.574-.73v-.352a.75.75 0 0 1 .416-.672A1.5 1.5 0 0 0 11 5.5.75.75 0 0 1 11 4Zm-5.5-.5a2 2 0 1 0-.001 3.999A2 2 0 0 0 5.5 3.5Z"/></svg>Clusters
+    </button>
     <button class="tab" id="findingsTab" onclick="toggleFindingsPanel()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-.25-6.25a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 1.5 0v-3.5z"/></svg>Findings
     </button>
@@ -605,6 +660,18 @@ tailwind.config = {
       <button class="cycles-panel-close" onclick="toggleCyclesPanel()">&times;</button>
     </div>
     <div class="cycles-scroll" id="cyclesScroll"></div>
+  </div>
+
+  <div class="clusters-panel" id="clustersPanel">
+    <div class="cycles-panel-header">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="#4d96ff" style="flex-shrink:0"><path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4 4 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5ZM11 4a3.001 3.001 0 0 1 2.22 5.018 5.01 5.01 0 0 1 2.56 3.012.749.749 0 0 1-.885.954.752.752 0 0 1-.549-.514 3.507 3.507 0 0 0-2.522-2.372.75.75 0 0 1-.574-.73v-.352a.75.75 0 0 1 .416-.672A1.5 1.5 0 0 0 11 5.5.75.75 0 0 1 11 4Zm-5.5-.5a2 2 0 1 0-.001 3.999A2 2 0 0 0 5.5 3.5Z"/></svg>
+        Review Clusters
+      </h3>
+      <button class="cycles-panel-close" onclick="toggleClustersPanel()">&times;</button>
+    </div>
+    <p style="font-size:12px;color:#6e7681;padding:10px 18px 0;line-height:1.6;flex-shrink:0">Files in the same cluster share dependencies and are best reviewed together.</p>
+    <div class="cycles-scroll" id="clustersScroll"></div>
   </div>
 
   @if($prCommentCount > 0)
@@ -809,10 +876,10 @@ tailwind.config = {
     document.querySelectorAll('.files-panel.open').forEach(function(p) {
       p.classList.remove('open'); p.style.left = '-100%';
     });
-    document.querySelectorAll('.findings-panel, .cycles-panel, .comments-panel').forEach(function(p) {
+    document.querySelectorAll('.findings-panel, .cycles-panel, .clusters-panel, .comments-panel').forEach(function(p) {
       p.classList.remove('open');
     });
-    ['filesTab','endpointsTab','findingsTab','cyclesTab','commentsTab'].forEach(function(id) {
+    ['filesTab','endpointsTab','findingsTab','cyclesTab','clustersTab','commentsTab'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.classList.remove('active');
     });
   }
@@ -825,6 +892,11 @@ tailwind.config = {
   }
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
+
+  function hexA(hex, alpha) {
+    var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
 
   // ── Circular dependencies ──
   (function() {
@@ -839,11 +911,6 @@ tailwind.config = {
       if (!groups[n.cycleId]) groups[n.cycleId] = [];
       groups[n.cycleId].push(n);
     });
-
-    function hexA(hex, alpha) {
-      var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-      return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-    }
 
     function renderCycles() {
       var html = '';
@@ -906,6 +973,195 @@ tailwind.config = {
       }
     });
   })();
+
+  // ── Review clusters ──
+  (function() {
+    var clusterNodes = filesNodes.filter(function(n) { return !n.isConnected && n.clusterId != null; });
+    var groups = {};
+    clusterNodes.forEach(function(n) {
+      if (!groups[n.clusterId]) groups[n.clusterId] = [];
+      groups[n.clusterId].push(n);
+    });
+    Object.keys(groups).forEach(function(id) { if (groups[id].length <= 1) delete groups[id]; });
+    if (!Object.keys(groups).length) return;
+
+    document.getElementById('clustersTab').style.display = '';
+
+    // Map from cluster id → array of nodeIds (built before renderClusters so the
+    // click handler can reference it immediately after rendering).
+    var clusterNodeIds = {};
+    Object.keys(groups).forEach(function(id) {
+      clusterNodeIds[id] = groups[id].map(function(n) { return n.id; });
+    });
+
+    var wrapperHiddenClusters = new Set();
+    var activeFilterClusterId = null;
+
+    function updateActiveBadgeUI() {
+      document.querySelectorAll('.cluster-group-btn').forEach(function(btn) {
+        var cid = btn.dataset.clusterId;
+        var color = btn.dataset.clusterColor || '#4d96ff';
+        var badge = btn.querySelector('.cluster-view-badge');
+        var isActive = String(activeFilterClusterId) === String(cid);
+        btn.classList.toggle('cluster-filter-active', isActive);
+        if (badge) {
+          badge.innerHTML = isActive ? '&#10003; Viewing' : 'View only &rsaquo;';
+          badge.style.background = isActive ? hexA(color, 0.2) : hexA(color, 0.08);
+          badge.style.opacity = isActive ? '1' : '';
+        }
+      });
+    }
+
+    // Called from outer filterStateChanged handler to sync badge state
+    window._updateClustersFilterUI = function(clusterFilter) {
+      activeFilterClusterId = clusterFilter ? String(clusterFilter.clusterId) : null;
+      updateActiveBadgeUI();
+    };
+
+    var eyeOpenSvg = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C4.5 2 1.5 5 0 8c1.5 3 4.5 6 8 6s6.5-3 8-6C14.5 5 11.5 2 8 2zm0 10a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-6.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>';
+    var eyeSlashSvg = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C4.5 2 1.5 5 0 8c1.5 3 4.5 6 8 6s6.5-3 8-6C14.5 5 11.5 2 8 2zm0 10a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-6.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/><line x1="1.5" y1="1.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+    function updateClusterHiddenUI() {
+      document.querySelectorAll('.cluster-hide-btn').forEach(function(btn) {
+        var cid = btn.dataset.clusterId;
+        var isHidden = wrapperHiddenClusters.has(cid);
+        btn.innerHTML = isHidden ? eyeSlashSvg : eyeOpenSvg;
+        btn.title = isHidden ? 'Show cluster on canvas' : 'Hide cluster from canvas';
+        btn.classList.toggle('is-hidden', isHidden);
+        var group = btn.closest('.cluster-group');
+        if (group) group.classList.toggle('cluster-hidden', isHidden);
+      });
+    }
+
+    function sendHiddenClustersToIframe() {
+      document.getElementById('view').contentWindow.postMessage({
+        type: 'setHiddenClusters',
+        clusterIds: Array.from(wrapperHiddenClusters)
+      }, '*');
+    }
+
+    function renderClusters() {
+      var html = '';
+      var ids = Object.keys(groups).map(Number).sort(function(a, b) { return a - b; });
+      ids.forEach(function(id) {
+        var members = groups[id];
+        var color = members[0].clusterColor || '#4d96ff';
+        var colorAlpha = hexA(color, 0.18);
+        var colorBorder = hexA(color, 0.45);
+        var isHidden = wrapperHiddenClusters.has(String(id));
+        html += '<div class="cluster-group' + (isHidden ? ' cluster-hidden' : '') + '">';
+        html += '<button class="cluster-group-btn" data-cluster-id="' + id + '" data-cluster-color="' + color + '">' +
+          '<div class="cluster-header-inner">' +
+            '<div class="cluster-color-bar" style="background:' + color + '"></div>' +
+            '<div class="cluster-header-content">' +
+              '<div class="cluster-header-left">' +
+                '<span class="cluster-header-title" style="color:' + color + '">Cluster ' + id + '</span>' +
+                '<span class="cycle-pill" style="background:' + colorAlpha + ';border:1px solid ' + colorBorder + ';color:' + color + '">' + members.length + ' files</span>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:4px">' +
+                '<span class="cluster-view-badge" style="color:' + color + ';border-color:' + colorBorder + ';background:' + hexA(color, 0.08) + '">View only &rsaquo;</span>' +
+                '<button class="cluster-hide-btn' + (isHidden ? ' is-hidden' : '') + '" data-cluster-id="' + id + '" title="' + (isHidden ? 'Show cluster on canvas' : 'Hide cluster from canvas') + '">' + (isHidden ? eyeSlashSvg : eyeOpenSvg) + '</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</button>';
+        members.forEach(function(n) {
+          var baseName = n.id.replace(/</g, '&lt;');
+          var path = n.path.replace(/</g, '&lt;');
+          var dot = '<div class="cycle-file-dot" style="background:' + (n.domainColor || '#484f58') + ';border:1.5px solid ' + color + '"></div>';
+          html += '<div class="cluster-file-row" data-node-id="' + n.id.replace(/"/g, '&quot;') + '" data-cluster-color="' + color + '">' +
+            dot +
+            '<div class="cycle-file-info">' +
+              '<div class="cycle-file-name">' + baseName + '</div>' +
+              '<div class="cycle-file-path">' + path + '</div>' +
+            '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+      });
+      document.getElementById('clustersScroll').innerHTML = html;
+    }
+
+    var nodeToClusterMembers = {};
+    Object.keys(groups).forEach(function(id) {
+      var memberIds = groups[id].map(function(n) { return n.id; });
+      groups[id].forEach(function(n) { nodeToClusterMembers[n.id] = memberIds; });
+    });
+
+    renderClusters();
+
+    var clustersScrollEl = document.getElementById('clustersScroll');
+
+    clustersScrollEl.addEventListener('click', function(e) {
+      var hideBtn = e.target.closest('.cluster-hide-btn');
+      if (hideBtn) {
+        e.stopPropagation();
+        var cid = hideBtn.dataset.clusterId;
+        if (wrapperHiddenClusters.has(cid)) {
+          wrapperHiddenClusters.delete(cid);
+        } else {
+          wrapperHiddenClusters.add(cid);
+        }
+        updateClusterHiddenUI();
+        sendHiddenClustersToIframe();
+        return;
+      }
+      var btn = e.target.closest('.cluster-group-btn');
+      if (btn) {
+        var cid = btn.dataset.clusterId;
+        var color = btn.dataset.clusterColor;
+        toggleClustersPanel();
+        if (String(activeFilterClusterId) === String(cid)) {
+          activeFilterClusterId = null;
+          updateActiveBadgeUI();
+          document.getElementById('view').contentWindow.postMessage({ type: 'clearClusterFilter' }, '*');
+        } else {
+          activeFilterClusterId = String(cid);
+          updateActiveBadgeUI();
+          document.getElementById('view').contentWindow.postMessage({
+            type: 'setClusterFilter',
+            clusterId: cid,
+            clusterColor: color,
+            nodeIds: clusterNodeIds[cid] || []
+          }, '*');
+        }
+        return;
+      }
+      var row = e.target.closest('.cluster-file-row');
+      if (!row) return;
+      toggleClustersPanel();
+      document.getElementById('view').contentWindow.postMessage({ type: 'openFile', nodeId: row.dataset.nodeId, fromFiles: false }, '*');
+    });
+
+    clustersScrollEl.addEventListener('mouseover', function(e) {
+      var row = e.target.closest('.cluster-file-row');
+      if (!row) return;
+      var nodeIds = nodeToClusterMembers[row.dataset.nodeId] || [row.dataset.nodeId];
+      document.getElementById('view').contentWindow.postMessage({ type: 'highlightCycle', nodeIds: nodeIds }, '*');
+    });
+
+    clustersScrollEl.addEventListener('mouseout', function(e) {
+      if (e.target.closest('.cluster-file-row') && !e.relatedTarget?.closest('.cluster-file-row')) {
+        document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
+      }
+    });
+  })();
+
+  function toggleClustersPanel() {
+    var panel = document.getElementById('clustersPanel');
+    var isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      document.getElementById('clustersTab').classList.remove('active');
+      document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
+    } else {
+      clearActiveEndpoint();
+      closeAllPanels();
+      document.getElementById('view').contentWindow.postMessage({ type: 'closePanel' }, '*');
+      panel.classList.add('open');
+      document.getElementById('clustersTab').classList.add('active');
+    }
+  }
 
   function toggleCyclesPanel() {
     var panel = document.getElementById('cyclesPanel');
@@ -1686,6 +1942,22 @@ tailwind.config = {
         setTimeout(function() { targetRow.style.background = ''; }, 1200);
       }, 280);
     }
+    if (e.data.type === 'openClustersPanel') {
+      var clp = document.getElementById('clustersPanel');
+      if (!clp.classList.contains('open')) toggleClustersPanel();
+      setTimeout(function() {
+        var targetRow = null;
+        document.querySelectorAll('.cluster-file-row').forEach(function(r) {
+          if (r.dataset.nodeId === e.data.nodeId) targetRow = r;
+        });
+        if (!targetRow) return;
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var flashColor = targetRow.dataset.clusterColor || '#4d96ff';
+        targetRow.style.transition = 'background 0.15s';
+        targetRow.style.background = hexA(flashColor, 0.2);
+        setTimeout(function() { targetRow.style.background = ''; }, 1200);
+      }, 280);
+    }
     if (e.data.type === 'backToFiles') {
       var iframe = document.getElementById('view');
       iframe.contentWindow.postMessage({ type: 'closePanel' }, '*');
@@ -1695,7 +1967,12 @@ tailwind.config = {
       if (cyclesPanelEl.classList.contains('open')) {
         cyclesPanelEl.classList.remove('open');
         document.getElementById('cyclesTab').classList.remove('active');
-        // Clear any lingering highlight
+        document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
+      }
+      var clustersPanelEl = document.getElementById('clustersPanel');
+      if (clustersPanelEl.classList.contains('open')) {
+        clustersPanelEl.classList.remove('open');
+        document.getElementById('clustersTab').classList.remove('active');
         document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
       }
     }
@@ -1722,6 +1999,9 @@ tailwind.config = {
     }
     if (e.data.type === 'filterStateChanged') {
       currentFilterState = e.data.state;
+      if (typeof window._updateClustersFilterUI === 'function') {
+        window._updateClustersFilterUI(e.data.state.clusterFilter || null);
+      }
     }
     if (e.data.type === 'visibleNodesChanged') {
       if (pendingFilterApply && currentFilterState) {

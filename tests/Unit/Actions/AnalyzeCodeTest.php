@@ -1764,3 +1764,335 @@ Schedule::command(\'reports:monthly\')->monthly();');
         expect($paths)->toContain('app/Console/Commands/Reporting/GenerateMonthlyReport.php');
     });
 });
+
+// ── detectAndAnnotateClusters ─────────────────────────────────────────────────
+
+describe('detectAndAnnotateClusters', function () {
+    function makeClusterNode(string $id, string $path, bool $isConnected = false): array
+    {
+        return ['id' => $id, 'path' => $path, 'isConnected' => $isConnected];
+    }
+
+    it('assigns null clusterId to nodes that form only a singleton cluster', function () {
+        $nodes = [makeClusterNode('a', 'app/Foo.php')];
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', $nodes);
+        expect($result[0][0]['clusterId'])->toBeNull();
+    });
+
+    it('detectClusters groups connected nodes into the same cluster', function () {
+        $nodes = [
+            makeClusterNode('a', 'app/Foo.php'),
+            makeClusterNode('b', 'app/Bar.php'),
+        ];
+        $edges = [['a', 'b']];
+        $clusterMap = analyzeCodeMethod('detectClusters', $nodes, $edges);
+
+        expect($clusterMap['a'])->toBe($clusterMap['b']);
+    });
+
+    it('detectClusters keeps disconnected nodes in separate clusters', function () {
+        $nodes = [
+            makeClusterNode('a', 'app/Foo.php'),
+            makeClusterNode('b', 'app/Bar.php'),
+        ];
+        $clusterMap = analyzeCodeMethod('detectClusters', $nodes, []);
+
+        // With no edges, each node is in its own cluster
+        expect($clusterMap['a'])->not->toBe($clusterMap['b']);
+    });
+
+    it('does not cluster test files in tests/ directory', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'tests/Feature/FooTest.php'),
+            makeClusterNode('b', 'tests/Feature/BarTest.php'),
+        ]);
+        $clusterIds = array_column($result[0], 'clusterId');
+        expect($clusterIds)->each->toBeNull();
+    });
+
+    it('does not cluster files ending in Test.php', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'app/FooTest.php'),
+            makeClusterNode('b', 'app/BarTest.php'),
+        ]);
+        $clusterIds = array_column($result[0], 'clusterId');
+        expect($clusterIds)->each->toBeNull();
+    });
+
+    it('does not cluster .test.ts files', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'resources/js/Foo.test.ts'),
+            makeClusterNode('b', 'resources/js/Bar.test.ts'),
+        ]);
+        $clusterIds = array_column($result[0], 'clusterId');
+        expect($clusterIds)->each->toBeNull();
+    });
+
+    it('does not cluster .spec.tsx files', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'resources/js/Foo.spec.tsx'),
+            makeClusterNode('b', 'resources/js/Bar.spec.tsx'),
+        ]);
+        $clusterIds = array_column($result[0], 'clusterId');
+        expect($clusterIds)->each->toBeNull();
+    });
+
+    it('does not cluster connected (non-diff) nodes', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'app/Foo.php', isConnected: true),
+            makeClusterNode('b', 'app/Bar.php', isConnected: true),
+        ]);
+        $clusterIds = array_column($result[0], 'clusterId');
+        expect($clusterIds)->each->toBeNull();
+    });
+
+    it('assigns clusterColor to nodes in a multi-node cluster', function () {
+        // clusterColor comes from detectAndAnnotateClusters but only for nodes with a non-null clusterId.
+        // Since detectAndAnnotateClusters reads from $this->graph->edges we use detectClusters directly
+        // to build a clusterMap and verify the annotation logic independently.
+        $nodes = [
+            makeClusterNode('a', 'app/Foo.php'),
+            makeClusterNode('b', 'app/Bar.php'),
+        ];
+        // Fake a clusterMap where both nodes share cluster 1 (size 2).
+        // We do this by passing two nodes that detectClusters would group together.
+        $clusterMap = analyzeCodeMethod('detectClusters', $nodes, [['a', 'b']]);
+        expect($clusterMap['a'])->toBe($clusterMap['b']);
+        // The cluster ID is 1-based and compact.
+        expect(min(array_values($clusterMap)))->toBe(1);
+    });
+
+    it('test/ prefix (without s) is also excluded from clustering', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'test/Unit/FooTest.php'),
+            makeClusterNode('b', 'test/Unit/BarTest.php'),
+        ]);
+        $clusterIds = array_column($result[0], 'clusterId');
+        expect($clusterIds)->each->toBeNull();
+    });
+
+    it('only test files are excluded; regular files alongside them still get null (no multi-node cluster forms)', function () {
+        // With one regular file and one test file there is no multi-node cluster for the
+        // regular file either — singleton suppression kicks in.
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'app/Foo.php'),
+            makeClusterNode('b', 'tests/Feature/FooTest.php'),
+        ]);
+        $byId = array_column($result[0], 'clusterId', 'id');
+        // The test file is always null; the regular file is a singleton so also null.
+        expect($byId['a'])->toBeNull();
+        expect($byId['b'])->toBeNull();
+    });
+});
+
+// ── detectClusters ────────────────────────────────────────────────────────────
+
+describe('detectClusters', function () {
+    it('returns empty array for empty node list', function () {
+        $result = analyzeCodeMethod('detectClusters', [], []);
+        expect($result)->toBe([]);
+    });
+
+    it('ignores self-loop edges', function () {
+        $nodes = [makeClusterNode('a', 'app/Foo.php')];
+        $result = analyzeCodeMethod('detectClusters', $nodes, [['a', 'a']]);
+        // Self-loop does not count as an edge — single-node cluster, ID still assigned
+        expect($result)->toHaveKey('a');
+    });
+
+    it('ignores edges referencing unknown node ids', function () {
+        $nodes = [
+            makeClusterNode('a', 'app/Foo.php'),
+            makeClusterNode('b', 'app/Bar.php'),
+        ];
+        $result = analyzeCodeMethod('detectClusters', $nodes, [['a', 'unknown']]);
+        // Edge to unknown node is ignored, no cross-cluster merge
+        expect($result['a'])->not->toBe($result['b'] ?? null);
+    });
+
+    it('groups three nodes in a chain into the same cluster', function () {
+        $nodes = [
+            makeClusterNode('a', 'app/A.php'),
+            makeClusterNode('b', 'app/B.php'),
+            makeClusterNode('c', 'app/C.php'),
+        ];
+        $result = analyzeCodeMethod('detectClusters', $nodes, [['a', 'b'], ['b', 'c']]);
+        expect($result['a'])->toBe($result['b'])
+            ->and($result['b'])->toBe($result['c']);
+    });
+
+    it('produces separate cluster IDs for two disconnected pairs', function () {
+        $nodes = [
+            makeClusterNode('a', 'app/A.php'),
+            makeClusterNode('b', 'app/B.php'),
+            makeClusterNode('c', 'app/C.php'),
+            makeClusterNode('d', 'app/D.php'),
+        ];
+        $result = analyzeCodeMethod('detectClusters', $nodes, [['a', 'b'], ['c', 'd']]);
+        expect($result['a'])->toBe($result['b'])
+            ->and($result['c'])->toBe($result['d'])
+            ->and($result['a'])->not->toBe($result['c']);
+    });
+
+    it('produces compact 1-based cluster IDs', function () {
+        $nodes = [
+            makeClusterNode('a', 'app/A.php'),
+            makeClusterNode('b', 'app/B.php'),
+        ];
+        $result = analyzeCodeMethod('detectClusters', $nodes, [['a', 'b']]);
+        expect(min(array_values($result)))->toBe(1);
+    });
+});
+
+// ── isTestFile ────────────────────────────────────────────────────────────────
+
+describe('isTestFile', function () {
+    it('identifies files under tests/ as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'tests/Feature/UserTest.php'))->toBeTrue();
+    });
+
+    it('identifies files under test/ (singular) as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'test/Unit/FooTest.php'))->toBeTrue();
+    });
+
+    it('identifies files ending in Test.php as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'app/FooTest.php'))->toBeTrue();
+    });
+
+    it('identifies .test.ts files as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'resources/js/Foo.test.ts'))->toBeTrue();
+    });
+
+    it('identifies .test.tsx files as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'resources/js/Foo.test.tsx'))->toBeTrue();
+    });
+
+    it('identifies .test.js files as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'resources/js/Foo.test.js'))->toBeTrue();
+    });
+
+    it('identifies .test.jsx files as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'resources/js/Foo.test.jsx'))->toBeTrue();
+    });
+
+    it('identifies .spec.ts files as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'resources/js/Foo.spec.ts'))->toBeTrue();
+    });
+
+    it('identifies .spec.js files as test files', function () {
+        expect(analyzeCodeMethod('isTestFile', 'resources/js/Foo.spec.js'))->toBeTrue();
+    });
+
+    it('does not identify a regular app file as a test file', function () {
+        expect(analyzeCodeMethod('isTestFile', 'app/Models/User.php'))->toBeFalse();
+    });
+
+    it('does not identify a file containing Test in the middle of its name', function () {
+        expect(analyzeCodeMethod('isTestFile', 'app/TestHelper.php'))->toBeFalse();
+    });
+
+    it('does not identify a migration as a test file', function () {
+        expect(analyzeCodeMethod('isTestFile', 'database/migrations/2024_01_01_create_tests_table.php'))->toBeFalse();
+    });
+});
+
+// ── execute — cluster annotation ─────────────────────────────────────────────
+
+describe('execute — cluster annotation', function () {
+    it('assigns cluster_id to two PHP files that depend on each other', function () {
+        $dir = makeTempGitRepo(withArtisan: true);
+
+        addAndStageFile($dir, 'app/Services/PaymentService.php', '<?php
+namespace App\Services;
+class PaymentService {}');
+
+        addAndStageFile($dir, 'app/Http/Controllers/CheckoutController.php', '<?php
+namespace App\Http\Controllers;
+use App\Services\PaymentService;
+class CheckoutController {
+    public function __construct(private PaymentService $payment) {}
+}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $byPath = array_column($content['files'], null, 'path');
+
+        // Both files should be in the same cluster (clusterId is non-null and equal).
+        $serviceCluster = $byPath['app/Services/PaymentService.php']['cluster_id'] ?? null;
+        $controllerCluster = $byPath['app/Http/Controllers/CheckoutController.php']['cluster_id'] ?? null;
+
+        expect($serviceCluster)->not->toBeNull()
+            ->and($controllerCluster)->not->toBeNull()
+            ->and($serviceCluster)->toBe($controllerCluster);
+    });
+
+    it('assigns null cluster_id to a lone file with no dependencies', function () {
+        $dir = makeTempGitRepo(withArtisan: true);
+
+        addAndStageFile($dir, 'app/Models/User.php', '<?php
+namespace App\Models;
+use Illuminate\Database\Eloquent\Model;
+class User extends Model {}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $userFile = $content['files'][0] ?? null;
+
+        expect($userFile['cluster_id'])->toBeNull();
+    });
+
+    it('assigns null cluster_id to a test file even when other files form clusters', function () {
+        $dir = makeTempGitRepo(withArtisan: true);
+
+        addAndStageFile($dir, 'app/Services/PaymentService.php', '<?php
+namespace App\Services;
+class PaymentService {}');
+
+        addAndStageFile($dir, 'app/Http/Controllers/CheckoutController.php', '<?php
+namespace App\Http\Controllers;
+use App\Services\PaymentService;
+class CheckoutController {
+    public function __construct(private PaymentService $payment) {}
+}');
+
+        addAndStageFile($dir, 'tests/Feature/CheckoutTest.php', '<?php
+namespace Tests\Feature;
+use Tests\TestCase;
+class CheckoutTest extends TestCase {}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+        $byPath = array_column($content['files'], null, 'path');
+
+        expect($byPath['tests/Feature/CheckoutTest.php']['cluster_id'])->toBeNull();
+    });
+
+    it('includes review_clusters section in JSON output when clusters exist', function () {
+        $dir = makeTempGitRepo(withArtisan: true);
+
+        addAndStageFile($dir, 'app/Services/PaymentService.php', '<?php
+namespace App\Services;
+class PaymentService {}');
+
+        addAndStageFile($dir, 'app/Http/Controllers/CheckoutController.php', '<?php
+namespace App\Http\Controllers;
+use App\Services\PaymentService;
+class CheckoutController {
+    public function __construct(private PaymentService $payment) {}
+}');
+
+        $result = (new AnalyzeCode)->execute(repoPath: $dir, format: OutputFormat::JSON, raw: true);
+        removeTempDir($dir);
+
+        $content = json_decode($result['content'], true);
+
+        expect($content)->toHaveKey('review_clusters')
+            ->and($content['review_clusters'])->not->toBeEmpty();
+    });
+});

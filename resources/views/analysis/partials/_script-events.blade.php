@@ -139,12 +139,15 @@ window.addEventListener('message', function(e) {
     closePanel();
   }
   if (e.data.type === 'highlightCycle') {
+    resetFiltersToDefault();
     externalHighlightNodes = new Set((e.data.nodeIds || []).map(function(id) { return nodeMap[id]; }).filter(Boolean));
     externalHighlightDepths = new Map();
     var depths = e.data.nodeDepths || {};
     Object.keys(depths).forEach(function(id) { var n = nodeMap[id]; if (n) externalHighlightDepths.set(n, depths[id]); });
+    showOnlyHighlighted = true;
     var toh = document.getElementById('toggleOnlyHighlighted');
-    if (toh && !showOnlyHighlighted) { showOnlyHighlighted = true; toh.checked = true; broadcastFilterState(); }
+    if (toh) toh.checked = true;
+    broadcastFilterState();
     clearHidden();
   }
   if (e.data.type === 'clearHighlight') {
@@ -196,6 +199,22 @@ window.addEventListener('message', function(e) {
     document.querySelectorAll('.severity-toggle').forEach(function(cb) {
       cb.checked = !hiddenSeverities[cb.dataset.severity];
     });
+    if (s.clusterFilter) {
+      activeClusterFilter = new Set(s.clusterFilter.nodeIds);
+      var banner = document.getElementById('clusterFilterBanner');
+      if (banner) {
+        banner.style.display = 'flex';
+        banner.style.borderColor = s.clusterFilter.clusterColor || '#4d96ff';
+        banner.style.color = s.clusterFilter.clusterColor || '#4d96ff';
+        var label = document.getElementById('clusterFilterLabel');
+        if (label) label.textContent = 'Cluster ' + s.clusterFilter.clusterId + ' \u00b7 ' + s.clusterFilter.nodeIds.length + ' files';
+      }
+    } else {
+      activeClusterFilter = null;
+      var banner = document.getElementById('clusterFilterBanner');
+      if (banner) banner.style.display = 'none';
+    }
+    hiddenClusters = new Set((s.hiddenClusters || []).map(Number));
     clearHidden();
   }
 });
@@ -204,6 +223,10 @@ document.getElementById('panel-header').addEventListener('click', function(e) {
   var btn = e.target.closest('[data-open-cycles]');
   if (btn && window.parent !== window) {
     window.parent.postMessage({ type: 'openCyclesPanel', nodeId: btn.dataset.openCycles }, '*');
+  }
+  var clusterBtn = e.target.closest('[data-open-clusters]');
+  if (clusterBtn && window.parent !== window) {
+    window.parent.postMessage({ type: 'openClustersPanel', nodeId: clusterBtn.dataset.openClusters }, '*');
   }
 });
 

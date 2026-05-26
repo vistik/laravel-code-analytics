@@ -67,15 +67,16 @@ class GenerateMdReport implements ReportGenerator
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
 
-        $lines[] = '| File | Status | +/- | Severity | Signal | Cycle |';
-        $lines[] = '|------|--------|----:|----------|-------:|------:|';
+        $lines[] = '| File | Status | +/- | Severity | Signal | Cycle | Cluster |';
+        $lines[] = '|------|--------|----:|----------|-------:|------:|--------:|';
 
         foreach ($sorted as $node) {
             $sev = $node['severity'] ? ucfirst($node['severity']) : '—';
             $signal = $node['_signal'] ?? 0;
             $status = ucfirst($node['status']);
             $cycle = ($node['cycleId'] ?? null) !== null ? "↻ {$node['cycleId']}" : '—';
-            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} | {$cycle} |";
+            $cluster = ($node['clusterId'] ?? null) !== null ? "⬡ {$node['clusterId']}" : '—';
+            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} | {$cycle} | {$cluster} |";
         }
         $lines[] = '';
 
@@ -93,6 +94,28 @@ class GenerateMdReport implements ReportGenerator
             $lines[] = '';
             foreach ($cycleGroups as $id => $paths) {
                 $lines[] = "**Cycle {$id}** (".count($paths).' files)';
+                $lines[] = '';
+                foreach ($paths as $path) {
+                    $lines[] = "- `{$path}`";
+                }
+                $lines[] = '';
+            }
+        }
+
+        // ── Review Clusters ─────────────────────────────────────────────────
+        $clusterGroups = [];
+        foreach ($nodes as $node) {
+            if (($node['clusterId'] ?? null) !== null) {
+                $clusterGroups[$node['clusterId']][] = $node['path'];
+            }
+        }
+
+        if (! empty($clusterGroups)) {
+            ksort($clusterGroups);
+            $lines[] = '## Review Clusters';
+            $lines[] = '';
+            foreach ($clusterGroups as $id => $paths) {
+                $lines[] = "**Cluster {$id}** (".count($paths).' files)';
                 $lines[] = '';
                 foreach ($paths as $path) {
                     $lines[] = "- `{$path}`";

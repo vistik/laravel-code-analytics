@@ -215,6 +215,7 @@ function openPanel(n) {
       (n.infoCount > 0 ? '<button onclick="var e=document.getElementById(\'code-analysis-section\'),b=document.getElementById(\'panel-body\');if(e&&b)b.scrollTop=e.offsetTop;" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8b949e;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-family:inherit" class="sev-dot-btn"><span style="width:10px;height:10px;border-radius:50%;background:' + sevColors.info + ';flex-shrink:0;display:inline-block"></span>' + n.infoCount + '</button>' : '') +
       (n.watched ? '<span class="badge" style="background:#d29922;color:#000">&#9670; Watched</span>' : '') +
       (n.cycleId != null ? '<button class="badge" data-open-cycles="' + n.id.replace(/"/g,'&quot;') + '" style="background:' + hexAlpha(n.cycleColor,0.15) + ';color:' + n.cycleColor + ';border:1px solid ' + hexAlpha(n.cycleColor,0.5) + ';cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;line-height:1.5;appearance:none">&#8635; Cycle ' + n.cycleId + '</button>' : '') +
+      (n.clusterId != null && n.clusterSize > 1 ? '<button class="badge" data-open-clusters="' + n.id.replace(/"/g,'&quot;') + '" style="background:' + hexAlpha(n.clusterColor,0.15) + ';color:' + n.clusterColor + ';border:1px solid ' + hexAlpha(n.clusterColor,0.5) + ';cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;line-height:1.5;appearance:none">&#9632; Cluster ' + n.clusterId + '</button>' : '') +
     '</div>';
 
   function metricColor(val, warn, bad) { return val >= bad ? '#f85149' : val >= warn ? '#d29922' : '#3fb950'; }
@@ -458,6 +459,32 @@ function openPanel(n) {
       bodyHtml += '<div class="dep-item" data-node-id="' + cm.id.replace(/"/g, '&quot;') + '">' +
         '<span class="dep-dot" style="background:' + cm.color + ';border:1.5px dashed ' + cm.cycleColor + ';box-sizing:content-box"></span>' +
         cm.id + cmKindLabel + dtBadge +
+        '<span style="color:#6e7681;margin-left:auto;font-size:11px;white-space:nowrap">' + dirLabel + '</span>' +
+        '</div>';
+    }
+    bodyHtml += '</div>';
+  }
+
+  if (n.clusterId != null && n.clusterSize > 1) {
+    var clusterMembers = nodes.filter(function(m) { return !m.isConnected && m.clusterId === n.clusterId && m !== n; });
+    bodyHtml += '<div class="deps-section" style="border-left:2px solid ' + hexAlpha(n.clusterColor, 0.5) + ';margin-left:0;padding-left:22px">' +
+      '<h4 style="color:' + n.clusterColor + ';display:flex;align-items:center;gap:6px">' +
+        '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + n.clusterColor + '"><path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4 4 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5ZM11 4a3.001 3.001 0 0 1 2.22 5.018 5.01 5.01 0 0 1 2.56 3.012.749.749 0 0 1-.885.954.752.752 0 0 1-.549-.514 3.507 3.507 0 0 0-2.522-2.372.75.75 0 0 1-.574-.73v-.352a.75.75 0 0 1 .416-.672A1.5 1.5 0 0 0 11 5.5.75.75 0 0 1 11 4Zm-5.5-.5a2 2 0 1 0-.001 3.999A2 2 0 0 0 5.5 3.5Z"/></svg>' +
+        'Review cluster ' + n.clusterId +
+      '</h4>' +
+      '<p style="font-size:12px;color:#6e7681;margin-bottom:10px;line-height:1.5">This file shares dependencies with ' + clusterMembers.length + ' other changed file' + (clusterMembers.length !== 1 ? 's' : '') + '. Review these together for better context.</p>';
+    for (var cli = 0; cli < clusterMembers.length; cli++) {
+      var clm = clusterMembers[cli];
+      var outLink = links.find(function(l) { return l.source === n && l.target === clm; });
+      var inLink  = links.find(function(l) { return l.source === clm && l.target === n; });
+      var dirLabel = outLink && inLink ? '&#8646; mutual'
+                   : outLink ? '&#8594; depends on'
+                   : inLink ? '&#8592; used by'
+                   : '&#8596; related';
+      var clmKindLabel = clm.kind ? ' <span style="font-size:11px;font-weight:400;color:' + (kindColors[clm.kind] || '#8b949e') + '">' + clm.kind + '</span>' : '';
+      bodyHtml += '<div class="dep-item" data-node-id="' + clm.id.replace(/"/g, '&quot;') + '">' +
+        '<span class="dep-dot" style="background:' + clm.color + ';border:1.5px solid ' + n.clusterColor + ';box-sizing:content-box"></span>' +
+        clm.id + clmKindLabel +
         '<span style="color:#6e7681;margin-left:auto;font-size:11px;white-space:nowrap">' + dirLabel + '</span>' +
         '</div>';
     }

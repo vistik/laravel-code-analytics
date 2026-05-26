@@ -35,6 +35,8 @@ class GenerateJsonReport implements ReportGenerator
             'cycle_id' => $node['cycleId'] ?? null,
             'cycle_boost' => $node['_cycleBoost'] ?? null,
             'connection_boost' => $node['_connectionBoost'] ?? null,
+            'cluster_id' => $node['clusterId'] ?? null,
+            'cluster_size' => $node['clusterSize'] ?? null,
         ], $sorted);
 
         $cycleGroups = [];
@@ -44,6 +46,14 @@ class GenerateJsonReport implements ReportGenerator
             }
         }
         ksort($cycleGroups);
+
+        $clusterGroups = [];
+        foreach ($nodes as $node) {
+            if (($node['clusterId'] ?? null) !== null) {
+                $clusterGroups[$node['clusterId']][] = $node['path'];
+            }
+        }
+        ksort($clusterGroups);
 
         $findings = [];
         foreach ($analysisData as $filePath => $fileFindings) {
@@ -93,6 +103,11 @@ class GenerateJsonReport implements ReportGenerator
             'circular_dependencies' => array_map(
                 fn ($paths) => ['files' => $paths],
                 array_values($cycleGroups),
+            ),
+            'review_clusters' => array_map(
+                fn ($id, $paths) => ['cluster_id' => $id, 'size' => count($paths), 'files' => $paths],
+                array_keys($clusterGroups),
+                array_values($clusterGroups),
             ),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
