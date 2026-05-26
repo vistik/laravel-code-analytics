@@ -553,9 +553,9 @@ tailwind.config = {
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A.25.25 0 0 1 4 12.354V10h-.25A1.75 1.75 0 0 1 2 8.25v-5.5C2 1.784 2.784 1 3.75 1zM1.75 2.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v1.19l2.06-2.06a.75.75 0 0 1 .53-.22h3.41a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5z"/></svg>Comments <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 5px;font-size:10.5px;margin-left:3px">{{ $prCommentCount }}</span>
     </button>
     @endif
-    @if(count(json_decode($wrapperAffectedEndpointsJson, true)) > 0)
-    <button class="tab" id="endpointsTab" onclick="toggleEndpointsPanel()">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>Endpoints <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 5px;font-size:10.5px;margin-left:3px" id="endpointsTabCount"></span>
+    @if($affectedEndpointsCount > 0 || $affectedScheduledJobsCount > 0)
+    <button class="tab" id="routesJobsTab" onclick="toggleRoutesJobsPanel()">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>Routes &amp; Jobs <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 5px;font-size:10.5px;margin-left:3px" id="routesJobsTabCount"></span>
     </button>
     @endif
     @if($aiReviewMarkdown)
@@ -691,29 +691,39 @@ tailwind.config = {
     <div class="comments-scroll" id="commentsScroll"></div>
   </div>
   @endif
-  @if(count(json_decode($wrapperAffectedEndpointsJson, true)) > 0)
-  <div class="files-panel" id="endpointsPanel" style="width:400px">
-    <div class="files-panel-resize" id="endpointsPanelResize"></div>
+  @if($affectedEndpointsCount > 0 || $affectedScheduledJobsCount > 0)
+  <div class="files-panel" id="routesJobsPanel" style="width:440px">
+    <div class="files-panel-resize" id="routesJobsPanelResize"></div>
     <div class="files-panel-header">
       <h3 style="display:flex;align-items:center;gap:8px">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="#ffa657" style="flex-shrink:0"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>
-        Affected Endpoints
-        <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 6px;font-size:10.5px;font-weight:500;color:#8b949e" id="endpointsPanelCount"></span>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="#b392f0" style="flex-shrink:0"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>
+        Routes &amp; Jobs
+        <span style="background:#21262d;border:1px solid #30363d;border-radius:20px;padding:0 6px;font-size:10.5px;font-weight:500;color:#8b949e" id="routesJobsPanelCount"></span>
       </h3>
-      <button class="files-panel-close" onclick="toggleEndpointsPanel()">&times;</button>
+      <button class="files-panel-close" onclick="toggleRoutesJobsPanel()">&times;</button>
     </div>
-    <div style="border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0">
-      <div style="padding:10px 12px 8px">
-        <input id="endpointsSearch" type="text" placeholder="Search endpoints…" autocomplete="off"
-          style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:12px;padding:6px 10px;outline:none;transition:border-color .15s"
-          onfocus="this.style.borderColor='#388bfd'" onblur="this.style.borderColor='#30363d'">
-      </div>
-      <div id="endpointsHiddenBar" style="display:none;padding:0 12px 9px;display:none;align-items:center;justify-content:space-between">
-        <span id="endpointsHiddenMsg" style="font-size:11px;color:#6e7681"></span>
-        <button id="endpointsShowHidden" style="background:none;border:none;color:#58a6ff;font-size:11px;cursor:pointer;padding:0;font-family:inherit">Show hidden</button>
-      </div>
+    <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0">
+      @if($affectedEndpointsCount > 0)
+      <button id="routesJobsInternalTabEndpoints" onclick="switchRoutesJobsTab('endpoints')" style="flex:1;background:none;border:none;border-bottom:2px solid #b392f0;color:#e6edf3;font-size:12px;font-weight:500;padding:9px 12px;cursor:pointer;font-family:inherit;transition:color .15s,border-color .15s;white-space:nowrap">
+        Endpoints <span id="routesJobsEndpointsCount" style="background:#21262d;border:1px solid #30363d;border-radius:10px;padding:0 5px;font-size:10px;margin-left:3px">{{ $affectedEndpointsCount }}</span>
+      </button>
+      @endif
+      @if($affectedScheduledJobsCount > 0)
+      <button id="routesJobsInternalTabJobs" onclick="switchRoutesJobsTab('jobs')" style="flex:1;background:none;border:none;border-bottom:2px solid {{ $affectedEndpointsCount > 0 ? 'transparent' : '#b392f0' }};color:{{ $affectedEndpointsCount > 0 ? '#8b949e' : '#e6edf3' }};font-size:12px;font-weight:500;padding:9px 12px;cursor:pointer;font-family:inherit;transition:color .15s,border-color .15s;white-space:nowrap">
+        Scheduled Jobs <span id="routesJobsJobsCount" style="background:#21262d;border:1px solid #30363d;border-radius:10px;padding:0 5px;font-size:10px;margin-left:3px">{{ $affectedScheduledJobsCount }}</span>
+      </button>
+      @endif
     </div>
-    <div style="flex:1;overflow-y:auto;min-height:0;padding:0 0 20px" id="endpointsScroll"></div>
+    <div style="border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0;padding:10px 12px 8px">
+      <input id="routesJobsSearch" type="text" placeholder="Search…" autocomplete="off"
+        style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:12px;padding:6px 10px;outline:none;transition:border-color .15s"
+        onfocus="this.style.borderColor='#388bfd'" onblur="this.style.borderColor='#30363d'">
+    </div>
+    <div id="routesJobsHiddenBar" style="display:none;padding:5px 12px 7px;align-items:center;justify-content:space-between;flex-shrink:0">
+      <span id="routesJobsHiddenMsg" style="font-size:11px;color:#6e7681"></span>
+      <button id="routesJobsShowHidden" style="background:none;border:none;color:#58a6ff;font-size:11px;cursor:pointer;padding:0;font-family:inherit">Show hidden</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:0 0 20px" id="routesJobsScroll"></div>
   </div>
   @endif
   @if($aiReviewMarkdown)
@@ -735,141 +745,210 @@ tailwind.config = {
   {!! $wrapperSeverityJs !!}
   const filesNodes = {!! $wrapperNodesJson !!};
   const wrapperAffectedEndpoints = {!! $wrapperAffectedEndpointsJson !!};
-  var activeEndpointIdx = null;
-  var renderEndpointList = function() {};
+  const wrapperAffectedScheduledJobs = {!! $wrapperAffectedScheduledJobsJson !!};
 
-  // ── Affected Endpoints panel ──────────────────────────────────────────────
+  function sendToIframe(msg) {
+    var iframe = document.getElementById('view');
+    if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(msg, '*');
+  }
+
+  var clearActiveRouteJobItem = function() { sendToIframe({ type: 'clearHighlight' }); };
+  var activeRouteJobHighlight = null;
+
+  // ── Routes & Jobs panel ───────────────────────────────────────────────────
   (function() {
-    if (!wrapperAffectedEndpoints.length) return;
-    var methodColors = { GET:'#3fb950', POST:'#58a6ff', PUT:'#d29922', PATCH:'#d29922', DELETE:'#f85149', OPTIONS:'#8b949e', ANY:'#8b949e' };
-    var tabCount = document.getElementById('endpointsTabCount');
-    var panelCount = document.getElementById('endpointsPanelCount');
-    if (tabCount) tabCount.textContent = wrapperAffectedEndpoints.length;
+    var hasEndpoints = wrapperAffectedEndpoints.length > 0;
+    var hasJobs = wrapperAffectedScheduledJobs.length > 0;
+    if (!hasEndpoints && !hasJobs) return;
 
-    var scroll = document.getElementById('endpointsScroll');
+    var activeTab = hasEndpoints ? 'endpoints' : 'jobs';
+    var activeItemIdx = null;
+    var searchQuery = '';
+    var hiddenItems = new Set();
+
+    var methodColors = { GET:'#3fb950', POST:'#58a6ff', PUT:'#d29922', PATCH:'#d29922', DELETE:'#f85149', OPTIONS:'#8b949e', ANY:'#8b949e' };
+
+    var tabCount = document.getElementById('routesJobsTabCount');
+    if (tabCount) tabCount.textContent = wrapperAffectedEndpoints.length + wrapperAffectedScheduledJobs.length;
+
+    var scroll = document.getElementById('routesJobsScroll');
     if (!scroll) return;
 
-    var endpointSearch = '';
-    var hiddenEndpoints = new Set();
+    var hiddenBar = document.getElementById('routesJobsHiddenBar');
+    var hiddenMsg = document.getElementById('routesJobsHiddenMsg');
+    var showHiddenBtn = document.getElementById('routesJobsShowHidden');
+    var panelCount = document.getElementById('routesJobsPanelCount');
 
-    function sendToIframe(msg) {
-      var iframe = document.getElementById('view');
-      if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(msg, '*');
-    }
+    window.switchRoutesJobsTab = function(tab) {
+      activeTab = tab;
+      activeItemIdx = null;
+      hiddenItems = new Set();
+      activeRouteJobHighlight = null;
+      sendToIframe({ type: 'clearHighlight' });
+      var epBtn = document.getElementById('routesJobsInternalTabEndpoints');
+      var jobBtn = document.getElementById('routesJobsInternalTabJobs');
+      if (epBtn) { epBtn.style.color = tab === 'endpoints' ? '#e6edf3' : '#8b949e'; epBtn.style.borderBottomColor = tab === 'endpoints' ? '#b392f0' : 'transparent'; }
+      if (jobBtn) { jobBtn.style.color = tab === 'jobs' ? '#e6edf3' : '#8b949e'; jobBtn.style.borderBottomColor = tab === 'jobs' ? '#b392f0' : 'transparent'; }
+      renderList();
+    };
 
-    function matchesSearch(ep, q) {
+    function matchesSearch(q) {
       if (!q) return true;
-      var haystack = [ep.method, ep.uri, ep.name || '', (ep.middleware || []).join(' ')].join(' ').toLowerCase();
+      var haystack = Array.prototype.slice.call(arguments, 1).join(' ').toLowerCase();
       return haystack.indexOf(q) !== -1;
     }
 
-    var hiddenBar = document.getElementById('endpointsHiddenBar');
-    var hiddenMsg = document.getElementById('endpointsHiddenMsg');
-    var showHiddenBtn = document.getElementById('endpointsShowHidden');
+    function renderEndpointsTab() {
+      var q = searchQuery.toLowerCase().trim();
+      var hiddenCount = hiddenItems.size;
+      var total = wrapperAffectedEndpoints.length;
+      if (panelCount) panelCount.textContent = hiddenCount ? (total - hiddenCount) + ' of ' + total : total;
+      if (hiddenBar) hiddenBar.style.display = hiddenCount > 0 ? 'flex' : 'none';
+      if (hiddenMsg && hiddenCount > 0) hiddenMsg.textContent = hiddenCount + ' hidden';
 
-    renderEndpointList = function() {
-      var q = endpointSearch.toLowerCase().trim();
-      var hiddenCount = hiddenEndpoints.size;
-      var totalVisible = wrapperAffectedEndpoints.length - hiddenCount;
-      var visible = wrapperAffectedEndpoints.filter(function(ep, i) {
-        return !hiddenEndpoints.has(i) && matchesSearch(ep, q);
+      var groups = {}, groupOrder = [];
+      wrapperAffectedEndpoints.forEach(function(ep, i) {
+        if (hiddenItems.has(i)) return;
+        if (!matchesSearch(q, ep.method, ep.uri, ep.name || '', (ep.middleware || []).join(' '))) return;
+        var file = ep.sourceFile ? ep.sourceFile.split('/').pop() : 'routes';
+        if (!groups[file]) { groups[file] = []; groupOrder.push(file); }
+        groups[file].push({ ep: ep, idx: i });
       });
-      if (panelCount) panelCount.textContent = hiddenCount ? totalVisible + ' of ' + wrapperAffectedEndpoints.length : wrapperAffectedEndpoints.length;
-      if (hiddenBar) {
-        if (hiddenCount > 0) {
-          hiddenBar.style.display = 'flex';
-          if (hiddenMsg) hiddenMsg.textContent = hiddenCount + ' hidden';
-        } else {
-          hiddenBar.style.display = 'none';
-        }
-      }
 
       var html = '';
-      wrapperAffectedEndpoints.forEach(function(ep, i) {
-        if (hiddenEndpoints.has(i) || !matchesSearch(ep, q)) return;
-        var color = methodColors[ep.method] || '#8b949e';
-        var isActive = activeEndpointIdx === i;
-        var chain = ep.dependencyChain && ep.dependencyChain.length > 1
-          ? ep.dependencyChain.map(function(p){ return p.split('/').pop().replace(/\.php$/, ''); }).join(' → ')
-          : ep.triggeredByPath.split('/').pop().replace(/\.php$/, '');
-        html += '<div data-ep-idx="' + i + '" style="padding:10px 16px;cursor:pointer;transition:background 0.15s;position:relative;'
-          + (isActive ? 'background:rgba(255,166,87,0.08);outline:1px solid rgba(255,166,87,0.25);outline-offset:-1px;' : 'background:transparent;')
-          + 'border-bottom:1px solid rgba(255,255,255,.05);'
-          + '" onmouseenter="this.style.background=\'' + (isActive ? 'rgba(255,166,87,0.1)' : 'rgba(255,255,255,0.03)') + '\';this.querySelector(\'.ep-hide-btn\').style.opacity=\'1\'" '
-          + 'onmouseleave="this.style.background=\'' + (isActive ? 'rgba(255,166,87,0.08)' : 'transparent') + '\';this.querySelector(\'.ep-hide-btn\').style.opacity=\'0\'">';
-        html += '<button class="ep-hide-btn" data-ep-hide-idx="' + i + '" title="Hide" style="position:absolute;top:8px;right:10px;background:none;border:none;color:#6e7681;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s" onmouseenter="this.style.color=\'#e6edf3\'" onmouseleave="this.style.color=\'#6e7681\'">&times;</button>';
-        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-right:20px">';
-        html += '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:' + color + '1a;color:' + color + ';border:1px solid ' + color + '40;letter-spacing:0.05em;flex-shrink:0">' + ep.method + '</span>';
-        html += '<code style="font-size:12px;color:#c9d1d9;word-break:break-all;line-height:1.4">' + ep.uri + '</code>';
-        if (isActive) html += '<svg width="11" height="11" viewBox="0 0 16 16" fill="#ffa657" style="flex-shrink:0;margin-left:auto"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>';
-        html += '</div>';
-        if (ep.name) {
-          html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px;display:flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:.5"><path d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.75 1.75 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>' + ep.name + '</div>';
-        }
-        if (ep.middleware && ep.middleware.length) {
-          html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px;display:flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:.5"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>' + ep.middleware.join(', ') + '</div>';
-        }
-        html += '<div style="font-size:11px;color:#484f58;margin-top:1px" title="' + ep.dependencyChain.join(' → ') + '">via ' + chain + '</div>';
-        html += '</div>';
+      groupOrder.forEach(function(file) {
+        var items = groups[file];
+        html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:600;color:#6e7681;letter-spacing:0.06em;text-transform:uppercase;background:rgba(255,255,255,.015);border-bottom:1px solid rgba(255,255,255,.04)">' + file + '</div>';
+        items.forEach(function(item) {
+          var ep = item.ep, i = item.idx;
+          var color = methodColors[ep.method] || '#8b949e';
+          var isActive = activeTab === 'endpoints' && activeItemIdx === i;
+          var chain = ep.dependencyChain && ep.dependencyChain.length > 1
+            ? ep.dependencyChain.map(function(p){ return p.split('/').pop().replace(/\.php$/, ''); }).join(' → ')
+            : ep.triggeredByPath.split('/').pop().replace(/\.php$/, '');
+          html += '<div data-ep-idx="' + i + '" style="padding:10px 16px;cursor:pointer;transition:background 0.15s;position:relative;'
+            + (isActive ? 'background:rgba(179,146,240,0.08);outline:1px solid rgba(179,146,240,0.25);outline-offset:-1px;' : '')
+            + 'border-bottom:1px solid rgba(255,255,255,.05)" '
+            + 'onmouseenter="this.style.background=\'' + (isActive ? 'rgba(179,146,240,0.1)' : 'rgba(255,255,255,0.03)') + '\';this.querySelector(\'.rj-hide-btn\').style.opacity=\'1\'" '
+            + 'onmouseleave="this.style.background=\'' + (isActive ? 'rgba(179,146,240,0.08)' : '') + '\';this.querySelector(\'.rj-hide-btn\').style.opacity=\'0\'">';
+          html += '<button class="rj-hide-btn" data-ep-hide-idx="' + i + '" title="Hide" style="position:absolute;top:8px;right:10px;background:none;border:none;color:#6e7681;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s" onmouseenter="this.style.color=\'#e6edf3\'" onmouseleave="this.style.color=\'#6e7681\'">&times;</button>';
+          html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-right:20px">';
+          html += '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:' + color + '1a;color:' + color + ';border:1px solid ' + color + '40;letter-spacing:0.05em;flex-shrink:0">' + ep.method + '</span>';
+          html += '<code style="font-size:12px;color:#c9d1d9;word-break:break-all;line-height:1.4">' + ep.uri + '</code>';
+          if (isActive) html += '<svg width="11" height="11" viewBox="0 0 16 16" fill="#b392f0" style="flex-shrink:0;margin-left:auto"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>';
+          html += '</div>';
+          if (ep.name) html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px">' + ep.name + '</div>';
+          if (ep.middleware && ep.middleware.length) html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px">' + ep.middleware.join(', ') + '</div>';
+          html += '<div style="font-size:11px;color:#484f58;margin-top:1px" title="' + ep.dependencyChain.join(' → ') + '">via ' + chain + '</div>';
+          html += '</div>';
+        });
       });
-
       scroll.innerHTML = html;
     }
 
+    function renderJobsTab() {
+      var q = searchQuery.toLowerCase().trim();
+      var hiddenCount = hiddenItems.size;
+      var total = wrapperAffectedScheduledJobs.length;
+      if (panelCount) panelCount.textContent = hiddenCount ? (total - hiddenCount) + ' of ' + total : total;
+      if (hiddenBar) hiddenBar.style.display = hiddenCount > 0 ? 'flex' : 'none';
+      if (hiddenMsg && hiddenCount > 0) hiddenMsg.textContent = hiddenCount + ' hidden';
+
+      var html = '';
+      wrapperAffectedScheduledJobs.forEach(function(job, i) {
+        if (hiddenItems.has(i)) return;
+        var shortName = job.handlerFqcn.split('\\').pop();
+        if (!matchesSearch(q, job.scheduleExpression, job.handlerFqcn, shortName)) return;
+        var isActive = activeTab === 'jobs' && activeItemIdx === i;
+        var expr = job.scheduleExpression || '->run()';
+        var firstMethod = expr.match(/->(\w+)\(/);
+        var badgeText = firstMethod ? firstMethod[1] : expr;
+        var showFullExpr = expr !== ('->' + badgeText + '()');
+        var chain = job.dependencyChain && job.dependencyChain.length > 1
+          ? job.dependencyChain.map(function(p){ return p.split('/').pop().replace(/\.php$/, ''); }).join(' → ')
+          : job.triggeredByPath.split('/').pop().replace(/\.php$/, '');
+        html += '<div data-job-idx="' + i + '" style="padding:10px 16px;cursor:pointer;transition:background 0.15s;position:relative;'
+          + (isActive ? 'background:rgba(179,146,240,0.08);outline:1px solid rgba(179,146,240,0.25);outline-offset:-1px;' : '')
+          + 'border-bottom:1px solid rgba(255,255,255,.05)" '
+          + 'onmouseenter="this.style.background=\'' + (isActive ? 'rgba(179,146,240,0.1)' : 'rgba(255,255,255,0.03)') + '\';this.querySelector(\'.rj-hide-btn\').style.opacity=\'1\'" '
+          + 'onmouseleave="this.style.background=\'' + (isActive ? 'rgba(179,146,240,0.08)' : '') + '\';this.querySelector(\'.rj-hide-btn\').style.opacity=\'0\'">';
+        html += '<button class="rj-hide-btn" data-job-hide-idx="' + i + '" title="Hide" style="position:absolute;top:8px;right:10px;background:none;border:none;color:#6e7681;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s" onmouseenter="this.style.color=\'#e6edf3\'" onmouseleave="this.style.color=\'#6e7681\'">&times;</button>';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-right:20px">';
+        html += '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:#b392f01a;color:#b392f0;border:1px solid #b392f040;letter-spacing:0.05em;flex-shrink:0">' + badgeText + '</span>';
+        html += '<span style="font-size:12.5px;color:#c9d1d9;word-break:break-word;line-height:1.4">' + shortName + '</span>';
+        if (isActive) html += '<svg width="11" height="11" viewBox="0 0 16 16" fill="#b392f0" style="flex-shrink:0;margin-left:auto"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>';
+        html += '</div>';
+        if (showFullExpr) html += '<div style="font-size:11px;color:#6e7681;margin-bottom:2px;font-family:\'JetBrains Mono\',monospace">' + expr + '</div>';
+        html += '<div style="font-size:11px;color:#484f58;margin-top:1px" title="' + job.dependencyChain.join(' → ') + '">via ' + chain + '</div>';
+        html += '</div>';
+      });
+      scroll.innerHTML = html;
+    }
+
+    var renderList = function() {
+      if (activeTab === 'endpoints') renderEndpointsTab();
+      else renderJobsTab();
+    };
+
+    clearActiveRouteJobItem = function() {
+      if (activeItemIdx === null && !activeRouteJobHighlight) return;
+      activeItemIdx = null;
+      activeRouteJobHighlight = null;
+      sendToIframe({ type: 'clearHighlight' });
+      renderList();
+    };
+
     if (showHiddenBtn) {
       showHiddenBtn.addEventListener('click', function() {
-        hiddenEndpoints.clear();
-        renderEndpointList();
+        hiddenItems = new Set();
+        renderList();
       });
     }
 
     scroll.addEventListener('click', function(e) {
-      // Hide button
-      var hideBtn = e.target.closest('[data-ep-hide-idx]');
-      if (hideBtn) {
+      var epHideBtn = e.target.closest('[data-ep-hide-idx]');
+      if (epHideBtn) {
         e.stopPropagation();
-        var hideIdx = parseInt(hideBtn.getAttribute('data-ep-hide-idx'), 10);
-        hiddenEndpoints.add(hideIdx);
-        if (activeEndpointIdx === hideIdx) {
-          activeEndpointIdx = null;
-          sendToIframe({ type: 'clearHighlight' });
-        }
-        renderEndpointList();
-        return;
+        var hideIdx = parseInt(epHideBtn.getAttribute('data-ep-hide-idx'), 10);
+        hiddenItems.add(hideIdx);
+        if (activeTab === 'endpoints' && activeItemIdx === hideIdx) { activeItemIdx = null; activeRouteJobHighlight = null; sendToIframe({ type: 'clearHighlight' }); }
+        renderList(); return;
       }
-      // Row click → select endpoint
-      var row = e.target.closest('[data-ep-idx]');
-      if (!row) return;
-      var idx = parseInt(row.getAttribute('data-ep-idx'), 10);
-      var ep = wrapperAffectedEndpoints[idx];
-      if (!ep) return;
-      if (activeEndpointIdx === idx) {
-        activeEndpointIdx = null;
-        sendToIframe({ type: 'clearHighlight' });
-      } else {
-        activeEndpointIdx = idx;
-        sendToIframe({ type: 'highlightCycle', nodeIds: ep.reachableNodeIds || [], nodeDepths: ep.reachableDepths || {} });
+      var jobHideBtn = e.target.closest('[data-job-hide-idx]');
+      if (jobHideBtn) {
+        e.stopPropagation();
+        var hideIdx = parseInt(jobHideBtn.getAttribute('data-job-hide-idx'), 10);
+        hiddenItems.add(hideIdx);
+        if (activeTab === 'jobs' && activeItemIdx === hideIdx) { activeItemIdx = null; activeRouteJobHighlight = null; sendToIframe({ type: 'clearHighlight' }); }
+        renderList(); return;
       }
-      renderEndpointList();
+      var epRow = e.target.closest('[data-ep-idx]');
+      if (epRow && activeTab === 'endpoints') {
+        var idx = parseInt(epRow.getAttribute('data-ep-idx'), 10);
+        var ep = wrapperAffectedEndpoints[idx];
+        if (!ep) return;
+        if (activeItemIdx === idx) { activeItemIdx = null; activeRouteJobHighlight = null; sendToIframe({ type: 'clearHighlight' }); }
+        else { activeItemIdx = idx; activeRouteJobHighlight = { nodeIds: ep.reachableNodeIds || [], nodeDepths: ep.reachableDepths || {} }; sendToIframe({ type: 'highlightCycle', nodeIds: ep.reachableNodeIds || [], nodeDepths: ep.reachableDepths || {} }); }
+        renderList(); return;
+      }
+      var jobRow = e.target.closest('[data-job-idx]');
+      if (jobRow && activeTab === 'jobs') {
+        var idx = parseInt(jobRow.getAttribute('data-job-idx'), 10);
+        var job = wrapperAffectedScheduledJobs[idx];
+        if (!job) return;
+        if (activeItemIdx === idx) { activeItemIdx = null; activeRouteJobHighlight = null; sendToIframe({ type: 'clearHighlight' }); }
+        else { activeItemIdx = idx; activeRouteJobHighlight = { nodeIds: job.reachableNodeIds || [], nodeDepths: job.reachableDepths || {} }; sendToIframe({ type: 'highlightCycle', nodeIds: job.reachableNodeIds || [], nodeDepths: job.reachableDepths || {} }); }
+        renderList(); return;
+      }
     });
 
-    var searchEl = document.getElementById('endpointsSearch');
+    var searchEl = document.getElementById('routesJobsSearch');
     if (searchEl) {
-      searchEl.addEventListener('input', function() {
-        endpointSearch = this.value;
-        renderEndpointList();
-      });
+      searchEl.addEventListener('input', function() { searchQuery = this.value; renderList(); });
     }
 
-    renderEndpointList();
+    window.switchRoutesJobsTab(activeTab);
   })();
-
-  function clearActiveEndpoint() {
-    if (activeEndpointIdx === null) return;
-    activeEndpointIdx = null;
-    sendToIframe({ type: 'clearHighlight' });
-    renderEndpointList();
-  }
 
   function closeAllPanels() {
     // files-panels use inline style for position; others use CSS class only
@@ -879,19 +958,20 @@ tailwind.config = {
     document.querySelectorAll('.findings-panel, .cycles-panel, .clusters-panel, .comments-panel').forEach(function(p) {
       p.classList.remove('open');
     });
-    ['filesTab','endpointsTab','findingsTab','cyclesTab','clustersTab','commentsTab'].forEach(function(id) {
+    ['filesTab','routesJobsTab','findingsTab','cyclesTab','clustersTab','commentsTab'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.classList.remove('active');
     });
   }
-  function toggleEndpointsPanel() {
-    var panel = document.getElementById('endpointsPanel');
+  function toggleRoutesJobsPanel() {
+    var panel = document.getElementById('routesJobsPanel');
     if (!panel) return;
     var isOpen = panel.classList.contains('open');
     closeAllPanels();
-    if (!isOpen) { panel.classList.add('open'); panel.style.left = '0'; document.getElementById('endpointsTab') && document.getElementById('endpointsTab').classList.add('active'); }
+    if (!isOpen) { panel.classList.add('open'); panel.style.left = '0'; var t = document.getElementById('routesJobsTab'); if (t) t.classList.add('active'); }
   }
   const filesAnalysis = {!! $wrapperAnalysisJson !!};
   const filesMetrics = {!! $wrapperMetricsJson !!};
+  var sharedFileContents = {!! $sharedFileContentsJson !!};
 
   function hexA(hex, alpha) {
     var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
@@ -1171,7 +1251,7 @@ tailwind.config = {
       document.getElementById('cyclesTab').classList.remove('active');
       document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
     } else {
-      clearActiveEndpoint();
+      clearActiveRouteJobItem();
       closeAllPanels();
       document.getElementById('view').contentWindow.postMessage({ type: 'closePanel' }, '*');
       panel.classList.add('open');
@@ -1427,7 +1507,7 @@ tailwind.config = {
         panel.classList.remove('open');
         document.getElementById('commentsTab').classList.remove('active');
       } else {
-        clearActiveEndpoint();
+        clearActiveRouteJobItem();
         closeAllPanels();
         panel.classList.add('open');
         document.getElementById('commentsTab').classList.add('active');
@@ -1501,9 +1581,15 @@ tailwind.config = {
   var initialViewLoaded = false;
   function show(name) {
     document.querySelectorAll('.tab[data-layout]').forEach(t => t.classList.toggle('active', t.dataset.layout === name));
-    document.getElementById('view').srcdoc = atob(layouts[name]);
+    var iframe = document.getElementById('view');
+    iframe.srcdoc = atob(layouts[name]);
     if (initialViewLoaded) pendingFilterApply = true;
     initialViewLoaded = true;
+    if (Object.keys(sharedFileContents).length > 0) {
+      iframe.addEventListener('load', function() {
+        iframe.contentWindow.postMessage({ type: 'injectFileContents', fileContents: sharedFileContents }, '*');
+      }, { once: true });
+    }
   }
 
   document.querySelectorAll('.tab[data-layout]').forEach(t => t.addEventListener('click', () => show(t.dataset.layout)));
@@ -1864,7 +1950,7 @@ tailwind.config = {
       panel.classList.remove('open');
       document.getElementById('filesTab').classList.remove('active');
     } else {
-      clearActiveEndpoint();
+      clearActiveRouteJobItem();
       closeAllPanels();
       panel.classList.add('open');
       panel.style.left = '';
@@ -2009,9 +2095,8 @@ tailwind.config = {
         var state = Object.assign({}, currentFilterState, { reviewedNodes: Array.from(reviewedFiles) });
         document.getElementById('view').contentWindow.postMessage({ type: 'applyFilters', state: state }, '*');
       }
-      if (typeof activeEndpointIdx !== 'undefined' && activeEndpointIdx !== null) {
-        var ep = wrapperAffectedEndpoints[activeEndpointIdx];
-        if (ep) document.getElementById('view').contentWindow.postMessage({ type: 'highlightCycle', nodeIds: ep.reachableNodeIds || [], nodeDepths: ep.reachableDepths || {} }, '*');
+      if (activeRouteJobHighlight) {
+        document.getElementById('view').contentWindow.postMessage({ type: 'highlightCycle', nodeIds: activeRouteJobHighlight.nodeIds, nodeDepths: activeRouteJobHighlight.nodeDepths }, '*');
       }
     }
   });
@@ -2273,7 +2358,7 @@ tailwind.config = {
         panel.classList.remove('open');
         document.getElementById('findingsTab').classList.remove('active');
       } else {
-        clearActiveEndpoint();
+        clearActiveRouteJobItem();
         closeAllPanels();
         panel.classList.add('open');
         document.getElementById('findingsTab').classList.add('active');

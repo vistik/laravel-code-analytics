@@ -68,10 +68,10 @@
           <label class="toggle"><input type="checkbox" id="toggleReviewed"><span class="slider"></span></label>
           <label class="toggle-label" for="toggleReviewed">Show reviewed <span id="reviewedToggleCount" style="color:#484f58">(0)</span></label>
         </div>
-        @if(count(json_decode($affectedEndpointsJson, true)) > 0)
+        @if(count(json_decode($affectedEndpointsJson, true)) > 0 || count(json_decode($affectedScheduledJobsJson, true)) > 0)
         <div class="toggle-row" id="onlyHighlightedRow">
           <label class="toggle"><input type="checkbox" id="toggleOnlyHighlighted"><span class="slider"></span></label>
-          <label class="toggle-label" for="toggleOnlyHighlighted">Only endpoint files</label>
+          <label class="toggle-label" for="toggleOnlyHighlighted">Only related files</label>
         </div>
         @endif
         <div class="toggle-row">

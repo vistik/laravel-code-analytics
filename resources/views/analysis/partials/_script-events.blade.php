@@ -153,8 +153,12 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'clearHighlight') {
     externalHighlightNodes = new Set();
     externalHighlightDepths = new Map();
-    var toh = document.getElementById('toggleOnlyHighlighted');
-    if (toh && showOnlyHighlighted) { showOnlyHighlighted = false; toh.checked = false; broadcastFilterState(); }
+    if (showOnlyHighlighted) {
+      showOnlyHighlighted = false;
+      var toh = document.getElementById('toggleOnlyHighlighted');
+      if (toh) toh.checked = false;
+      broadcastFilterState();
+    }
     clearHidden();
   }
   if (e.data.type === 'markFileReviewed') {
@@ -164,6 +168,10 @@ window.addEventListener('message', function(e) {
   if (e.data.type === 'unmarkFileReviewed') {
     var n = nodeMap[e.data.nodeId];
     if (n) { reviewedNodes.delete(n.id); updateReviewedCount(); clearHidden(); }
+  }
+  if (e.data.type === 'injectFileContents') {
+    Object.assign(fileContents, e.data.fileContents);
+    if (selectedNode) openPanel(selectedNode);
   }
   if (e.data.type === 'applyFilters') {
     var s = e.data.state;

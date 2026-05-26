@@ -22,6 +22,7 @@ readonly class AffectedEndpoint
             'middleware' => $this->route->middleware,
             'handlerFqcn' => $this->route->handlerFqcn,
             'handlerMethod' => $this->route->handlerMethod,
+            'sourceFile' => $this->route->sourceFile,
             'triggeredByPath' => $this->triggeredByPath,
             'dependencyChain' => $this->dependencyChain,
             'controllerNodeId' => $this->controllerNodeId,

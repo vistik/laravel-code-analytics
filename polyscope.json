@@ -74,6 +74,10 @@
                 "command": "./testbench code:analyze --open --pr=https://github.com/laravel/cloud/pull/4604 --format=md --min-severity=high"
             },
             {
+                "label": "Analyze code [Geocodio/yak repo] (--format=html --full-files)",
+                "command": "./testbench code:analyze --repo=https://github.com/Geocodio/yak --format=html --open --full-files"
+            },
+            {
                 "label": "Run tests",
                 "command": "./vendor/bin/pest"
             }

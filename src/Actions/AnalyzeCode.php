@@ -24,6 +24,8 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpoint;
 use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpointResolver;
 use Vistik\LaravelCodeAnalytics\Endpoints\RouteIndexBuilder;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJobResolver;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\ScheduledJobIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -62,17 +64,20 @@ class AnalyzeCode
 
     private ProjectType $projectType = ProjectType::Unknown;
 
-    /** Bare-clone path when analyzing a remote GitHub PR (null in local mode) */
+    /** Bare-clone path when analyzing a remote GitHub PR or repo URL (null in local mode) */
     private ?string $repoDir = null;
 
     /** Whether file contents should be read from a specific git commit rather than the filesystem */
     private bool $readContentsFromCommit = false;
 
-    /** GitHub "owner/repo" when analyzing a remote PR (empty in local mode) */
+    /** GitHub "owner/repo" when analyzing a remote PR or repo URL (empty in local mode) */
     private string $prRepo = '';
 
     /** Fetched PR comments (general + reviews + inline), populated in PR mode only */
     private array $prComments = [];
+
+    /** Whether the current analysis was initiated from a bare repo URL (vs a PR URL) */
+    private bool $isRepoUrl = false;
 
     /** Inline review comment threads keyed by file path, populated in PR mode only */
     private array $inlineComments = [];
@@ -115,6 +120,7 @@ class AnalyzeCode
         ?string $outputPath = null,
         ?string $baseBranch = null,
         ?string $prUrl = null,
+        ?string $repoUrl = null,
         bool $full = false,
         ?string $title = null,
         GraphLayout $view = GraphLayout::Force,
@@ -139,7 +145,9 @@ class AnalyzeCode
         $this->resetState();
 
         $t = microtime(true);
-        if ($prUrl !== null) {
+        if ($repoUrl !== null) {
+            $init = $this->initFromRepoUrl($repoUrl, $baseBranch);
+        } elseif ($prUrl !== null) {
             $init = $this->initFromPrUrl($prUrl, $full);
             $init['prLinkUrl'] = $prUrl;
         } elseif ($fromCommit !== null) {
@@ -221,9 +229,24 @@ class AnalyzeCode
         $fileDiffs = $this->extractFileDiffs();
 
         $t = microtime(true);
-        $fileContents = $includeFileContents ? $this->collectFileContents($fileDiffs, $headContents) : [];
         if ($includeFileContents) {
-            $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
+            if (! empty($fileDiffs)) {
+                // Diff mode: collect contents of changed files only.
+                $fileContents = $this->collectFileContents($fileDiffs, $headContents);
+                $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
+            } else {
+                // Full/repo mode: scope to PHP/frontend files already in headContents.
+                // Fetching all 700+ node paths (JSON, YAML, markdown, etc.) wastes memory
+                // and those file types aren't useful in the code viewer anyway.
+                $analyzedPaths = array_fill_keys(
+                    array_keys(array_filter($headContents, fn ($c) => $c !== null)),
+                    '',
+                );
+                $fileContents = $this->collectFileContents($analyzedPaths, $headContents);
+                $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading full-repo file contents');
+            }
+        } else {
+            $fileContents = [];
         }
 
         // Always load file contents for connected nodes so their code can be viewed in the panel.
@@ -268,6 +291,12 @@ class AnalyzeCode
             $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected endpoints ('.count($affectedEndpoints).')');
         }
 
+        $t = microtime(true);
+        $affectedScheduledJobs = $this->findAffectedScheduledJobs($nodes, $this->graph->edges, $fqcnToFilePath);
+        if (! empty($affectedScheduledJobs)) {
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected scheduled jobs ('.count($affectedScheduledJobs).')');
+        }
+
         $layerStack = LayerStack::fromConfig($this->projectType);
         $payload = new GraphPayload(
             nodes: $nodes,
@@ -279,6 +308,7 @@ class AnalyzeCode
             filterDefaults: $this->resolveFilterDefaults($filterDefaults),
             riskScore: $riskResult,
             affectedEndpoints: array_map(fn ($e) => $e->toArray(), $affectedEndpoints),
+            affectedScheduledJobs: array_map(fn ($j) => $j->toArray(), $affectedScheduledJobs),
         );
         $pr = new PullRequestContext(
             prTitle: $prTitle,
@@ -303,6 +333,7 @@ class AnalyzeCode
             layerStack: $layerStack,
             payload: $payload,
             pr: $pr,
+            defaultView: $view,
         );
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
 
@@ -346,6 +377,7 @@ class AnalyzeCode
         $this->prComments = [];
         $this->inlineComments = [];
         $this->readContentsFromCommit = false;
+        $this->isRepoUrl = false;
     }
 
     private function resolveWatchedFiles(?array $watchedFiles): array
@@ -368,9 +400,17 @@ class AnalyzeCode
         $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
         $ext = $format->fileExtension();
 
-        return $this->repoDir !== null
-            ? "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).".{$ext}"
-            : "{$outputDir}/local-{$safeBranch}.{$ext}";
+        if ($this->repoDir !== null) {
+            if ($this->isRepoUrl) {
+                $safeRepo = preg_replace('/[^a-zA-Z0-9._-]/', '-', str_replace('/', '-', $this->prRepo));
+
+                return "{$outputDir}/repo-{$safeRepo}-{$safeBranch}.{$ext}";
+            }
+
+            return "{$outputDir}/pr-".preg_replace('/[^0-9]/', '', $this->branchName).".{$ext}";
+        }
+
+        return "{$outputDir}/local-{$safeBranch}.{$ext}";
     }
 
     // ── Pipeline steps ───────────────────────────────────────────────────────
@@ -1332,6 +1372,78 @@ class AnalyzeCode
         return $scorer->calculate($nodes, $totalAdditions, $totalDeletions, $fileCount, $hotSpots);
     }
 
+    // ── Repo URL mode ────────────────────────────────────────────────────────
+
+    /**
+     * Fetch repo metadata from GitHub, shallow-clone all git objects, and return
+     * all tracked files at HEAD (or the specified branch) for full-repo analysis.
+     *
+     * @return array{files: list<array{path: string, additions: int, deletions: int}>, totalAdditions: int, totalDeletions: int, repoName: string, prTitle: string, prLinkUrl: string}
+     */
+    private function initFromRepoUrl(string $repoUrl, ?string $branch = null): array
+    {
+        if (! preg_match('~(?:https?://github\.com/)?([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+?)(?:\.git)?(?:[/?#].*)?$~', $repoUrl, $m)) {
+            throw new RuntimeException('Invalid GitHub repo URL. Expected: https://github.com/owner/repo');
+        }
+
+        $this->prRepo = $m[1];
+        $this->isRepoUrl = true;
+
+        $this->progress('info', "Fetching repo info for {$this->prRepo}...");
+
+        $this->githubCallCount++;
+        $repoJson = json_decode(
+            trim(shell_exec('gh api '.escapeshellarg("repos/{$this->prRepo}").' 2>/dev/null') ?? ''),
+            true,
+        );
+
+        if (! $repoJson || empty($repoJson['default_branch'])) {
+            throw new RuntimeException('Could not fetch repo data. Make sure `gh` is authenticated and the repo exists.');
+        }
+
+        $defaultBranch = $branch ?? $repoJson['default_branch'];
+
+        $this->githubCallCount++;
+        $branchJson = json_decode(
+            trim(shell_exec('gh api '.escapeshellarg("repos/{$this->prRepo}/branches/{$defaultBranch}").' 2>/dev/null') ?? ''),
+            true,
+        );
+
+        if (! $branchJson || empty($branchJson['commit']['sha'])) {
+            throw new RuntimeException("Could not fetch branch info for '{$defaultBranch}'.");
+        }
+
+        $this->headCommit = $branchJson['commit']['sha'];
+        $this->baseCommit = $this->headCommit;
+        $this->branchName = $defaultBranch;
+
+        $this->progress('line', '  Branch: '.$defaultBranch.'  HEAD: '.substr($this->headCommit, 0, 7));
+
+        $t = microtime(true);
+        $this->resolveGitObjectsCache([], true);
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' git objects');
+
+        if ($this->repoDir === null) {
+            throw new RuntimeException('Could not fetch git objects for the repository.');
+        }
+
+        $allPaths = $this->listAllFilesAtCommit($this->repoDir, $this->headCommit);
+        $this->diff = '';
+
+        $repoName = $repoJson['name'] ?? basename($this->prRepo);
+        $prTitle = $repoJson['full_name'] ?? $this->prRepo;
+        $prLinkUrl = "https://github.com/{$this->prRepo}";
+
+        return [
+            'files' => array_map(fn ($p) => ['path' => $p, 'additions' => 0, 'deletions' => 0], $allPaths),
+            'totalAdditions' => 0,
+            'totalDeletions' => 0,
+            'repoName' => $repoName,
+            'prTitle' => $prTitle,
+            'prLinkUrl' => $prLinkUrl,
+        ];
+    }
+
     // ── PR mode ──────────────────────────────────────────────────────────────
 
     /**
@@ -2160,6 +2272,74 @@ class AnalyzeCode
             nodeIdToPath: $nodeIdToPath,
             diffNodes: $diffNodes,
         );
+    }
+
+    // ── Scheduled job analysis ───────────────────────────────────────────────
+
+    /** @return \Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJob[] */
+    private function findAffectedScheduledJobs(array $nodes, array $edges, array $fqcnToFilePath): array
+    {
+        $consolePaths = $this->listConsoleFiles();
+        if (empty($consolePaths)) {
+            return [];
+        }
+
+        $consoleContents = $this->readBulkFileContents($consolePaths);
+
+        $jobIndex = (new ScheduledJobIndexBuilder)->build(
+            consoleFileContents: $consoleContents,
+            fqcnToPath: function (string $fqcn) use ($fqcnToFilePath): ?string {
+                return $fqcnToFilePath[$fqcn] ?? $this->psr4Resolver()->pathForFqcn($fqcn);
+            },
+        );
+
+        if (empty($jobIndex)) {
+            return [];
+        }
+
+        $nodeIdToPath = [];
+        foreach ($nodes as $node) {
+            $nodeIdToPath[$node['id']] = $node['path'];
+        }
+
+        $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected'])));
+
+        return (new AffectedScheduledJobResolver)->resolve(
+            jobIndex: $jobIndex,
+            edges: $edges,
+            nodeIdToPath: $nodeIdToPath,
+            diffNodes: $diffNodes,
+        );
+    }
+
+    /** @return list<string> */
+    private function listConsoleFiles(): array
+    {
+        $consoleFileCandidates = ['routes/console.php', 'app/Console/Kernel.php', 'bootstrap/app.php'];
+
+        if ($this->repoDir !== null) {
+            $output = trim(shell_exec("git -C {$this->repoDir} ls-tree -r {$this->headCommit} --name-only 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                explode("\n", $output),
+                fn ($p) => in_array($p, $consoleFileCandidates, true),
+            ));
+        }
+
+        if ($this->repoPath !== '') {
+            $quoted = implode(' ', array_map(fn ($f) => "'$f'", $consoleFileCandidates));
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files $quoted 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(explode("\n", $output)));
+        }
+
+        return [];
     }
 
     /** @return list<string> */

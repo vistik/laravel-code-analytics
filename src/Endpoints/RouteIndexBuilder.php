@@ -58,7 +58,15 @@ class RouteIndexBuilder
                     continue;
                 }
 
-                $index[$path][] = $route;
+                $index[$path][] = new RouteDefinition(
+                    method: $route->method,
+                    uri: $route->uri,
+                    name: $route->name,
+                    middleware: $route->middleware,
+                    handlerFqcn: $route->handlerFqcn,
+                    handlerMethod: $route->handlerMethod,
+                    sourceFile: $routeFilePath,
+                );
             }
         }
 

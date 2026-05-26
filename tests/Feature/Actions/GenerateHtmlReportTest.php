@@ -110,7 +110,7 @@ test('metrics badge shows no trend indicator when there is no before data', func
 
 // ── fileContents / Full file diff view ───────────────────────────────────────
 
-test('rendered html contains empty fileContents object when none provided', function () {
+test('rendered html contains fileContents declaration when none provided', function () {
     expect(makeHtml())->toContain('const fileContents = {}');
 });
 

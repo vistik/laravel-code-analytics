@@ -547,14 +547,17 @@ function openPanel(n) {
       fullBtn +
       '</span></h4>' +
       '<table class="diff-table ' + activeMode + '">' + tableRows + '</table></div>';
-  } else if (n.isConnected && fileContents[n.path]) {
-    // Connected (non-diff) node: show full source so the user can read the bridging code.
+  } else if (fileContents[n.path]) {
+    // No diff available but file content exists: repo/full mode or connected node.
     var connIsPHP = n.path.endsWith('.php');
+    var connIsJS = /\.(js|jsx|ts|tsx|vue|mjs|cjs)$/.test(n.path);
+    var connJsLang = /\.(ts|tsx)$/.test(n.path) ? 'typescript' : 'javascript';
+    var connHlFn = connIsPHP ? highlightPHP : connIsJS ? function(c) { return highlightJS(c, connJsLang); } : escapeHtml;
     var connLinkMap = connIsPHP ? buildFileLinkMap(n) : null;
     var connClassMap = connIsPHP ? classNameIndex : null;
-    var connRows = renderFullFile(fileContents[n.path], [], connIsPHP, connLinkMap, connClassMap, implementorsIndex);
+    var connRows = renderFullFile(fileContents[n.path], [], connHlFn, connLinkMap, connClassMap, implementorsIndex);
     diffHtml = '<div class="diff-section diff-section-primary">' +
-      '<h4>Source</h4>' +
+      '<h4>' + (n.isConnected ? 'Source' : 'Full file') + '</h4>' +
       '<table class="diff-table full">' + connRows + '</table></div>';
   }
 
