@@ -143,15 +143,23 @@ window.addEventListener('message', function(e) {
     externalHighlightDepths = new Map();
     var depths = e.data.nodeDepths || {};
     Object.keys(depths).forEach(function(id) { var n = nodeMap[id]; if (n) externalHighlightDepths.set(n, depths[id]); });
-    var toh = document.getElementById('toggleOnlyHighlighted');
-    if (toh && !showOnlyHighlighted) { showOnlyHighlighted = true; toh.checked = true; broadcastFilterState(); }
+    if (!showOnlyHighlighted) {
+      showOnlyHighlighted = true;
+      var toh = document.getElementById('toggleOnlyHighlighted');
+      if (toh) toh.checked = true;
+      broadcastFilterState();
+    }
     clearHidden();
   }
   if (e.data.type === 'clearHighlight') {
     externalHighlightNodes = new Set();
     externalHighlightDepths = new Map();
-    var toh = document.getElementById('toggleOnlyHighlighted');
-    if (toh && showOnlyHighlighted) { showOnlyHighlighted = false; toh.checked = false; broadcastFilterState(); }
+    if (showOnlyHighlighted) {
+      showOnlyHighlighted = false;
+      var toh = document.getElementById('toggleOnlyHighlighted');
+      if (toh) toh.checked = false;
+      broadcastFilterState();
+    }
     clearHidden();
   }
   if (e.data.type === 'markFileReviewed') {

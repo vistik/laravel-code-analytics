@@ -24,6 +24,8 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpoint;
 use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpointResolver;
 use Vistik\LaravelCodeAnalytics\Endpoints\RouteIndexBuilder;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJobResolver;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\ScheduledJobIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -288,6 +290,12 @@ class AnalyzeCode
             $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected endpoints ('.count($affectedEndpoints).')');
         }
 
+        $t = microtime(true);
+        $affectedScheduledJobs = $this->findAffectedScheduledJobs($nodes, $this->graph->edges, $fqcnToFilePath);
+        if (! empty($affectedScheduledJobs)) {
+            $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected scheduled jobs ('.count($affectedScheduledJobs).')');
+        }
+
         $layerStack = LayerStack::fromConfig($this->projectType);
         $payload = new GraphPayload(
             nodes: $nodes,
@@ -299,6 +307,7 @@ class AnalyzeCode
             filterDefaults: $this->resolveFilterDefaults($filterDefaults),
             riskScore: $riskResult,
             affectedEndpoints: array_map(fn ($e) => $e->toArray(), $affectedEndpoints),
+            affectedScheduledJobs: array_map(fn ($j) => $j->toArray(), $affectedScheduledJobs),
         );
         $pr = new PullRequestContext(
             prTitle: $prTitle,
@@ -2101,6 +2110,74 @@ class AnalyzeCode
             nodeIdToPath: $nodeIdToPath,
             diffNodes: $diffNodes,
         );
+    }
+
+    // ── Scheduled job analysis ───────────────────────────────────────────────
+
+    /** @return \Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJob[] */
+    private function findAffectedScheduledJobs(array $nodes, array $edges, array $fqcnToFilePath): array
+    {
+        $consolePaths = $this->listConsoleFiles();
+        if (empty($consolePaths)) {
+            return [];
+        }
+
+        $consoleContents = $this->readBulkFileContents($consolePaths);
+
+        $jobIndex = (new ScheduledJobIndexBuilder)->build(
+            consoleFileContents: $consoleContents,
+            fqcnToPath: function (string $fqcn) use ($fqcnToFilePath): ?string {
+                return $fqcnToFilePath[$fqcn] ?? $this->psr4Resolver()->pathForFqcn($fqcn);
+            },
+        );
+
+        if (empty($jobIndex)) {
+            return [];
+        }
+
+        $nodeIdToPath = [];
+        foreach ($nodes as $node) {
+            $nodeIdToPath[$node['id']] = $node['path'];
+        }
+
+        $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected'])));
+
+        return (new AffectedScheduledJobResolver)->resolve(
+            jobIndex: $jobIndex,
+            edges: $edges,
+            nodeIdToPath: $nodeIdToPath,
+            diffNodes: $diffNodes,
+        );
+    }
+
+    /** @return list<string> */
+    private function listConsoleFiles(): array
+    {
+        $consoleFileCandidates = ['routes/console.php', 'app/Console/Kernel.php', 'bootstrap/app.php'];
+
+        if ($this->repoDir !== null) {
+            $output = trim(shell_exec("git -C {$this->repoDir} ls-tree -r {$this->headCommit} --name-only 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                explode("\n", $output),
+                fn ($p) => in_array($p, $consoleFileCandidates, true),
+            ));
+        }
+
+        if ($this->repoPath !== '') {
+            $quoted = implode(' ', array_map(fn ($f) => "'$f'", $consoleFileCandidates));
+            $output = trim(shell_exec("git -C {$this->repoPath} ls-files $quoted 2>/dev/null") ?? '');
+            if (empty($output)) {
+                return [];
+            }
+
+            return array_values(array_filter(explode("\n", $output)));
+        }
+
+        return [];
     }
 
     /** @return list<string> */

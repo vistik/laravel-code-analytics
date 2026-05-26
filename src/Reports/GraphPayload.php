@@ -16,5 +16,6 @@ class GraphPayload
         public readonly array $filterDefaults = [],
         public readonly ?RiskScore $riskScore = null,
         public readonly array $affectedEndpoints = [],
+        public readonly array $affectedScheduledJobs = [],
     ) {}
 }

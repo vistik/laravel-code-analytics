@@ -132,6 +132,7 @@ class GenerateHtmlReport implements ReportGenerator
         );
         $graphIndexJson = json_encode($graphIndex, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
         $affectedEndpointsJson = json_encode($payload->affectedEndpoints, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+        $affectedScheduledJobsJson = json_encode($payload->affectedScheduledJobs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
         return view()->file(__DIR__.'/../../resources/views/analysis/inner.blade.php', [
             'prNumber' => $pr->prNumber,
@@ -165,6 +166,7 @@ class GenerateHtmlReport implements ReportGenerator
             'parsedDiffsJson' => $parsedDiffsJson,
             'inlineCommentsJson' => json_encode((object) $pr->inlineComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE),
             'affectedEndpointsJson' => $affectedEndpointsJson,
+            'affectedScheduledJobsJson' => $affectedScheduledJobsJson,
         ])->render();
     }
 
@@ -722,6 +724,7 @@ class GenerateHtmlReport implements ReportGenerator
             filterDefaults: $payload->filterDefaults,
             riskScore: null,
             affectedEndpoints: $payload->affectedEndpoints,
+            affectedScheduledJobs: $payload->affectedScheduledJobs,
         );
 
         $sharedFileContentsJson = json_encode(
@@ -733,7 +736,7 @@ class GenerateHtmlReport implements ReportGenerator
         foreach (GraphLayout::cases() as $graphLayout) {
             $html = $this->execute($innerPayload, $pr, $toggles, $graphLayout, $layerStack);
             // Hide the title-bar and endpoints panel inside the iframe — they live in the wrapper now
-            $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}#endpointsPanel{display:none!important}</style></head>', $html);
+            $htmlForWrapper = str_replace('</head>', '<style>.title-bar{display:none!important}#endpointsPanel{display:none!important}#routesJobsPanel{display:none!important}</style></head>', $html);
             $jsEntries[] = "'{$graphLayout->value}':'".base64_encode($htmlForWrapper)."'";
         }
 
@@ -771,6 +774,9 @@ class GenerateHtmlReport implements ReportGenerator
             'prCommentCount' => count($pr->prComments),
             'prInlineCommentCount' => array_sum(array_map('count', $pr->inlineComments)),
             'wrapperAffectedEndpointsJson' => json_encode($payload->affectedEndpoints, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
+            'wrapperAffectedScheduledJobsJson' => json_encode($payload->affectedScheduledJobs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
+            'affectedEndpointsCount' => count($payload->affectedEndpoints),
+            'affectedScheduledJobsCount' => count($payload->affectedScheduledJobs),
         ])->render();
     }
 }

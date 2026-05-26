@@ -11,5 +11,6 @@ readonly class RouteDefinition
         public array $middleware,
         public ?string $handlerFqcn,
         public string $handlerMethod,
+        public string $sourceFile = '',
     ) {}
 }
