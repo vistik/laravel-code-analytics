@@ -1235,7 +1235,7 @@ tailwind.config = {
       document.getElementById('clustersTab').classList.remove('active');
       document.getElementById('view').contentWindow.postMessage({ type: 'clearHighlight' }, '*');
     } else {
-      clearActiveEndpoint();
+      clearActiveRouteJobItem();
       closeAllPanels();
       document.getElementById('view').contentWindow.postMessage({ type: 'closePanel' }, '*');
       panel.classList.add('open');
