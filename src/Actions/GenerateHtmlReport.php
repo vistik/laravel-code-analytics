@@ -163,7 +163,7 @@ class GenerateHtmlReport implements ReportGenerator
             'filterDefaultsJson' => $filterDefaultsJson,
             'graphIndexJson' => $graphIndexJson,
             'parsedDiffsJson' => $parsedDiffsJson,
-            'inlineCommentsJson' => json_encode((object) $pr->inlineComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE),
+            'inlineCommentsJson' => json_encode((object) $pr->inlineComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
             'affectedEndpointsJson' => $affectedEndpointsJson,
         ])->render();
     }
@@ -767,7 +767,7 @@ class GenerateHtmlReport implements ReportGenerator
             'defaultView' => $defaultView->value,
             'aiReviewMarkdown' => $this->aiReview ?? '',
             'prUrl' => $pr->prUrl,
-            'prCommentsJson' => json_encode($pr->prComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE),
+            'prCommentsJson' => json_encode($pr->prComments, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
             'prCommentCount' => count($pr->prComments),
             'prInlineCommentCount' => array_sum(array_map('count', $pr->inlineComments)),
             'wrapperAffectedEndpointsJson' => json_encode($payload->affectedEndpoints, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG),
