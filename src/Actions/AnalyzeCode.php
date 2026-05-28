@@ -344,6 +344,10 @@ class AnalyzeCode
 
         $reportGenerator->writeFile($outputPath, $content);
 
+        if (! empty($this->headCommit) && $this->repoDir !== null && ! $this->isRepoUrl) {
+            file_put_contents(dirname($outputPath).DIRECTORY_SEPARATOR.'commit', $this->headCommit."\n");
+        }
+
         $this->progress('line', "  Generated: {$outputPath}");
         if ($this->githubCallCount > 0) {
             $rateLimitSuffix = $this->formatRateLimitSuffix();
@@ -382,13 +386,26 @@ class AnalyzeCode
 
     private function resolveOutputPath(OutputFormat $format, ?string $outputDir = null): string
     {
-        $outputDir = rtrim($outputDir ?? base_path('output'), '/');
+        $ext = $format->fileExtension();
+
+        // PR mode default: structured reports/<org>/<repo>/pr-<number>/ directory
+        if ($outputDir === null && $this->repoDir !== null && ! $this->isRepoUrl && $this->prRepo !== '') {
+            $prNumber = preg_replace('/[^0-9]/', '', $this->branchName);
+            [$org, $repo] = array_pad(explode('/', $this->prRepo, 2), 2, 'unknown');
+            $dir = getcwd()."/reports/{$org}/{$repo}/pr-{$prNumber}";
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+
+            return "{$dir}/report.{$ext}";
+        }
+
+        $outputDir = rtrim($outputDir ?? getcwd().'/output', '/');
         if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }
 
         $safeBranch = preg_replace('/[^a-zA-Z0-9._-]/', '-', $this->branchName);
-        $ext = $format->fileExtension();
 
         if ($this->repoDir !== null) {
             if ($this->isRepoUrl) {
