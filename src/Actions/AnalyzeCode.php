@@ -2088,19 +2088,81 @@ class AnalyzeCode
             return [];
         }
 
-        $nodeIdToPath = [];
-        foreach ($nodes as $node) {
-            $nodeIdToPath[$node['id']] = $node['path'];
-        }
+        $this->processControllerDependents(array_keys($routeIndex));
+
+        $nodeIdToPath = array_flip($this->graph->pathToNode);
 
         $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected'])));
 
         return (new AffectedEndpointResolver)->resolve(
             routeIndex: $routeIndex,
-            edges: $edges,
+            edges: $this->graph->edges,
             nodeIdToPath: $nodeIdToPath,
             diffNodes: $diffNodes,
         );
+    }
+
+    /**
+     * For each controller in the route index that is not already in the diff, scan its
+     * source for references to diff nodes. When found, register the controller as a
+     * connected node and add the dependency edges so the reverse BFS in
+     * AffectedEndpointResolver can reach it from a changed Request / Service / etc.
+     *
+     * @param  list<string>  $controllerPaths
+     */
+    private function processControllerDependents(array $controllerPaths): void
+    {
+        $unprocessed = array_values(array_filter(
+            $controllerPaths,
+            fn ($path) => $this->graph->nodeIdForPath($path) === null,
+        ));
+
+        if (empty($unprocessed)) {
+            return;
+        }
+
+        $contents = $this->readBulkFileContents($unprocessed);
+
+        foreach ($unprocessed as $path) {
+            $content = $contents[$path] ?? null;
+            if (empty($content)) {
+                continue;
+            }
+
+            $references = $this->extractReferences($content);
+
+            $touchesDiffNode = false;
+            foreach (array_keys($references) as $ref) {
+                $ref = ltrim($ref, '\\');
+                if (isset($this->fqcnIndex->diffNodes[$ref])) {
+                    $touchesDiffNode = true;
+                    break;
+                }
+                $shortName = basename(str_replace('\\', '/', $ref));
+                foreach (array_keys($this->fqcnIndex->diffNodes) as $dfqcn) {
+                    if (basename(str_replace('\\', '/', $dfqcn)) === $shortName) {
+                        $touchesDiffNode = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if (! $touchesDiffNode) {
+                continue;
+            }
+
+            $fqcn = $this->psr4Resolver()->fqcnForPath($path);
+            if ($fqcn === null) {
+                continue;
+            }
+
+            $controllerNodeId = $this->ensureConnectedNode($fqcn);
+            if ($controllerNodeId === null) {
+                continue;
+            }
+
+            $this->matchReferences($references, $controllerNodeId);
+        }
     }
 
     /** @return list<string> */
