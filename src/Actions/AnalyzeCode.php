@@ -2339,6 +2339,8 @@ class AnalyzeCode
         }
 
         return [];
+    }
+
     /**
      * For each controller in the route index that is not already in the diff, scan its
      * source for references to diff nodes. When found, register the controller as a
