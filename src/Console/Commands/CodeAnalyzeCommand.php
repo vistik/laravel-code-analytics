@@ -78,7 +78,7 @@ class CodeAnalyzeCommand extends Command
             $includeFileContents = ! $this->option('no-full-files') && ($this->option('full-files') || ($config['full_files'] ?? true));
             $githubMetrics = $this->option('github-metrics') || ($config['github_metrics'] ?? false);
 
-            if ($openFile && $outputPath === null) {
+            if ($openFile && $outputPath === null && $prUrl === null) {
                 $ext = $format->fileExtension();
                 $tmp = tempnam(sys_get_temp_dir(), 'code-analyze-');
                 unlink($tmp);

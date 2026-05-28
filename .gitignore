@@ -33,3 +33,6 @@ testbench.yaml
 
 # Generated example reports
 example/*.html
+
+# Saved analysis reports
+/reports
