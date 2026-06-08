@@ -32,6 +32,8 @@ class GenerateJsonReport implements ReportGenerator
             'deletions' => $node['del'],
             'severity' => $node['severity'] ?? null,
             'signal' => $node['_signal'] ?? 0,
+            'domain' => $node['domain'] ?? null,
+            'group' => $node['group'] ?? null,
             'cycle_id' => $node['cycleId'] ?? null,
             'cycle_boost' => $node['_cycleBoost'] ?? null,
             'connection_boost' => $node['_connectionBoost'] ?? null,
@@ -54,6 +56,13 @@ class GenerateJsonReport implements ReportGenerator
             }
         }
         ksort($clusterGroups);
+
+        $domainGroups = [];
+        foreach ($nodes as $node) {
+            $domain = $node['domain'] ?? '(root)';
+            $domainGroups[$domain][] = $node['path'];
+        }
+        ksort($domainGroups);
 
         $findings = [];
         foreach ($analysisData as $filePath => $fileFindings) {
@@ -100,6 +109,11 @@ class GenerateJsonReport implements ReportGenerator
             'findings' => $findings,
             'metrics' => $metrics,
             'dependencies' => $dependencies,
+            'domain_clusters' => array_map(
+                fn ($domain, $paths) => ['domain' => $domain, 'files' => $paths],
+                array_keys($domainGroups),
+                array_values($domainGroups),
+            ),
             'circular_dependencies' => array_map(
                 fn ($paths) => ['files' => $paths],
                 array_values($cycleGroups),

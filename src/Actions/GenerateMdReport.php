@@ -67,18 +67,40 @@ class GenerateMdReport implements ReportGenerator
         $sorted = $nodes;
         usort($sorted, fn ($a, $b) => ($b['_signal'] ?? 0) <=> ($a['_signal'] ?? 0));
 
-        $lines[] = '| File | Status | +/- | Severity | Signal | Cycle | Cluster |';
-        $lines[] = '|------|--------|----:|----------|-------:|------:|--------:|';
+        $lines[] = '| File | Status | +/- | Severity | Signal | Domain | Cycle | Cluster |';
+        $lines[] = '|------|--------|----:|----------|-------:|--------|------:|--------:|';
 
         foreach ($sorted as $node) {
             $sev = $node['severity'] ? ucfirst($node['severity']) : '—';
             $signal = $node['_signal'] ?? 0;
             $status = ucfirst($node['status']);
+            $domain = $node['domain'] ?? '(root)';
             $cycle = ($node['cycleId'] ?? null) !== null ? "↻ {$node['cycleId']}" : '—';
             $cluster = ($node['clusterId'] ?? null) !== null ? "⬡ {$node['clusterId']}" : '—';
-            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} | {$cycle} | {$cluster} |";
+            $lines[] = "| `{$node['path']}` | {$status} | +{$node['add']}/-{$node['del']} | {$sev} | {$signal} | {$domain} | {$cycle} | {$cluster} |";
         }
         $lines[] = '';
+
+        // ── Domain Clusters ──────────────────────────────────────────────────
+        $domainGroups = [];
+        foreach ($nodes as $node) {
+            $domain = $node['domain'] ?? '(root)';
+            $domainGroups[$domain][] = $node['path'];
+        }
+        ksort($domainGroups);
+
+        if (! empty($domainGroups)) {
+            $lines[] = '## Domain Clusters';
+            $lines[] = '';
+            foreach ($domainGroups as $domain => $paths) {
+                $lines[] = "**{$domain}** (".count($paths).' file'.( count($paths) === 1 ? '' : 's').')';
+                $lines[] = '';
+                foreach ($paths as $path) {
+                    $lines[] = "- `{$path}`";
+                }
+                $lines[] = '';
+            }
+        }
 
         // ── Circular Dependencies ────────────────────────────────────────────
         $cycleGroups = [];
