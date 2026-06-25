@@ -4,7 +4,7 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
-function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null): array
+function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null, ?int $baseSignal = null): array
 {
     return [
         'id' => $path,
@@ -14,6 +14,7 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
         'del' => 2,
         'severity' => $severity ?? ($cycleId !== null ? 'very_high' : null),
         '_signal' => $signal,
+        '_baseSignal' => $baseSignal,
         'cycleId' => $cycleId,
         'cycleColor' => $cycleId !== null ? '#f0883e' : null,
         '_cycleBoost' => $cycleBoost,
@@ -117,6 +118,20 @@ test('file entry severity is null for non-cycle files with no findings', functio
     $data = generateJson([makeJsonNode('app/Bar.php')]);
 
     expect($data['files'][0]['severity'])->toBeNull();
+});
+
+// ── base_signal field ─────────────────────────────────────────────────────────
+
+test('file entry base_signal reflects the stored base signal value', function () {
+    $data = generateJson([makeJsonNode('app/Foo.php', signal: 120, cycleBoost: 110, baseSignal: 10)]);
+
+    expect($data['files'][0]['base_signal'])->toBe(10);
+});
+
+test('file entry base_signal is null when not set', function () {
+    $data = generateJson([makeJsonNode('app/Bar.php')]);
+
+    expect($data['files'][0]['base_signal'])->toBeNull();
 });
 
 // ── connection_boost field ────────────────────────────────────────────────────
