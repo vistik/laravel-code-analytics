@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\GraphIndex\GraphIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
@@ -97,6 +98,14 @@ class GenerateJsonReport implements ReportGenerator
             'target' => $edge[1],
         ], $edges);
 
+        $graphIndex = (new GraphIndexBuilder)->build(
+            nodes: $payload->nodes,
+            edges: $payload->edges,
+            metricsData: $payload->metricsData,
+            fileDiffs: $payload->fileDiffs,
+            fileContents: $payload->fileContents,
+        );
+
         return json_encode([
             'title' => $pr->prTitle,
             'repo' => $pr->repo,
@@ -123,6 +132,7 @@ class GenerateJsonReport implements ReportGenerator
                 array_keys($clusterGroups),
                 array_values($clusterGroups),
             ),
+            'graph_index' => $graphIndex,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 

@@ -7,6 +7,7 @@ use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null): array
 {
     return [
+        'id' => $path,
         'path' => $path,
         'status' => 'modified',
         'add' => 5,
@@ -222,4 +223,140 @@ test('review_clusters groups are ordered by cluster id', function () {
     expect($data['review_clusters'][0]['cluster_id'])->toBe(1);
     expect($data['review_clusters'][1]['cluster_id'])->toBe(2);
     expect($data['review_clusters'][2]['cluster_id'])->toBe(3);
+});
+
+// ── graph_index ───────────────────────────────────────────────────────────────
+
+function generateJsonFull(array $nodes = [], array $edges = [], array $metricsData = [], array $fileDiffs = [], array $fileContents = []): array
+{
+    $json = (new GenerateJsonReport)->generate(
+        payload: new GraphPayload(
+            nodes: $nodes,
+            edges: $edges,
+            fileDiffs: $fileDiffs,
+            analysisData: [],
+            metricsData: $metricsData,
+            fileContents: $fileContents,
+        ),
+        pr: new PullRequestContext(prTitle: 'Test PR', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
+    );
+
+    return json_decode($json, true);
+}
+
+test('graph_index key is present in json output', function () {
+    $data = generateJsonFull();
+
+    expect($data)->toHaveKey('graph_index');
+});
+
+test('graph_index contains expected sub-keys', function () {
+    $data = generateJsonFull();
+
+    expect($data['graph_index'])->toHaveKeys(['classNameIndex', 'methodNameIndex', 'callersIndex', 'implementorsIndex', 'implementeeIndex']);
+});
+
+test('classNameIndex maps uppercase php basename to node id', function () {
+    $nodes = [
+        makeJsonNode('app/Services/OrderService.php'),
+    ];
+
+    $data = generateJsonFull(nodes: $nodes);
+
+    expect($data['graph_index']['classNameIndex'])->toHaveKey('OrderService')
+        ->and($data['graph_index']['classNameIndex']['OrderService'])->toBe('app/Services/OrderService.php');
+});
+
+test('classNameIndex excludes lowercase-starting php files', function () {
+    $nodes = [
+        makeJsonNode('app/helpers.php'),
+    ];
+
+    $data = generateJsonFull(nodes: $nodes);
+
+    expect($data['graph_index']['classNameIndex'])->not->toHaveKey('helpers');
+});
+
+test('classNameIndex excludes non-php files', function () {
+    $nodes = [
+        makeJsonNode('resources/views/index.blade.php'),
+    ];
+
+    $data = generateJsonFull(nodes: $nodes);
+
+    // blade.php files have a basename of "index" after pathinfo — not UpperCamelCase, so excluded
+    expect($data['graph_index']['classNameIndex'])->not->toHaveKey('index');
+});
+
+test('methodNameIndex maps method name from metrics data to file node id', function () {
+    $nodes = [
+        makeJsonNode('app/Services/PaymentService.php'),
+    ];
+    $metricsData = [
+        'app/Services/PaymentService.php' => [
+            'method_metrics' => [
+                ['name' => 'processPayment', 'cc' => 3, 'lloc' => 10],
+                ['name' => 'refund', 'cc' => 2, 'lloc' => 5],
+            ],
+        ],
+    ];
+
+    $data = generateJsonFull(nodes: $nodes, metricsData: $metricsData);
+
+    expect($data['graph_index']['methodNameIndex'])->toHaveKey('processPayment')
+        ->and($data['graph_index']['methodNameIndex']['processPayment'])->toBe('app/Services/PaymentService.php')
+        ->and($data['graph_index']['methodNameIndex'])->toHaveKey('refund');
+});
+
+test('implementorsIndex maps interface node id to its implementors', function () {
+    $nodes = [
+        makeJsonNode('app/Contracts/PaymentGateway.php'),
+        makeJsonNode('app/Services/StripeGateway.php'),
+    ];
+    $edges = [
+        ['app/Services/StripeGateway.php', 'app/Contracts/PaymentGateway.php', 'implements'],
+    ];
+
+    $data = generateJsonFull(nodes: $nodes, edges: $edges);
+
+    $implementors = $data['graph_index']['implementorsIndex'];
+    expect($implementors)->toHaveKey('app/Contracts/PaymentGateway.php');
+    expect(array_column($implementors['app/Contracts/PaymentGateway.php'], 'nodeId'))
+        ->toContain('app/Services/StripeGateway.php');
+});
+
+test('implementeeIndex maps concrete class node id to its interfaces', function () {
+    $nodes = [
+        makeJsonNode('app/Contracts/PaymentGateway.php'),
+        makeJsonNode('app/Services/StripeGateway.php'),
+    ];
+    $edges = [
+        ['app/Services/StripeGateway.php', 'app/Contracts/PaymentGateway.php', 'implements'],
+    ];
+
+    $data = generateJsonFull(nodes: $nodes, edges: $edges);
+
+    $implementee = $data['graph_index']['implementeeIndex'];
+    expect($implementee)->toHaveKey('app/Services/StripeGateway.php');
+    expect($implementee['app/Services/StripeGateway.php'])->toContain('app/Contracts/PaymentGateway.php');
+});
+
+test('callersIndex captures static method calls from file contents', function () {
+    $nodes = [
+        makeJsonNode('app/Services/OrderService.php'),
+        makeJsonNode('app/Http/Controllers/OrderController.php'),
+    ];
+    $fileContents = [
+        'app/Http/Controllers/OrderController.php' => '<?php class OrderController { public function store() { OrderService::create($data); } }',
+    ];
+    $fileDiffs = [
+        'app/Http/Controllers/OrderController.php' => '+    OrderService::create($data);',
+    ];
+
+    $data = generateJsonFull(nodes: $nodes, fileDiffs: $fileDiffs, fileContents: $fileContents);
+
+    $callersIndex = $data['graph_index']['callersIndex'];
+    $key = 'app/Services/OrderService.php:create';
+    expect($callersIndex)->toHaveKey($key);
+    expect(array_column($callersIndex[$key], 'nodeId'))->toContain('app/Http/Controllers/OrderController.php');
 });
