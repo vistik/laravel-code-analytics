@@ -1731,7 +1731,9 @@ class AnalyzeCode
             $this->progress('line', '  Using cached git objects.');
         } else {
             $this->progress('info', 'Fetching git objects (shallow)...');
-            mkdir($persistentDir, 0755, true);
+            if (! is_dir($persistentDir)) {
+                mkdir($persistentDir, 0755, true);
+            }
             shell_exec("git init --bare {$persistentDir} 2>&1");
             shell_exec("git -C {$persistentDir} remote add origin https://github.com/{$this->prRepo}.git 2>&1");
             $this->fetchGitObjectsForPr($persistentDir, $changedPaths, $full);
