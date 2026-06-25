@@ -84,10 +84,20 @@ class GenerateJsonReport implements ReportGenerator
                 'bugs' => $m['bugs'] ?? null,
                 'coupling' => $m['coupling'] ?? null,
                 'lloc' => $m['lloc'] ?? null,
+                'methods' => $m['methods'] ?? null,
+                'flog' => $m['flog'] ?? null,
             ];
 
             if (! empty($m['method_metrics'])) {
                 $entry['method_metrics'] = $m['method_metrics'];
+            }
+
+            if (! empty($m['before'])) {
+                $entry['before'] = $m['before'];
+            }
+
+            if (! empty($m['before_method_metrics'])) {
+                $entry['before_method_metrics'] = $m['before_method_metrics'];
             }
 
             $metrics[] = $entry;
