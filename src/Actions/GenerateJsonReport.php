@@ -92,12 +92,20 @@ class GenerateJsonReport implements ReportGenerator
                 $entry['method_metrics'] = $m['method_metrics'];
             }
 
+            if (! empty($m['class_metrics'])) {
+                $entry['class_metrics'] = $m['class_metrics'];
+            }
+
             if (! empty($m['before'])) {
                 $entry['before'] = $m['before'];
             }
 
             if (! empty($m['before_method_metrics'])) {
                 $entry['before_method_metrics'] = $m['before_method_metrics'];
+            }
+
+            if (! empty($m['before_class_metrics'])) {
+                $entry['before_class_metrics'] = $m['before_class_metrics'];
             }
 
             $metrics[] = $entry;

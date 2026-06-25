@@ -24,8 +24,6 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\PatternBasedGroupResolver;
 use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpoint;
 use Vistik\LaravelCodeAnalytics\Endpoints\AffectedEndpointResolver;
 use Vistik\LaravelCodeAnalytics\Endpoints\RouteIndexBuilder;
-use Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJobResolver;
-use Vistik\LaravelCodeAnalytics\ScheduledJobs\ScheduledJobIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
 use Vistik\LaravelCodeAnalytics\Enums\NodeKind;
 use Vistik\LaravelCodeAnalytics\Enums\OutputFormat;
@@ -37,6 +35,9 @@ use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 use Vistik\LaravelCodeAnalytics\RiskScoring\CalculateRiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScore;
 use Vistik\LaravelCodeAnalytics\RiskScoring\RiskScoring;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJob;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJobResolver;
+use Vistik\LaravelCodeAnalytics\ScheduledJobs\ScheduledJobIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectType;
 use Vistik\LaravelCodeAnalytics\Support\Detection\ProjectTypeDetector;
 use Vistik\LaravelCodeAnalytics\Support\JsMetrics;
@@ -2292,7 +2293,7 @@ class AnalyzeCode
 
     // ── Scheduled job analysis ───────────────────────────────────────────────
 
-    /** @return \Vistik\LaravelCodeAnalytics\ScheduledJobs\AffectedScheduledJob[] */
+    /** @return AffectedScheduledJob[] */
     private function findAffectedScheduledJobs(array $nodes, array $edges, array $fqcnToFilePath): array
     {
         $consolePaths = $this->listConsoleFiles();
@@ -2602,12 +2603,26 @@ class AnalyzeCode
             }
         }
 
+        $classMetrics = (new PhpMethodMetricsCalculator)->calculateClasses($headContents);
+        foreach ($classMetrics as $path => $classes) {
+            if (isset($metricsData[$path]) && ! empty($classes)) {
+                $metricsData[$path]['class_metrics'] = array_map(fn ($c) => $c->toArray(), $classes);
+            }
+        }
+
         if (! empty($oldSources)) {
             $beforeMethodMetrics = (new PhpMethodMetricsCalculator)->calculate($oldSources);
             foreach ($beforeMethodMetrics as $path => $methods) {
                 if (isset($metricsData[$path]) && ! empty($methods)) {
                     $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
                     $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
+                }
+            }
+
+            $beforeClassMetrics = (new PhpMethodMetricsCalculator)->calculateClasses($oldSources);
+            foreach ($beforeClassMetrics as $path => $classes) {
+                if (isset($metricsData[$path]) && ! empty($classes)) {
+                    $metricsData[$path]['before_class_metrics'] = array_map(fn ($c) => $c->toArray(), $classes);
                 }
             }
         }

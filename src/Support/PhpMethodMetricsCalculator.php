@@ -50,9 +50,88 @@ class PhpMethodMetricsCalculator
     }
 
     /**
+     * Calculate per-class aggregate metrics for the given PHP files.
+     *
+     * @param  array<string, string|null>  $pathToContent  Relative file path → PHP source
+     * @return array<string, list<PhpClassMetrics>> File path → list of class metrics
+     */
+    public function calculateClasses(array $pathToContent): array
+    {
+        $results = [];
+
+        foreach ($pathToContent as $path => $content) {
+            if ($content === null || $content === '') {
+                continue;
+            }
+
+            $classes = $this->analyzeClassesInFile($content);
+
+            if (! empty($classes)) {
+                $results[$path] = $classes;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * @return list<PhpMethodMetrics>
      */
     private function analyzeFile(string $content): array
+    {
+        $classLikes = $this->parseClassLikes($content);
+
+        $methods = [];
+
+        foreach ($classLikes as $classLike) {
+            foreach ($this->methodMetricsFor($classLike) as $method) {
+                $methods[] = $method;
+            }
+        }
+
+        return $methods;
+    }
+
+    /**
+     * @return list<PhpClassMetrics>
+     */
+    private function analyzeClassesInFile(string $content): array
+    {
+        $classLikes = $this->parseClassLikes($content);
+
+        $classes = [];
+
+        foreach ($classLikes as $classLike) {
+            $name = $classLike->name?->toString();
+
+            if ($name === null) {
+                continue;
+            }
+
+            $methods = $this->methodMetricsFor($classLike);
+            $ccValues = array_map(fn (PhpMethodMetrics $m) => $m->cc, $methods);
+            $wmc = (int) array_sum($ccValues);
+            $count = count($methods);
+
+            $classes[] = new PhpClassMetrics(
+                name: $name,
+                kind: $this->classKind($classLike),
+                line: max(0, $classLike->getStartLine()),
+                methods: $count,
+                wmc: $wmc,
+                ccAvg: $count > 0 ? round($wmc / $count, 1) : 0.0,
+                maxCc: $ccValues === [] ? 0 : max($ccValues),
+                lloc: $this->lineSpan($classLike),
+            );
+        }
+
+        return $classes;
+    }
+
+    /**
+     * @return list<Stmt\ClassLike>
+     */
+    private function parseClassLikes(string $content): array
     {
         $errors = new Collecting;
         $nodes = $this->parser->parse($content, $errors);
@@ -61,33 +140,59 @@ class PhpMethodMetricsCalculator
             return [];
         }
 
-        $classLikes = [
+        return [
             ...$this->finder->findInstanceOf($nodes, Stmt\Class_::class),
             ...$this->finder->findInstanceOf($nodes, Stmt\Trait_::class),
             ...$this->finder->findInstanceOf($nodes, Stmt\Interface_::class),
             ...$this->finder->findInstanceOf($nodes, Stmt\Enum_::class),
         ];
+    }
 
+    /**
+     * @return list<PhpMethodMetrics>
+     */
+    private function methodMetricsFor(Stmt\ClassLike $classLike): array
+    {
         $methods = [];
 
-        foreach ($classLikes as $classLike) {
-            foreach ($classLike->getMethods() as $method) {
-                if ($method->stmts === null) {
-                    continue;
-                }
-
-                $methods[] = new PhpMethodMetrics(
-                    name: $method->name->toString(),
-                    line: max(0, $method->getStartLine()),
-                    cc: $this->calculateCc($method),
-                    lloc: $this->calculateLloc($method),
-                    params: count($method->params),
-                    flog: $this->calculateFlog($method),
-                );
+        foreach ($classLike->getMethods() as $method) {
+            if ($method->stmts === null) {
+                continue;
             }
+
+            $methods[] = new PhpMethodMetrics(
+                name: $method->name->toString(),
+                line: max(0, $method->getStartLine()),
+                cc: $this->calculateCc($method),
+                lloc: $this->calculateLloc($method),
+                params: count($method->params),
+                flog: $this->calculateFlog($method),
+            );
         }
 
         return $methods;
+    }
+
+    private function classKind(Stmt\ClassLike $classLike): string
+    {
+        return match (true) {
+            $classLike instanceof Stmt\Interface_ => 'interface',
+            $classLike instanceof Stmt\Trait_ => 'trait',
+            $classLike instanceof Stmt\Enum_ => 'enum',
+            default => 'class',
+        };
+    }
+
+    private function lineSpan(Node $node): int
+    {
+        $startLine = $node->getStartLine();
+        $endLine = $node->getEndLine();
+
+        if ($startLine <= 0 || $endLine <= 0) {
+            return 0;
+        }
+
+        return $endLine - $startLine + 1;
     }
 
     private function calculateCc(Stmt\ClassMethod $method): int

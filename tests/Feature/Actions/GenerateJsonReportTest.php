@@ -463,3 +463,50 @@ test('metrics entry omits before and before_method_metrics when not present', fu
     expect($data['metrics'][0])->not->toHaveKey('before')
         ->and($data['metrics'][0])->not->toHaveKey('before_method_metrics');
 });
+
+test('metrics entry includes class_metrics with aggregate per-class stats', function () {
+    $data = generateJson(metricsData: [
+        'app/Foo.php' => [
+            'cc' => 5,
+            'class_metrics' => [
+                ['name' => 'Foo', 'kind' => 'class', 'line' => 3, 'methods' => 2, 'wmc' => 7, 'cc_avg' => 3.5, 'max_cc' => 5, 'lloc' => 40],
+            ],
+        ],
+    ]);
+
+    $classes = $data['metrics'][0]['class_metrics'];
+    expect($classes)->toHaveCount(1)
+        ->and($classes[0]['name'])->toBe('Foo')
+        ->and($classes[0]['kind'])->toBe('class')
+        ->and($classes[0]['line'])->toBe(3)
+        ->and($classes[0]['methods'])->toBe(2)
+        ->and($classes[0]['wmc'])->toBe(7)
+        ->and($classes[0]['cc_avg'])->toBe(3.5)
+        ->and($classes[0]['max_cc'])->toBe(5)
+        ->and($classes[0]['lloc'])->toBe(40);
+});
+
+test('metrics entry includes before_class_metrics when file was modified', function () {
+    $data = generateJson(metricsData: [
+        'app/Foo.php' => [
+            'cc' => 5,
+            'before_class_metrics' => [
+                ['name' => 'Foo', 'kind' => 'class', 'line' => 3, 'methods' => 1, 'wmc' => 3, 'cc_avg' => 3.0, 'max_cc' => 3, 'lloc' => 25],
+            ],
+        ],
+    ]);
+
+    $before = $data['metrics'][0]['before_class_metrics'];
+    expect($before)->toHaveCount(1)
+        ->and($before[0]['name'])->toBe('Foo')
+        ->and($before[0]['wmc'])->toBe(3);
+});
+
+test('metrics entry omits class_metrics when not present', function () {
+    $data = generateJson(metricsData: [
+        'app/Foo.php' => ['cc' => 5, 'lloc' => 50],
+    ]);
+
+    expect($data['metrics'][0])->not->toHaveKey('class_metrics')
+        ->and($data['metrics'][0])->not->toHaveKey('before_class_metrics');
+});
