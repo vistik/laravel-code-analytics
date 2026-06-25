@@ -32,6 +32,7 @@ class GenerateJsonReport implements ReportGenerator
             'deletions' => $node['del'],
             'severity' => $node['severity'] ?? null,
             'signal' => $node['_signal'] ?? 0,
+            'base_signal' => $node['_baseSignal'] ?? null,
             'cycle_id' => $node['cycleId'] ?? null,
             'cycle_boost' => $node['_cycleBoost'] ?? null,
             'connection_boost' => $node['_connectionBoost'] ?? null,

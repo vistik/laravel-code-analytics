@@ -1153,6 +1153,7 @@ class AnalyzeCode
                 $analysisData[$node['path']] ?? [],
                 $metricsData[$node['path']] ?? null,
             );
+            $node['_baseSignal'] = $base;
             if (($node['cycleId'] ?? null) !== null) {
                 $boost = (int) round($cycleBoostBase + $cycleBoostPct * $base);
                 $node['_signal'] = $base + $boost;
