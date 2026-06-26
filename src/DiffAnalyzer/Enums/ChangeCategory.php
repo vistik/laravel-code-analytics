@@ -42,6 +42,7 @@ enum ChangeCategory: string
     case LARAVEL_CONFIG = 'laravel_config';
     case CIRCULAR_DEPENDENCY = 'circular_dependency';
     case COMPLEXITY = 'complexity';
+    case SECURITY_ADVISORY = 'security_advisory';
 
     public function shortDescription(): string
     {
@@ -84,6 +85,7 @@ enum ChangeCategory: string
             self::LARAVEL_CONFIG => 'Config file dependency tracking',
             self::CIRCULAR_DEPENDENCY => 'Circular dependency between files',
             self::COMPLEXITY => 'Method complexity severity band changes',
+            self::SECURITY_ADVISORY => 'Security advisories from composer audit',
         };
     }
 }
