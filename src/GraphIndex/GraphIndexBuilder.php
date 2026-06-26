@@ -2,6 +2,13 @@
 
 namespace Vistik\LaravelCodeAnalytics\GraphIndex;
 
+use PhpParser\ErrorHandler\Collecting;
+use PhpParser\Node;
+use PhpParser\Node\Expr;
+use PhpParser\Node\Stmt;
+use PhpParser\NodeFinder;
+use PhpParser\ParserFactory;
+
 class GraphIndexBuilder
 {
     /**
@@ -135,11 +142,12 @@ class GraphIndexBuilder
     ): array {
         $callersIndex = [];
 
-        // TypeName $varName  — captures property/param type hints
+        $parser = (new ParserFactory)->createForHostVersion();
+        $nodeFinder = new NodeFinder;
+
+        // Regex patterns used as fallback when only a diff is available (no full content).
         $typePat = '/([A-Z][a-zA-Z0-9_]*)\s+\$(\w+)/';
-        // $this->prop->method(  or  $prop->method(
         $chainPat = '/\$(?:this->)?(\w+)->([a-zA-Z_]\w*)\s*\(/';
-        // ClassName::method(  — static calls
         $staticPat = '/([A-Z][a-zA-Z0-9_]*)::([a-zA-Z_]\w*)\s*\(/';
 
         foreach ($nodes as $node) {
@@ -150,29 +158,6 @@ class GraphIndexBuilder
 
             $text = $fileContents[$path] ?? '';
             $hasFullContent = $text !== '';
-
-            if (! $hasFullContent) {
-                // Reconstruct from diff: keep context (+) lines and additions, skip deletions and hunk headers
-                $text = implode("\n", array_map(
-                    fn (string $line) => substr($line, 1),
-                    array_filter(
-                        explode("\n", $fileDiffs[$path]),
-                        fn (string $line) => $line !== '' && $line[0] !== '-' && $line[0] !== '@',
-                    ),
-                ));
-            }
-
-            // Build property → class-node-id map from type hints in this file
-            $propToClass = [];
-            if (preg_match_all($typePat, $text, $typeMatches, PREG_SET_ORDER)) {
-                foreach ($typeMatches as $tm) {
-                    $typeName = $tm[1];
-                    $propName = $tm[2];
-                    if (isset($classNameIndex[$typeName]) && ! isset($propToClass[$propName])) {
-                        $propToClass[$propName] = $classNameIndex[$typeName];
-                    }
-                }
-            }
 
             $callerNodeId = $node['id'];
             $addCaller = function (string $targetNodeId, string $methodName, ?int $line) use (&$callersIndex, $callerNodeId): void {
@@ -191,26 +176,257 @@ class GraphIndexBuilder
                 $callersIndex[$key][] = ['nodeId' => $callerNodeId, 'line' => $line];
             };
 
-            $lines = explode("\n", $text);
-            foreach ($lines as $lineIndex => $lineText) {
-                $lineNum = $hasFullContent ? $lineIndex + 1 : null;
+            if ($hasFullContent) {
+                // AST-based extraction for files with full content
+                $errors = new Collecting;
+                $ast = $parser->parse($text, $errors);
+                if ($ast === null) {
+                    continue;
+                }
 
-                // Static calls
-                if (preg_match_all($staticPat, $lineText, $staticMatches, PREG_SET_ORDER)) {
-                    foreach ($staticMatches as $sm) {
-                        $targetId = $classNameIndex[$sm[1]] ?? null;
-                        if ($targetId !== null) {
-                            $addCaller($targetId, $sm[2], $lineNum);
+                // Build alias → short class name map for resolving imported names
+                $useAliasMap = [];
+                foreach ($nodeFinder->findInstanceOf($ast, Stmt\UseUse::class) as $use) {
+                    $alias = $use->alias?->toString() ?? $use->name->getLast();
+                    $useAliasMap[$alias] = $use->name->getLast();
+                }
+
+                $classLikes = [
+                    ...$nodeFinder->findInstanceOf($ast, Stmt\Class_::class),
+                    ...$nodeFinder->findInstanceOf($ast, Stmt\Trait_::class),
+                ];
+
+                foreach ($classLikes as $classLike) {
+                    // Build property type map: propName → short class name
+                    $propTypeMap = [];
+
+                    // From typed class-level property declarations
+                    foreach ($classLike->stmts as $stmt) {
+                        if (! ($stmt instanceof Stmt\Property)) {
+                            continue;
+                        }
+                        $propType = $stmt->type;
+                        if ($propType instanceof Node\NullableType) {
+                            $propType = $propType->type;
+                        }
+                        if (! ($propType instanceof Node\Name)) {
+                            continue;
+                        }
+                        $shortClass = $propType->getLast();
+                        foreach ($stmt->props as $prop) {
+                            $propTypeMap[$prop->name->toString()] ??= $shortClass;
+                        }
+                    }
+
+                    // From constructor parameters and assignments
+                    foreach ($classLike->getMethods() as $method) {
+                        if ($method->name->toString() !== '__construct') {
+                            continue;
+                        }
+                        foreach ($method->params as $param) {
+                            $paramType = $param->type;
+                            if ($paramType instanceof Node\NullableType) {
+                                $paramType = $paramType->type;
+                            }
+                            if ($paramType instanceof Node\Name && $param->var instanceof Expr\Variable && is_string($param->var->name)) {
+                                $propTypeMap[$param->var->name] = $paramType->getLast();
+                            }
+                        }
+                        foreach ($nodeFinder->findInstanceOf($method->stmts ?? [], Expr\Assign::class) as $assign) {
+                            if (
+                                ! ($assign->var instanceof Expr\PropertyFetch)
+                                || ! ($assign->var->var instanceof Expr\Variable && $assign->var->var->name === 'this')
+                                || ! ($assign->var->name instanceof Node\Identifier)
+                            ) {
+                                continue;
+                            }
+                            $propName = $assign->var->name->toString();
+                            if ($assign->expr instanceof Expr\Variable && is_string($assign->expr->name) && isset($propTypeMap[$assign->expr->name])) {
+                                $propTypeMap[$propName] = $propTypeMap[$assign->expr->name];
+                            }
+                            if ($assign->expr instanceof Expr\New_ && $assign->expr->class instanceof Node\Name) {
+                                $propTypeMap[$propName] = $assign->expr->class->getLast();
+                            }
+                        }
+                        break;
+                    }
+
+                    // Build method return type map for resolving $var = $this->method()
+                    $returnTypeMap = [];
+                    foreach ($classLike->getMethods() as $method) {
+                        $returnType = $method->returnType;
+                        if ($returnType instanceof Node\NullableType) {
+                            $returnType = $returnType->type;
+                        }
+                        if ($returnType instanceof Node\Name) {
+                            $returnTypeMap[$method->name->toString()] = $returnType->getLast();
+                        }
+                    }
+
+                    foreach ($classLike->getMethods() as $method) {
+                        if ($method->stmts === null) {
+                            continue;
+                        }
+
+                        // Build local variable type map for this method
+                        $localVarMap = $propTypeMap;
+                        foreach ($nodeFinder->findInstanceOf($method->stmts, Expr\Assign::class) as $assign) {
+                            if (! ($assign->var instanceof Expr\Variable) || ! is_string($assign->var->name)) {
+                                continue;
+                            }
+                            $varName = $assign->var->name;
+
+                            if ($assign->expr instanceof Expr\New_ && $assign->expr->class instanceof Node\Name) {
+                                $localVarMap[$varName] = $assign->expr->class->getLast();
+                            }
+
+                            // $var = $this->someMethod() — resolved via return type map
+                            if (
+                                $assign->expr instanceof Expr\MethodCall
+                                && $assign->expr->var instanceof Expr\Variable
+                                && $assign->expr->var->name === 'this'
+                                && $assign->expr->name instanceof Node\Identifier
+                            ) {
+                                $calledMethod = $assign->expr->name->toString();
+                                if (isset($returnTypeMap[$calledMethod])) {
+                                    $localVarMap[$varName] = $returnTypeMap[$calledMethod];
+                                }
+                            }
+
+                            // $var = app(Foo::class) / resolve(Foo::class)
+                            if (
+                                $assign->expr instanceof Expr\FuncCall
+                                && $assign->expr->name instanceof Node\Name
+                                && in_array($assign->expr->name->toLowerString(), ['app', 'resolve'], true)
+                                && isset($assign->expr->args[0])
+                                && $assign->expr->args[0] instanceof Node\Arg
+                            ) {
+                                $classConst = $assign->expr->args[0]->value;
+                                if (
+                                    $classConst instanceof Expr\ClassConstFetch
+                                    && $classConst->class instanceof Node\Name
+                                    && $classConst->name instanceof Node\Identifier
+                                    && $classConst->name->toString() === 'class'
+                                ) {
+                                    $localVarMap[$varName] = $classConst->class->getLast();
+                                }
+                            }
+
+                            // $var = $container->make(Foo::class) / app()->make(Foo::class)
+                            if (
+                                $assign->expr instanceof Expr\MethodCall
+                                && $assign->expr->name instanceof Node\Identifier
+                                && $assign->expr->name->toString() === 'make'
+                                && isset($assign->expr->args[0])
+                                && $assign->expr->args[0] instanceof Node\Arg
+                            ) {
+                                $classConst = $assign->expr->args[0]->value;
+                                if (
+                                    $classConst instanceof Expr\ClassConstFetch
+                                    && $classConst->class instanceof Node\Name
+                                    && $classConst->name instanceof Node\Identifier
+                                    && $classConst->name->toString() === 'class'
+                                ) {
+                                    $localVarMap[$varName] = $classConst->class->getLast();
+                                }
+                            }
+                        }
+
+                        // Extract instance method calls
+                        foreach ($nodeFinder->findInstanceOf([$method], Expr\MethodCall::class) as $call) {
+                            if (! ($call->name instanceof Node\Identifier)) {
+                                continue;
+                            }
+                            $calleeName = $call->name->toString();
+
+                            $shortClass = null;
+                            if ($call->var instanceof Expr\Variable && is_string($call->var->name) && $call->var->name !== 'this') {
+                                $shortClass = $localVarMap[$call->var->name] ?? null;
+                            } elseif (
+                                $call->var instanceof Expr\PropertyFetch
+                                && $call->var->var instanceof Expr\Variable
+                                && $call->var->var->name === 'this'
+                                && $call->var->name instanceof Node\Identifier
+                            ) {
+                                $shortClass = $localVarMap[$call->var->name->toString()] ?? null;
+                            } elseif (
+                                $call->var instanceof Expr\MethodCall
+                                && $call->var->var instanceof Expr\Variable
+                                && $call->var->var->name === 'this'
+                                && $call->var->name instanceof Node\Identifier
+                            ) {
+                                // $this->getService()->process()
+                                $innerMethod = $call->var->name->toString();
+                                $shortClass = $returnTypeMap[$innerMethod] ?? null;
+                            }
+
+                            if ($shortClass !== null) {
+                                $resolved = $useAliasMap[$shortClass] ?? $shortClass;
+                                $targetNodeId = $classNameIndex[$resolved] ?? null;
+                                if ($targetNodeId !== null) {
+                                    $addCaller($targetNodeId, $calleeName, $call->getStartLine());
+                                }
+                            }
+                        }
+
+                        // Extract static calls
+                        foreach ($nodeFinder->findInstanceOf([$method], Expr\StaticCall::class) as $call) {
+                            if (
+                                ! ($call->name instanceof Node\Identifier)
+                                || ! ($call->class instanceof Node\Name)
+                            ) {
+                                continue;
+                            }
+                            $classStr = $call->class->getLast();
+                            if (in_array($classStr, ['self', 'static', 'parent'], true)) {
+                                continue;
+                            }
+                            $resolved = $useAliasMap[$classStr] ?? $classStr;
+                            $targetNodeId = $classNameIndex[$resolved] ?? null;
+                            if ($targetNodeId !== null) {
+                                $addCaller($targetNodeId, $call->name->toString(), $call->getStartLine());
+                            }
                         }
                     }
                 }
 
-                // Instance calls via typed properties
+                continue;
+            }
+
+            // Fallback: reconstruct from diff when full content is unavailable (no line numbers)
+            $text = implode("\n", array_map(
+                fn (string $line) => substr($line, 1),
+                array_filter(
+                    explode("\n", $fileDiffs[$path]),
+                    fn (string $line) => $line !== '' && $line[0] !== '-' && $line[0] !== '@',
+                ),
+            ));
+
+            $propToClass = [];
+            if (preg_match_all($typePat, $text, $typeMatches, PREG_SET_ORDER)) {
+                foreach ($typeMatches as $tm) {
+                    $typeName = $tm[1];
+                    $propName = $tm[2];
+                    if (isset($classNameIndex[$typeName]) && ! isset($propToClass[$propName])) {
+                        $propToClass[$propName] = $classNameIndex[$typeName];
+                    }
+                }
+            }
+
+            foreach (explode("\n", $text) as $lineText) {
+                if (preg_match_all($staticPat, $lineText, $staticMatches, PREG_SET_ORDER)) {
+                    foreach ($staticMatches as $sm) {
+                        $targetId = $classNameIndex[$sm[1]] ?? null;
+                        if ($targetId !== null) {
+                            $addCaller($targetId, $sm[2], null);
+                        }
+                    }
+                }
                 if (preg_match_all($chainPat, $lineText, $chainMatches, PREG_SET_ORDER)) {
                     foreach ($chainMatches as $cm) {
                         $targetId = $propToClass[$cm[1]] ?? null;
                         if ($targetId !== null) {
-                            $addCaller($targetId, $cm[2], $lineNum);
+                            $addCaller($targetId, $cm[2], null);
                         }
                     }
                 }
@@ -241,7 +457,8 @@ class GraphIndexBuilder
         $implementeeIndex = [];
 
         foreach ($edges as $edge) {
-            [$source, $target, $type] = $edge;
+            [$source, $target] = $edge;
+            $type = $edge[2] ?? null;
             if ($type !== 'implements') {
                 continue;
             }

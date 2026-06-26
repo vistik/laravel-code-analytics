@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics\Actions;
 
 use Vistik\LaravelCodeAnalytics\Contracts\ReportGenerator;
 use Vistik\LaravelCodeAnalytics\Enums\GraphLayout;
+use Vistik\LaravelCodeAnalytics\GraphIndex\GraphIndexBuilder;
 use Vistik\LaravelCodeAnalytics\Renderers\LayerStack;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
@@ -76,7 +77,25 @@ class GenerateJsonReport implements ReportGenerator
         $dependencies = array_map(fn ($edge) => [
             'source' => $edge[0],
             'target' => $edge[1],
+            'type' => $edge[2] ?? null,
+            'line' => $edge[3] ?? null,
         ], $edges);
+
+        $rawIndex = (new GraphIndexBuilder)->build(
+            nodes: $payload->nodes,
+            edges: $payload->edges,
+            metricsData: $payload->metricsData,
+            fileDiffs: $payload->fileDiffs,
+            fileContents: $payload->fileContents,
+        );
+
+        $graphIndex = [
+            'callers_index' => $rawIndex['callersIndex'],
+            'implementors_index' => $rawIndex['implementorsIndex'],
+            'implementee_index' => $rawIndex['implementeeIndex'],
+            'method_name_index' => $rawIndex['methodNameIndex'],
+            'class_name_index' => $rawIndex['classNameIndex'],
+        ];
 
         return json_encode([
             'title' => $pr->prTitle,
@@ -90,6 +109,7 @@ class GenerateJsonReport implements ReportGenerator
             'findings' => $findings,
             'metrics' => $metrics,
             'dependencies' => $dependencies,
+            'graph_index' => $graphIndex,
             'circular_dependencies' => array_map(
                 fn ($paths) => ['files' => $paths],
                 array_values($cycleGroups),

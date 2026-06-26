@@ -7,6 +7,7 @@ use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null): array
 {
     return [
+        'id' => basename($path, '.php'),
         'path' => $path,
         'status' => 'modified',
         'add' => 5,
@@ -22,10 +23,10 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
     ];
 }
 
-function generateJson(array $nodes = [], array $edges = []): array
+function generateJson(array $nodes = [], array $edges = [], array $fileDiffs = [], array $fileContents = []): array
 {
     $json = (new GenerateJsonReport)->generate(
-        payload: new GraphPayload(nodes: $nodes, edges: $edges, fileDiffs: [], analysisData: []),
+        payload: new GraphPayload(nodes: $nodes, edges: $edges, fileDiffs: $fileDiffs, analysisData: [], fileContents: $fileContents),
         pr: new PullRequestContext(prTitle: 'Test PR', repo: 'test/repo', headCommit: 'abc1234', prAdditions: 0, prDeletions: 0, fileCount: count($nodes)),
     );
 
@@ -140,4 +141,88 @@ test('files are sorted by signal descending when connection boosts differ', func
     expect($data['files'][0]['path'])->toBe('app/High.php')
         ->and($data['files'][1]['path'])->toBe('app/Mid.php')
         ->and($data['files'][2]['path'])->toBe('app/Low.php');
+});
+
+// ── dependencies section ──────────────────────────────────────────────────────
+
+test('dependencies include type and line fields', function () {
+    $data = generateJson(
+        nodes: [makeJsonNode('app/Foo.php'), makeJsonNode('app/Bar.php')],
+        edges: [['app/Foo.php', 'app/Bar.php', 'external_call', 42]],
+    );
+
+    $dep = $data['dependencies'][0];
+    expect($dep['source'])->toBe('app/Foo.php')
+        ->and($dep['target'])->toBe('app/Bar.php')
+        ->and($dep['type'])->toBe('external_call')
+        ->and($dep['line'])->toBe(42);
+});
+
+test('dependencies type is null when edge has no type element', function () {
+    $data = generateJson(
+        nodes: [makeJsonNode('app/Foo.php'), makeJsonNode('app/Bar.php')],
+        edges: [['app/Foo.php', 'app/Bar.php']],
+    );
+
+    expect($data['dependencies'][0]['type'])->toBeNull();
+});
+
+test('dependencies line is null when edge has no line element', function () {
+    $data = generateJson(
+        nodes: [makeJsonNode('app/Foo.php'), makeJsonNode('app/Bar.php')],
+        edges: [['app/Foo.php', 'app/Bar.php', 'static_call']],
+    );
+
+    expect($data['dependencies'][0]['line'])->toBeNull();
+});
+
+test('new call types chained_call and parent_call are preserved in dependencies', function () {
+    $data = generateJson(
+        nodes: [makeJsonNode('app/Foo.php'), makeJsonNode('app/Bar.php')],
+        edges: [
+            ['app/Foo.php', 'app/Bar.php', 'chained_call', 10],
+            ['app/Foo.php', 'app/Bar.php', 'parent_call', 20],
+        ],
+    );
+
+    $types = array_column($data['dependencies'], 'type');
+    expect($types)->toContain('chained_call')
+        ->toContain('parent_call');
+});
+
+// ── graph_index section ───────────────────────────────────────────────────────
+
+test('graph_index is present with all five sub-keys', function () {
+    $data = generateJson();
+
+    expect($data)->toHaveKey('graph_index')
+        ->and($data['graph_index'])->toHaveKeys([
+            'callers_index',
+            'implementors_index',
+            'implementee_index',
+            'method_name_index',
+            'class_name_index',
+        ]);
+});
+
+test('graph_index callers_index is populated from full file content', function () {
+    $nodes = [
+        makeJsonNode('app/OrderService.php') + ['id' => 'OrderService', 'ext' => 'php', 'name' => 'OrderService'],
+        makeJsonNode('app/PaymentGateway.php') + ['id' => 'PaymentGateway', 'ext' => 'php', 'name' => 'PaymentGateway'],
+    ];
+    $fileContents = [
+        'app/OrderService.php' => "<?php\nclass OrderService {\n    public function charge(): void { PaymentGateway::process(); }\n}",
+    ];
+
+    $data = generateJson(
+        nodes: $nodes,
+        edges: [],
+        fileDiffs: ['app/OrderService.php' => ''],
+        fileContents: $fileContents,
+    );
+
+    expect($data['graph_index']['callers_index'])->toHaveKey('PaymentGateway:process');
+    $callers = $data['graph_index']['callers_index']['PaymentGateway:process'];
+    expect($callers[0]['nodeId'])->toBe('OrderService')
+        ->and($callers[0]['line'])->toBe(3);
 });
