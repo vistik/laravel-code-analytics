@@ -252,6 +252,8 @@ class MethodCallGraphExtractor
             $className = $classLike->name?->toString() ?? 'anonymous';
             $propTypeMap = $this->buildPropTypeMap($classLike, $useMap);
 
+            $returnTypeMap = $this->buildMethodReturnTypeMap($classLike);
+
             foreach ($classLike->getMethods() as $method) {
                 $methodName = $method->name->toString();
                 $methodId = $className.'::'.$methodName;
@@ -300,14 +302,20 @@ class MethodCallGraphExtractor
                 }
 
                 // Merge class-level property map with per-method local `new` assignments
-                $combinedTypeMap = array_merge($propTypeMap, $this->buildLocalVarTypeMap($method));
+                $combinedTypeMap = array_merge($propTypeMap, $this->buildLocalVarTypeMap($method, $returnTypeMap));
+
+                $parentClass = ($classLike instanceof Stmt\Class_ && $classLike->extends !== null)
+                    ? $classLike->extends->getLast()
+                    : null;
 
                 $this->extractCallEdges(
                     method: $method,
                     callerClass: $className,
                     callerId: $methodId,
+                    parentClass: $parentClass,
                     fileMethodIds: $fileMethodIds,
                     propTypeMap: $combinedTypeMap,
+                    returnTypeMap: $returnTypeMap,
                     useMap: $useMap,
                     namespace: $namespace,
                     fileGroup: $fileGroup,
@@ -326,7 +334,8 @@ class MethodCallGraphExtractor
 
     /**
      * @param  list<string>  $fileMethodIds
-     * @param  array<string,string>  $propTypeMap  propName → shortClassName
+     * @param  array<string,string>  $propTypeMap  propName/varName → shortClassName
+     * @param  array<string,string>  $returnTypeMap  methodName → shortClassName
      * @param  array<string,string>  $useMap  shortName → FQCN
      * @param  list<array{0:string,1:string,2:string,3:int}>  $edges
      * @param  array<string,array<string,mixed>>  $externalStubs
@@ -337,8 +346,10 @@ class MethodCallGraphExtractor
         Stmt\ClassMethod $method,
         string $callerClass,
         string $callerId,
+        ?string $parentClass,
         array $fileMethodIds,
         array $propTypeMap,
+        array $returnTypeMap,
         array $useMap,
         string $namespace,
         ?string $fileGroup,
@@ -422,6 +433,33 @@ class MethodCallGraphExtractor
                         edgeSet: $edgeSet,
                     );
                 }
+            } elseif (
+                $call->var instanceof Expr\MethodCall
+                && $call->var->var instanceof Expr\Variable
+                && $call->var->var->name === 'this'
+                && $call->var->name instanceof Node\Identifier
+            ) {
+                // $this->getService()->process()  — resolve via return type map
+                $innerMethod = $call->var->name->toString();
+                if (isset($returnTypeMap[$innerMethod])) {
+                    $calleeClass = $returnTypeMap[$innerMethod];
+                    $fqcn = $this->resolveFqcn($calleeClass, $useMap, $namespace);
+                    $this->addEdge(
+                        callerId: $callerId,
+                        calleeId: $calleeClass.'::'.$calleeName,
+                        callType: 'chained_call',
+                        calleeClass: $calleeClass,
+                        calleeName: $calleeName,
+                        calleeFqcn: $fqcn,
+                        callLine: $call->getStartLine(),
+                        fileMethodIds: $fileMethodIds,
+                        fileGroup: $fileGroup,
+                        edges: $edges,
+                        externalStubs: $externalStubs,
+                        discoveredFqcns: $discoveredFqcns,
+                        edgeSet: $edgeSet,
+                    );
+                }
             }
         }
 
@@ -439,7 +477,7 @@ class MethodCallGraphExtractor
             }
             $classStr = $call->class->toString();
 
-            if (in_array($classStr, ['self', 'static', 'parent'], true)) {
+            if ($classStr === 'self' || $classStr === 'static') {
                 $this->addEdge(
                     callerId: $callerId,
                     calleeId: $callerClass.'::'.$calleeName,
@@ -447,6 +485,24 @@ class MethodCallGraphExtractor
                     calleeClass: $callerClass,
                     calleeName: $calleeName,
                     calleeFqcn: null,
+                    callLine: $call->getStartLine(),
+                    fileMethodIds: $fileMethodIds,
+                    fileGroup: $fileGroup,
+                    edges: $edges,
+                    externalStubs: $externalStubs,
+                    discoveredFqcns: $discoveredFqcns,
+                    edgeSet: $edgeSet,
+                );
+            } elseif ($classStr === 'parent') {
+                $resolvedParent = $parentClass ?? $callerClass;
+                $fqcn = $parentClass !== null ? $this->resolveFqcn($parentClass, $useMap, $namespace) : null;
+                $this->addEdge(
+                    callerId: $callerId,
+                    calleeId: $resolvedParent.'::'.$calleeName,
+                    callType: 'parent_call',
+                    calleeClass: $resolvedParent,
+                    calleeName: $calleeName,
+                    calleeFqcn: $fqcn,
                     callLine: $call->getStartLine(),
                     fileMethodIds: $fileMethodIds,
                     fileGroup: $fileGroup,
@@ -556,6 +612,27 @@ class MethodCallGraphExtractor
     {
         $map = []; // paramOrPropName → shortClassName
 
+        // Scan class-level typed property declarations (lower priority than constructor)
+        foreach ($classLike->stmts as $stmt) {
+            if (! ($stmt instanceof Stmt\Property)) {
+                continue;
+            }
+            $propType = $stmt->type;
+            if ($propType instanceof Node\NullableType) {
+                $propType = $propType->type;
+            }
+            if (! ($propType instanceof Node\Name)) {
+                continue;
+            }
+            $shortClass = $propType->getLast();
+            foreach ($stmt->props as $prop) {
+                $propName = $prop->name->toString();
+                if (! isset($map[$propName])) {
+                    $map[$propName] = $shortClass;
+                }
+            }
+        }
+
         foreach ($classLike->getMethods() as $method) {
             if ($method->name->toString() !== '__construct') {
                 continue;
@@ -618,12 +695,34 @@ class MethodCallGraphExtractor
     }
 
     /**
-     * Build a map of local variable names → short class names for a single method body.
-     * Captures: `$var = new ClassName(...)`.
+     * Build methodName → shortClassName from each method's declared return type.
      *
      * @return array<string,string>
      */
-    private function buildLocalVarTypeMap(Stmt\ClassMethod $method): array
+    private function buildMethodReturnTypeMap(Stmt\Class_|Stmt\Trait_|Stmt\Interface_|Stmt\Enum_ $classLike): array
+    {
+        $map = [];
+        foreach ($classLike->getMethods() as $method) {
+            $returnType = $method->returnType;
+            if ($returnType instanceof Node\NullableType) {
+                $returnType = $returnType->type;
+            }
+            if ($returnType instanceof Node\Name) {
+                $map[$method->name->toString()] = $returnType->getLast();
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Build a map of local variable names → short class names for a single method body.
+     * Captures: `$var = new ClassName(...)` and `$var = $this->method()` (via return types).
+     *
+     * @param  array<string,string>  $returnTypeMap  methodName → shortClassName
+     * @return array<string,string>
+     */
+    private function buildLocalVarTypeMap(Stmt\ClassMethod $method, array $returnTypeMap = []): array
     {
         if ($method->stmts === null) {
             return [];
@@ -642,6 +741,57 @@ class MethodCallGraphExtractor
             // $var = new Foo(...)
             if ($assign->expr instanceof Expr\New_ && $assign->expr->class instanceof Node\Name) {
                 $map[$varName] = $assign->expr->class->getLast();
+            }
+
+            // $var = $this->someMethod()  — resolved via return type map
+            if (
+                $assign->expr instanceof Expr\MethodCall
+                && $assign->expr->var instanceof Expr\Variable
+                && $assign->expr->var->name === 'this'
+                && $assign->expr->name instanceof Node\Identifier
+            ) {
+                $calledMethod = $assign->expr->name->toString();
+                if (isset($returnTypeMap[$calledMethod])) {
+                    $map[$varName] = $returnTypeMap[$calledMethod];
+                }
+            }
+
+            // $var = app(Foo::class) / resolve(Foo::class)
+            if (
+                $assign->expr instanceof Expr\FuncCall
+                && $assign->expr->name instanceof Node\Name
+                && in_array($assign->expr->name->toLowerString(), ['app', 'resolve'], true)
+                && isset($assign->expr->args[0])
+                && $assign->expr->args[0] instanceof Node\Arg
+            ) {
+                $classConst = $assign->expr->args[0]->value;
+                if (
+                    $classConst instanceof Expr\ClassConstFetch
+                    && $classConst->class instanceof Node\Name
+                    && $classConst->name instanceof Node\Identifier
+                    && $classConst->name->toString() === 'class'
+                ) {
+                    $map[$varName] = $classConst->class->getLast();
+                }
+            }
+
+            // $var = $this->app->make(Foo::class) / $container->make(Foo::class) / app()->make(Foo::class)
+            if (
+                $assign->expr instanceof Expr\MethodCall
+                && $assign->expr->name instanceof Node\Identifier
+                && $assign->expr->name->toString() === 'make'
+                && isset($assign->expr->args[0])
+                && $assign->expr->args[0] instanceof Node\Arg
+            ) {
+                $classConst = $assign->expr->args[0]->value;
+                if (
+                    $classConst instanceof Expr\ClassConstFetch
+                    && $classConst->class instanceof Node\Name
+                    && $classConst->name instanceof Node\Identifier
+                    && $classConst->name->toString() === 'class'
+                ) {
+                    $map[$varName] = $classConst->class->getLast();
+                }
             }
         }
 

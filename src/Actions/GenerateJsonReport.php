@@ -115,6 +115,8 @@ class GenerateJsonReport implements ReportGenerator
         $dependencies = array_map(fn ($edge) => [
             'source' => $edge[0],
             'target' => $edge[1],
+            'type' => $edge[2] ?? null,
+            'line' => $edge[3] ?? null,
         ], $edges);
 
         $graphIndex = (new GraphIndexBuilder)->build(
@@ -124,7 +126,6 @@ class GenerateJsonReport implements ReportGenerator
             fileDiffs: $payload->fileDiffs,
             fileContents: $payload->fileContents,
         );
-
         return json_encode([
             'title' => $pr->prTitle,
             'repo' => $pr->repo,

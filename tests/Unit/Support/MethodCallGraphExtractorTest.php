@@ -172,6 +172,181 @@ test('resolves explicit static call to external class', function () {
     expectEdge($result['edges'], 'MyCommand::handle', 'Cache::forget', 'static_call');
 });
 
+// ── Gap 2: Class-level typed property declarations ────────────────────────────
+
+test('resolves call on class-level typed property (not constructor-injected)', function () {
+    $file = tempPhp(<<<'PHP'
+        class Svc {
+            private Mailer $mailer;
+            public function notify(): void { $this->mailer->send(); }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'Svc::notify', 'Mailer::send', 'external_call');
+});
+
+test('class-level typed property is overridden by constructor assignment', function () {
+    $file = tempPhp(<<<'PHP'
+        class Svc {
+            private Logger $logger;
+            public function __construct(private Mailer $mailer) {
+                $this->logger = new Logger();
+            }
+            public function run(): void {
+                $this->mailer->send();
+                $this->logger->log();
+            }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'Svc::run', 'Mailer::send', 'external_call');
+    expectEdge($result['edges'], 'Svc::run', 'Logger::log', 'external_call');
+});
+
+// ── Gap 3: Return type tracking for local variable resolution ─────────────────
+
+test('resolves $var = $this->method() via return type annotation', function () {
+    $file = tempPhp(<<<'PHP'
+        class OrderController {
+            public function getRepo(): OrderRepository { return new OrderRepository(); }
+            public function index(): void {
+                $repo = $this->getRepo();
+                $repo->findAll();
+            }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'OrderController::index', 'OrderRepository::findAll', 'external_call');
+});
+
+// ── Gap 4: parent:: resolves to actual parent class ───────────────────────────
+
+test('parent::method() resolves to the declared parent class', function () {
+    $file = tempPhp(<<<'PHP'
+        class Child extends BaseHandler {
+            public function handle(): void { parent::handle(); }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'Child::handle', 'BaseHandler::handle', 'parent_call');
+    // Must NOT create an edge to itself
+    $selfEdges = array_filter($result['edges'], fn ($e) => $e[1] === 'Child::handle');
+    expect($selfEdges)->toBeEmpty();
+});
+
+test('parent:: without extends falls back to caller class', function () {
+    $file = tempPhp(<<<'PHP'
+        class Orphan {
+            public function boot(): void { parent::boot(); }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    // Self-loop prevention means this edge is dropped
+    expect($result['edges'])->toBeEmpty();
+});
+
+// ── Gap 5: Chained method calls ───────────────────────────────────────────────
+
+test('resolves $this->getService()->process() via return type', function () {
+    $file = tempPhp(<<<'PHP'
+        class OrderController {
+            public function getProcessor(): PaymentProcessor { return new PaymentProcessor(); }
+            public function checkout(): void { $this->getProcessor()->charge(); }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'OrderController::checkout', 'PaymentProcessor::charge', 'chained_call');
+});
+
+test('chained call also emits the inner this_call edge', function () {
+    $file = tempPhp(<<<'PHP'
+        class Svc {
+            public function repo(): UserRepo { return new UserRepo(); }
+            public function handle(): void { $this->repo()->save(); }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    // Inner: Svc::handle → Svc::repo
+    expectEdge($result['edges'], 'Svc::handle', 'Svc::repo', 'this_call');
+    // Outer: Svc::handle → UserRepo::save
+    expectEdge($result['edges'], 'Svc::handle', 'UserRepo::save', 'chained_call');
+});
+
+test('chained call is ignored when return type is unknown', function () {
+    $file = tempPhp(<<<'PHP'
+        class Svc {
+            public function repo() { return new UserRepo(); }   // no return type annotation
+            public function handle(): void { $this->repo()->save(); }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    $chainEdges = array_filter($result['edges'], fn ($e) => $e[2] === 'chained_call');
+    expect($chainEdges)->toBeEmpty();
+});
+
+// ── Gap 6: Laravel IoC container patterns ────────────────────────────────────
+
+test('resolves $var = app(Foo::class) and tracks subsequent call', function () {
+    $file = tempPhp(<<<'PHP'
+        class Handler {
+            public function run(): void {
+                $repo = app(UserRepository::class);
+                $repo->findAll();
+            }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'Handler::run', 'UserRepository::findAll', 'external_call');
+});
+
+test('resolves $var = resolve(Foo::class) and tracks subsequent call', function () {
+    $file = tempPhp(<<<'PHP'
+        class Handler {
+            public function run(): void {
+                $mailer = resolve(Mailer::class);
+                $mailer->send();
+            }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'Handler::run', 'Mailer::send', 'external_call');
+});
+
+test('resolves $var = $container->make(Foo::class) and tracks subsequent call', function () {
+    $file = tempPhp(<<<'PHP'
+        class Handler {
+            public function run(): void {
+                $svc = $this->app->make(OrderService::class);
+                $svc->process();
+            }
+        }
+        PHP);
+
+    $result = (new MethodCallGraphExtractor)->extract($file);
+
+    expectEdge($result['edges'], 'Handler::run', 'OrderService::process', 'external_call');
+});
+
 // ── Edge cases ────────────────────────────────────────────────────────────────
 
 test('returns empty for unparseable file', function () {

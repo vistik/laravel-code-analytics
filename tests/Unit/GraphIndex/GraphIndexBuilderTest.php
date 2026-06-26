@@ -195,6 +195,146 @@ test('line number is null when reconstructed from diff', function () {
     expect($index['PaymentGateway:charge'][0]['line'])->toBeNull();
 });
 
+test('AST path resolves instance call via typed class property (no constructor)', function () {
+    $nodes = [
+        makeGraphNode('app/OrderService.php', 'OrderService'),
+        makeGraphNode('app/Mailer.php', 'Mailer'),
+    ];
+    $classNameIndex = ['Mailer' => 'Mailer'];
+    $fileDiffs = ['app/OrderService.php' => ''];
+    $fileContents = [
+        'app/OrderService.php' => "<?php\nclass OrderService {\n    private Mailer \$mailer;\n    public function notify(): void { \$this->mailer->send(); }\n}",
+    ];
+
+    $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs, $fileContents);
+
+    expect($index)->toHaveKey('Mailer:send')
+        ->and($index['Mailer:send'][0]['nodeId'])->toBe('OrderService')
+        ->and($index['Mailer:send'][0]['line'])->toBe(4);
+});
+
+test('AST path resolves instance call via return-type-tracked local variable', function () {
+    $nodes = [
+        makeGraphNode('app/OrderController.php', 'OrderController'),
+        makeGraphNode('app/OrderRepository.php', 'OrderRepository'),
+    ];
+    $classNameIndex = ['OrderRepository' => 'OrderRepository'];
+    $fileDiffs = ['app/OrderController.php' => ''];
+    $fileContents = [
+        'app/OrderController.php' => implode("\n", [
+            '<?php',
+            'class OrderController {',
+            '    public function getRepo(): OrderRepository { return new OrderRepository(); }',
+            '    public function index(): void {',
+            '        $repo = $this->getRepo();',
+            '        $repo->findAll();',
+            '    }',
+            '}',
+        ]),
+    ];
+
+    $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs, $fileContents);
+
+    expect($index)->toHaveKey('OrderRepository:findAll')
+        ->and($index['OrderRepository:findAll'][0]['nodeId'])->toBe('OrderController');
+});
+
+test('AST path resolves call via use-aliased class name', function () {
+    $nodes = [
+        makeGraphNode('app/Handler.php', 'Handler'),
+        makeGraphNode('app/OrderService.php', 'OrderService'),
+    ];
+    $classNameIndex = ['OrderService' => 'OrderService'];
+    $fileDiffs = ['app/Handler.php' => ''];
+    $fileContents = [
+        'app/Handler.php' => implode("\n", [
+            '<?php',
+            'use App\\Services\\OrderService as Svc;',
+            'class Handler {',
+            '    public function handle(): void { Svc::process(); }',
+            '}',
+        ]),
+    ];
+
+    $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs, $fileContents);
+
+    expect($index)->toHaveKey('OrderService:process')
+        ->and($index['OrderService:process'][0]['nodeId'])->toBe('Handler');
+});
+
+test('AST path resolves chained call $this->method()->call() via return type', function () {
+    $nodes = [
+        makeGraphNode('app/OrderController.php', 'OrderController'),
+        makeGraphNode('app/PaymentProcessor.php', 'PaymentProcessor'),
+    ];
+    $classNameIndex = ['PaymentProcessor' => 'PaymentProcessor'];
+    $fileDiffs = ['app/OrderController.php' => ''];
+    $fileContents = [
+        'app/OrderController.php' => implode("\n", [
+            '<?php',
+            'class OrderController {',
+            '    public function getProcessor(): PaymentProcessor { return new PaymentProcessor(); }',
+            '    public function checkout(): void { $this->getProcessor()->charge(); }',
+            '}',
+        ]),
+    ];
+
+    $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs, $fileContents);
+
+    expect($index)->toHaveKey('PaymentProcessor:charge')
+        ->and($index['PaymentProcessor:charge'][0]['nodeId'])->toBe('OrderController');
+});
+
+test('AST path resolves app(Foo::class) IoC call', function () {
+    $nodes = [
+        makeGraphNode('app/Handler.php', 'Handler'),
+        makeGraphNode('app/UserRepository.php', 'UserRepository'),
+    ];
+    $classNameIndex = ['UserRepository' => 'UserRepository'];
+    $fileDiffs = ['app/Handler.php' => ''];
+    $fileContents = [
+        'app/Handler.php' => implode("\n", [
+            '<?php',
+            'class Handler {',
+            '    public function run(): void {',
+            '        $repo = app(UserRepository::class);',
+            '        $repo->findAll();',
+            '    }',
+            '}',
+        ]),
+    ];
+
+    $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs, $fileContents);
+
+    expect($index)->toHaveKey('UserRepository:findAll')
+        ->and($index['UserRepository:findAll'][0]['nodeId'])->toBe('Handler');
+});
+
+test('AST path resolves container make(Foo::class) IoC call', function () {
+    $nodes = [
+        makeGraphNode('app/Handler.php', 'Handler'),
+        makeGraphNode('app/OrderService.php', 'OrderService'),
+    ];
+    $classNameIndex = ['OrderService' => 'OrderService'];
+    $fileDiffs = ['app/Handler.php' => ''];
+    $fileContents = [
+        'app/Handler.php' => implode("\n", [
+            '<?php',
+            'class Handler {',
+            '    public function run(): void {',
+            '        $svc = $this->app->make(OrderService::class);',
+            '        $svc->process();',
+            '    }',
+            '}',
+        ]),
+    ];
+
+    $index = (new GraphIndexBuilder)->buildCallersIndex($nodes, $classNameIndex, $fileDiffs, $fileContents);
+
+    expect($index)->toHaveKey('OrderService:process')
+        ->and($index['OrderService:process'][0]['nodeId'])->toBe('Handler');
+});
+
 // ── buildImplementsIndices ────────────────────────────────────────────────────
 
 test('builds implementors index from implements edges', function () {
