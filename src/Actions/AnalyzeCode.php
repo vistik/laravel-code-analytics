@@ -213,6 +213,8 @@ class AnalyzeCode
 
         [$nodes, $analysisData] = $this->injectCycleFindings($nodes, $analysisData, $cycleMap);
 
+        [$nodes, $analysisData] = $this->injectComposerAuditFindings($nodes, $analysisData);
+
         $t = microtime(true);
         ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics($headContents, $oldSources, $fqcnToFilePath);
         $this->progress('timing', '  ↳ '.$this->elapsed($t));
@@ -2453,6 +2455,157 @@ class AnalyzeCode
         return ($metrics->cyclomaticComplexity ?? 0) > 10
             || ($metrics->maintainabilityIndex ?? 100) < 85
             || ($metrics->bugs ?? 0) > 0.1;
+    }
+
+    // ── Composer audit ───────────────────────────────────────────────────────
+
+    /**
+     * When composer.json is in the diff, inject three tiers of findings:
+     *   HIGH   — each security advisory from `composer audit`
+     *   MEDIUM — each newly added dependency (require / require-dev)
+     *   INFO   — each removed dependency
+     *
+     * @return array{0: array, 1: array}
+     */
+    private function injectComposerAuditFindings(array $nodes, array $analysisData): array
+    {
+        foreach ($nodes as &$node) {
+            if ($node['path'] !== 'composer.json' && ! str_ends_with($node['path'], '/composer.json')) {
+                continue;
+            }
+
+            $subDir = dirname($node['path']);
+            $dir = $this->repoPath !== ''
+                ? ($subDir === '.' ? $this->repoPath : $this->repoPath.'/'.$subDir)
+                : null;
+
+            $advisories = $dir !== null ? $this->runComposerAudit($dir) : [];
+            [$addedDeps, $removedDeps] = $this->diffComposerDependencies($node['path']);
+
+            if (empty($advisories) && empty($addedDeps) && empty($removedDeps)) {
+                continue;
+            }
+
+            $analysisData[$node['path']] ??= [];
+
+            foreach ($advisories as $advisory) {
+                $analysisData[$node['path']][] = [
+                    'category' => ChangeCategory::SECURITY_ADVISORY->value,
+                    'severity' => Severity::HIGH->value,
+                    'description' => ($advisory['packageName'] ?? '?').': '.($advisory['title'] ?? 'Security advisory'),
+                ];
+                $node['analysisCount'] = ($node['analysisCount'] ?? 0) + 1;
+                $node['highCount'] = ($node['highCount'] ?? 0) + 1;
+            }
+
+            foreach ($addedDeps as $package => $version) {
+                $analysisData[$node['path']][] = [
+                    'category' => ChangeCategory::SECURITY_ADVISORY->value,
+                    'severity' => Severity::MEDIUM->value,
+                    'description' => "New dependency: {$package} {$version}",
+                ];
+                $node['analysisCount'] = ($node['analysisCount'] ?? 0) + 1;
+                $node['mediumCount'] = ($node['mediumCount'] ?? 0) + 1;
+            }
+
+            foreach ($removedDeps as $package => $version) {
+                $analysisData[$node['path']][] = [
+                    'category' => ChangeCategory::SECURITY_ADVISORY->value,
+                    'severity' => Severity::INFO->value,
+                    'description' => "Dependency removed: {$package} {$version}",
+                ];
+                $node['analysisCount'] = ($node['analysisCount'] ?? 0) + 1;
+                $node['infoCount'] = ($node['infoCount'] ?? 0) + 1;
+            }
+
+            foreach (array_reverse(Severity::cases()) as $sev) {
+                if (($node[$sev->countKey()] ?? 0) > 0) {
+                    $node['severity'] = $sev->value;
+                    break;
+                }
+            }
+
+            if (! empty($advisories)) {
+                $this->progress('line', '  composer audit: '.count($advisories).' advisor'.(count($advisories) === 1 ? 'y' : 'ies').' found in '.$node['path'].'.');
+            }
+        }
+        unset($node);
+
+        return [$nodes, $analysisData];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function runComposerAudit(string $dir): array
+    {
+        $result = Process::path($dir)->timeout(30)->run(['composer', 'audit', '--format=json']);
+        $json = $result->output();
+
+        if (empty($json)) {
+            return [];
+        }
+
+        $data = json_decode($json, true);
+        if (! is_array($data) || empty($data['advisories'])) {
+            return [];
+        }
+
+        $advisories = [];
+        foreach ($data['advisories'] as $entries) {
+            foreach ((array) $entries as $advisory) {
+                $advisories[] = $advisory;
+            }
+        }
+
+        return $advisories;
+    }
+
+    /**
+     * Compare the require/require-dev sections between base and head commits.
+     *
+     * @return array{0: array<string, string>, 1: array<string, string>} [added, removed]
+     */
+    private function diffComposerDependencies(string $path): array
+    {
+        if (empty($this->baseCommit)) {
+            return [[], []];
+        }
+
+        $gitDir = $this->repoDir ?? ($this->repoPath !== '' ? $this->repoPath : null);
+        if ($gitDir === null) {
+            return [[], []];
+        }
+
+        $oldJson = trim(shell_exec('git -C '.escapeshellarg($gitDir).' show '.escapeshellarg("{$this->baseCommit}:{$path}").' 2>/dev/null') ?? '');
+
+        if ($this->repoDir !== null) {
+            $fetched = $this->readFileContentsFromGit([$path]);
+            $newJson = $fetched[$path] ?? '';
+        } elseif ($this->readContentsFromCommit) {
+            $fetched = $this->readFileContentsFromLocalCommit([$path]);
+            $newJson = $fetched[$path] ?? '';
+        } else {
+            $fullPath = $this->repoPath.'/'.$path;
+            $newJson = is_file($fullPath) ? (string) file_get_contents($fullPath) : '';
+        }
+
+        $old = $this->extractComposerPackages($oldJson);
+        $new = $this->extractComposerPackages($newJson);
+
+        return [array_diff_key($new, $old), array_diff_key($old, $new)];
+    }
+
+    /** @return array<string, string> package → version constraint */
+    private function extractComposerPackages(string $json): array
+    {
+        $data = json_decode($json, true);
+        if (! is_array($data)) {
+            return [];
+        }
+
+        return array_merge(
+            (array) ($data['require'] ?? []),
+            (array) ($data['require-dev'] ?? []),
+        );
     }
 
     // ── Utilities ────────────────────────────────────────────────────────────
