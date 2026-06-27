@@ -876,8 +876,22 @@ class AnalyzeCode
             }
             $node['clusterId'] = $clusterId;
             $node['clusterSize'] = $clusterId !== null ? $size : null;
-            $node['clusterColor'] = $clusterId !== null
-                ? $clusterColorPalette[($clusterId - 1) % count($clusterColorPalette)]
+        }
+        unset($node);
+
+        // Re-number surviving clusters to contiguous 1-based integers so no two clusters
+        // ever share the same display label (gaps appear when singletons are removed).
+        $finalRemap = [];
+        $nextFinalId = 0;
+        foreach ($nodes as &$node) {
+            if ($node['clusterId'] !== null) {
+                if (! isset($finalRemap[$node['clusterId']])) {
+                    $finalRemap[$node['clusterId']] = ++$nextFinalId;
+                }
+                $node['clusterId'] = $finalRemap[$node['clusterId']];
+            }
+            $node['clusterColor'] = $node['clusterId'] !== null
+                ? $clusterColorPalette[($node['clusterId'] - 1) % count($clusterColorPalette)]
                 : null;
         }
         unset($node);

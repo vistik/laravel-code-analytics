@@ -1944,6 +1944,129 @@ describe('detectClusters', function () {
     });
 });
 
+// ── detectAndAnnotateClusters re-numbering ────────────────────────────────────
+
+describe('detectAndAnnotateClusters cluster re-numbering', function () {
+    function makeClusterObj(): array
+    {
+        $obj = new AnalyzeCode;
+
+        return [$obj, new ReflectionMethod($obj, 'detectAndAnnotateClusters')];
+    }
+
+    function injectEdges(AnalyzeCode $obj, array $edges): void
+    {
+        $graphProp = new ReflectionProperty($obj, 'graph');
+        $graphProp->setAccessible(true);
+        $graph = $graphProp->getValue($obj);
+        foreach ($edges as [$src, $tgt]) {
+            $graph->addEdge($src, $tgt);
+        }
+    }
+
+    it('re-numbers surviving clusters to contiguous 1-based integers when a singleton creates a gap', function () {
+        // 5 nodes: a-b pair, c isolated (singleton), d-e pair
+        // detectClusters assigns: a,b→1  c→2  d,e→3
+        // After singleton removal: c→null, leaving IDs {1,3}
+        // The fix re-numbers to {1,2} — no gap.
+        [$obj, $method] = makeClusterObj();
+        $method->setAccessible(true);
+        $nodes = [
+            ['id' => 'a', 'path' => 'app/A.php', 'isConnected' => false],
+            ['id' => 'b', 'path' => 'app/B.php', 'isConnected' => false],
+            ['id' => 'c', 'path' => 'app/C.php', 'isConnected' => false],
+            ['id' => 'd', 'path' => 'app/D.php', 'isConnected' => false],
+            ['id' => 'e', 'path' => 'app/E.php', 'isConnected' => false],
+        ];
+        injectEdges($obj, [['a', 'b'], ['d', 'e']]);
+
+        [$result] = $method->invoke($obj, $nodes);
+        $byId = array_column($result, 'clusterId', 'id');
+
+        expect($byId['c'])->toBeNull();
+        expect($byId['a'])->toBe($byId['b']);
+        expect($byId['d'])->toBe($byId['e']);
+        expect($byId['a'])->not->toBe($byId['d']);
+
+        // Surviving cluster IDs must be contiguous from 1 — no gap at 2.
+        $uniqueIds = array_values(array_unique(array_filter(array_values($byId))));
+        sort($uniqueIds);
+        expect($uniqueIds)->toBe([1, 2]);
+    });
+
+    it('assigns clusterColor based on the re-numbered ID, not the original Louvain ID', function () {
+        // Same topology as above: a-b pair, c singleton, d-e pair.
+        // Without re-numbering, d,e would get the 3rd palette colour (index 2).
+        // With re-numbering they become cluster 2, so they get index 1 (the 2nd palette colour).
+        $palette = ['#4d96ff', '#6bcb77', '#ffd93d', '#a371f7', '#ff6b9d', '#3dcfcf', '#f0883e', '#ff6b6b'];
+
+        [$obj, $method] = makeClusterObj();
+        $method->setAccessible(true);
+        $nodes = [
+            ['id' => 'a', 'path' => 'app/A.php', 'isConnected' => false],
+            ['id' => 'b', 'path' => 'app/B.php', 'isConnected' => false],
+            ['id' => 'c', 'path' => 'app/C.php', 'isConnected' => false],
+            ['id' => 'd', 'path' => 'app/D.php', 'isConnected' => false],
+            ['id' => 'e', 'path' => 'app/E.php', 'isConnected' => false],
+        ];
+        injectEdges($obj, [['a', 'b'], ['d', 'e']]);
+
+        [$result] = $method->invoke($obj, $nodes);
+        $byId = array_column($result, null, 'id');
+
+        // Cluster 1 (a,b) → palette index 0
+        expect($byId['a']['clusterColor'])->toBe($palette[0]);
+        // Cluster 2 (d,e) → palette index 1 (re-numbered from 3 → 2)
+        expect($byId['d']['clusterColor'])->toBe($palette[1]);
+        // Singleton gets no color
+        expect($byId['c']['clusterColor'])->toBeNull();
+    });
+
+    it('produces unique cluster IDs across all surviving multi-node clusters', function () {
+        // 6 nodes: three pairs, each connected internally but not to each other.
+        [$obj, $method] = makeClusterObj();
+        $method->setAccessible(true);
+        $nodes = [
+            ['id' => 'a', 'path' => 'app/A.php', 'isConnected' => false],
+            ['id' => 'b', 'path' => 'app/B.php', 'isConnected' => false],
+            ['id' => 'c', 'path' => 'app/C.php', 'isConnected' => false],
+            ['id' => 'd', 'path' => 'app/D.php', 'isConnected' => false],
+            ['id' => 'e', 'path' => 'app/E.php', 'isConnected' => false],
+            ['id' => 'f', 'path' => 'app/F.php', 'isConnected' => false],
+        ];
+        injectEdges($obj, [['a', 'b'], ['c', 'd'], ['e', 'f']]);
+
+        [$result] = $method->invoke($obj, $nodes);
+        $ids = array_filter(array_column($result, 'clusterId'));
+
+        expect(count($ids))->toBe(count(array_unique($ids)) * (count($ids) / count(array_unique($ids))));
+        expect(array_values(array_unique($ids)))->each->toBeInt();
+        // All three pairs must get distinct IDs
+        $uniqueIds = array_unique($ids);
+        expect(count($uniqueIds))->toBe(3);
+    });
+
+    it('cluster IDs remain 1-based and contiguous with no singletons present', function () {
+        // Two connected pairs, no singletons — re-numbering is a no-op but IDs must still be 1,2.
+        [$obj, $method] = makeClusterObj();
+        $method->setAccessible(true);
+        $nodes = [
+            ['id' => 'a', 'path' => 'app/A.php', 'isConnected' => false],
+            ['id' => 'b', 'path' => 'app/B.php', 'isConnected' => false],
+            ['id' => 'c', 'path' => 'app/C.php', 'isConnected' => false],
+            ['id' => 'd', 'path' => 'app/D.php', 'isConnected' => false],
+        ];
+        injectEdges($obj, [['a', 'b'], ['c', 'd']]);
+
+        [$result] = $method->invoke($obj, $nodes);
+        $byId = array_column($result, 'clusterId', 'id');
+
+        $uniqueIds = array_values(array_unique(array_filter(array_values($byId))));
+        sort($uniqueIds);
+        expect($uniqueIds)->toBe([1, 2]);
+    });
+});
+
 // ── isTestFile ────────────────────────────────────────────────────────────────
 
 describe('isTestFile', function () {
