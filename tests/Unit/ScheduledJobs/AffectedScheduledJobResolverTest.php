@@ -158,20 +158,20 @@ it('does not traverse beyond maxDepth', function () {
 
     $edges = [
         makeEdge('node-job', 'node-e'),
-        makeEdge('node-e',   'node-d'),
-        makeEdge('node-d',   'node-c'),
-        makeEdge('node-c',   'node-b'),
-        makeEdge('node-b',   'node-a'),
-        makeEdge('node-a',   'node-diff'),
+        makeEdge('node-e', 'node-d'),
+        makeEdge('node-d', 'node-c'),
+        makeEdge('node-c', 'node-b'),
+        makeEdge('node-b', 'node-a'),
+        makeEdge('node-a', 'node-diff'),
     ];
 
     $nodeIdToPath = [
-        'node-job'  => 'app/Jobs/DeepJob.php',
-        'node-e'    => 'app/E.php',
-        'node-d'    => 'app/D.php',
-        'node-c'    => 'app/C.php',
-        'node-b'    => 'app/B.php',
-        'node-a'    => 'app/A.php',
+        'node-job' => 'app/Jobs/DeepJob.php',
+        'node-e' => 'app/E.php',
+        'node-d' => 'app/D.php',
+        'node-c' => 'app/C.php',
+        'node-b' => 'app/B.php',
+        'node-a' => 'app/A.php',
         'node-diff' => 'app/Diff.php',
     ];
 
@@ -193,16 +193,16 @@ it('traverses exactly at maxDepth boundary (chain length 5)', function () {
 
     $edges = [
         makeEdge('node-job', 'node-c'),
-        makeEdge('node-c',   'node-b'),
-        makeEdge('node-b',   'node-a'),
-        makeEdge('node-a',   'node-diff'),
+        makeEdge('node-c', 'node-b'),
+        makeEdge('node-b', 'node-a'),
+        makeEdge('node-a', 'node-diff'),
     ];
 
     $nodeIdToPath = [
-        'node-job'  => 'app/Jobs/DeepJob.php',
-        'node-c'    => 'app/C.php',
-        'node-b'    => 'app/B.php',
-        'node-a'    => 'app/A.php',
+        'node-job' => 'app/Jobs/DeepJob.php',
+        'node-c' => 'app/C.php',
+        'node-b' => 'app/B.php',
+        'node-a' => 'app/A.php',
         'node-diff' => 'app/Diff.php',
     ];
 
@@ -251,7 +251,7 @@ it('computes reachableNodeIds from the job handler outward', function () {
         jobIndex: $index,
         edges: $edges,
         nodeIdToPath: [
-            'node-job'       => 'app/Jobs/MyJob.php',
+            'node-job' => 'app/Jobs/MyJob.php',
             'node-service-a' => 'app/Services/ServiceA.php',
             'node-service-b' => 'app/Services/ServiceB.php',
         ],

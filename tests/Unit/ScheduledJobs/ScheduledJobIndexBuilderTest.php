@@ -225,7 +225,7 @@ it('detects commands inside ->withSchedule() closure in bootstrap/app.php', func
 
     $index = buildJobIndex($source, [
         'App\\Jobs\\InvoiceCustomers' => 'app/Jobs/InvoiceCustomers.php',
-        'App\\Jobs\\SendReminders'    => 'app/Jobs/SendReminders.php',
+        'App\\Jobs\\SendReminders' => 'app/Jobs/SendReminders.php',
     ]);
 
     expect($index)->toHaveKey('app/Jobs/InvoiceCustomers.php');

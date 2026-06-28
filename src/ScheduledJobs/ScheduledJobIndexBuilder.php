@@ -5,8 +5,8 @@ namespace Vistik\LaravelCodeAnalytics\ScheduledJobs;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitorAbstract;
 use PhpParser\NodeVisitor\ParentConnectingVisitor;
+use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
 
 /**
@@ -23,7 +23,7 @@ class ScheduledJobIndexBuilder
     /**
      * @param  array<string, string|null>  $consoleFileContents  path => source
      * @param  callable(string): ?string  $fqcnToPath
-     * @return array<string, ScheduledJobDefinition[]>  handler file path => jobs
+     * @return array<string, ScheduledJobDefinition[]> handler file path => jobs
      */
     public function build(array $consoleFileContents, callable $fqcnToPath): array
     {
@@ -114,8 +114,8 @@ class ScheduledJobCollectorVisitor extends NodeVisitorAbstract
             $methodName = $node->name->name;
             $fqcn = match ($methodName) {
                 'command' => $this->resolveClassConstArg($node->args[0] ?? null),
-                'job'     => $this->resolveNewArg($node->args[0] ?? null),
-                default   => null,
+                'job' => $this->resolveNewArg($node->args[0] ?? null),
+                default => null,
             };
             if ($fqcn !== null) {
                 $this->jobs[] = new ScheduledJobDefinition(
