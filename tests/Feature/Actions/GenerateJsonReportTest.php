@@ -4,7 +4,7 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
-function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null, ?int $baseSignal = null, ?string $clusterName = null): array
+function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null, ?int $baseSignal = null, ?string $clusterName = null, ?array $signalBreakdown = null): array
 {
     return [
         'id' => $path,
@@ -15,6 +15,7 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
         'severity' => $severity ?? ($cycleId !== null ? 'very_high' : null),
         '_signal' => $signal,
         '_baseSignal' => $baseSignal,
+        '_signalBreakdown' => $signalBreakdown,
         'cycleId' => $cycleId,
         'cycleColor' => $cycleId !== null ? '#f0883e' : null,
         '_cycleBoost' => $cycleBoost,
@@ -147,6 +148,35 @@ test('file entry connection_boost reflects the stored boost value', function () 
     $data = generateJson([makeJsonNode('app/Foo.php', connectionBoost: 15, connections: 3)]);
 
     expect($data['files'][0]['connection_boost'])->toBe(15);
+});
+
+// ── signal_breakdown field ────────────────────────────────────────────────────
+
+test('file entry signal_breakdown is null when node has no breakdown', function () {
+    $data = generateJson([makeJsonNode('app/Bar.php')]);
+
+    expect($data['files'][0]['signal_breakdown'])->toBeNull();
+});
+
+test('file entry signal_breakdown reflects the stored breakdown array', function () {
+    $breakdown = ['findings' => 7, 'change_size' => 4, 'cc' => 0, 'mi' => 0, 'lloc' => 0];
+    $data = generateJson([makeJsonNode('app/Foo.php', signalBreakdown: $breakdown)]);
+
+    expect($data['files'][0]['signal_breakdown'])->toBe($breakdown);
+});
+
+test('file entry signal_breakdown includes cycle_boost when present', function () {
+    $breakdown = ['findings' => 0, 'change_size' => 0, 'cc' => 0, 'mi' => 0, 'lloc' => 0, 'cycle_boost' => 100];
+    $data = generateJson([makeJsonNode('app/Foo.php', cycleId: 1, cycleBoost: 100, signalBreakdown: $breakdown)]);
+
+    expect($data['files'][0]['signal_breakdown']['cycle_boost'])->toBe(100);
+});
+
+test('file entry signal_breakdown includes connection_boost when present', function () {
+    $breakdown = ['findings' => 0, 'change_size' => 0, 'cc' => 0, 'mi' => 0, 'lloc' => 0, 'connection_boost' => 15];
+    $data = generateJson([makeJsonNode('app/Foo.php', connectionBoost: 15, connections: 3, signalBreakdown: $breakdown)]);
+
+    expect($data['files'][0]['signal_breakdown']['connection_boost'])->toBe(15);
 });
 
 test('files are sorted by signal descending when connection boosts differ', function () {

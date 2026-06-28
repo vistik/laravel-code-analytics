@@ -140,6 +140,7 @@ class AnalyzeCode
         ?string $toCommit = null,
         ?array $focusFiles = null,
         ?Closure $onPayloadReady = null,
+        array $fileSignalConfig = [],
     ): array {
         $this->onProgress = $onProgress;
         $this->analyzeStart = microtime(true);
@@ -269,7 +270,7 @@ class AnalyzeCode
         }
 
         $t = microtime(true);
-        $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap);
+        $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap, $fileSignalConfig);
         $this->progress('timing', '  ↳ '.$this->elapsed($t).' computing signal scores');
 
         if ($minSeverity !== null) {
@@ -1423,14 +1424,16 @@ class AnalyzeCode
         return $rawContents;
     }
 
-    private function computeSignalScores(array $nodes, array $analysisData, array $metricsData, array $cycleMap = []): array
+    private function computeSignalScores(array $nodes, array $analysisData, array $metricsData, array $cycleMap = [], array $fileSignalConfig = []): array
     {
-        $cycleCfg = config('laravel-code-analytics.file_signal.circular_dependency', []);
+        $cycleCfg = $fileSignalConfig['circular_dependency'] ?? config('laravel-code-analytics.file_signal.circular_dependency', []);
         $cycleBoostBase = (int) ($cycleCfg['base'] ?? 100);
         $cycleBoostPct = (float) ($cycleCfg['signal_pct'] ?? 0.20);
 
-        $connCfg = config('laravel-code-analytics.file_signal.pr_connections', []);
+        $connCfg = $fileSignalConfig['pr_connections'] ?? config('laravel-code-analytics.file_signal.pr_connections', []);
         $connMultiplier = (float) ($connCfg['multiplier'] ?? 5);
+
+        $scorer = $fileSignalConfig !== [] ? new CalculateFileSignal($fileSignalConfig) : $this->fileSignalScorer;
 
         // Count edges between changed (diff) files only — exclude connected nodes.
         $diffNodes = array_values(array_filter($nodes, fn ($n) => empty($n['isConnected'])));
@@ -1445,16 +1448,20 @@ class AnalyzeCode
         }
 
         foreach ($nodes as &$node) {
-            $base = $this->fileSignalScorer->calculate(
+            $result = $scorer->calculate(
                 $node,
                 $analysisData[$node['path']] ?? [],
                 $metricsData[$node['path']] ?? null,
             );
+            $base = $result['score'];
+            $breakdown = $result['breakdown'];
+
             $node['_baseSignal'] = $base;
             if (($node['cycleId'] ?? null) !== null) {
                 $boost = (int) round($cycleBoostBase + $cycleBoostPct * $base);
                 $node['_signal'] = $base + $boost;
                 $node['_cycleBoost'] = $boost;
+                $breakdown['cycle_boost'] = $boost;
             } else {
                 $node['_signal'] = $base;
             }
@@ -1465,7 +1472,10 @@ class AnalyzeCode
                 $node['_signal'] += $connBoost;
                 $node['_connectionBoost'] = $connBoost;
                 $node['_connections'] = $connections;
+                $breakdown['connection_boost'] = $connBoost;
             }
+
+            $node['_signalBreakdown'] = $breakdown;
         }
         unset($node);
 
