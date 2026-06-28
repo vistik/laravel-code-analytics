@@ -85,6 +85,7 @@ class LaravelMigrationModelCorrelator
                     path: $existing->path,
                     status: $existing->status,
                     changes: $merged,
+                    primaryClassLine: $existing->primaryClassLine,
                 );
             }
         }

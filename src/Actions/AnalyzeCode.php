@@ -1252,7 +1252,10 @@ class AnalyzeCode
                 'severity' => $c->severity->value,
                 'description' => $c->description,
                 'location' => $c->location,
-                'line' => $c->line,
+                // Every finding carries a line: a precise one where the rule
+                // captured it, otherwise the class declaration line for class
+                // member findings, or line 1 for file-level findings.
+                'line' => $c->line ?? ($c->location !== null ? $report->primaryClassLine : 1),
             ], fn ($v) => $v !== null), $report->changes);
         }
 
@@ -1282,6 +1285,8 @@ class AnalyzeCode
                     'severity' => Severity::INFO->value,
                     'description' => 'Depends on '.$shortName.' ('.($depTypeLabels[$type] ?? $type).')',
                     'location' => $type === PhpDependencyExtractor::CONSTRUCTOR_INJECTION ? '__construct' : null,
+                    // A dependency belongs to this file's class — anchor it to the class declaration.
+                    'line' => $fileReports[$filePath]->primaryClassLine,
                 ], fn ($v) => $v !== null);
                 $analysisData[$filePath][] = $entry;
             }

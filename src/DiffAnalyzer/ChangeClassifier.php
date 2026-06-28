@@ -2,6 +2,8 @@
 
 namespace Vistik\LaravelCodeAnalytics\DiffAnalyzer;
 
+use PhpParser\Node\Stmt\ClassLike;
+use PhpParser\NodeFinder;
 use ReflectionClass;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\ClassifiedChange;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileDiff;
@@ -52,12 +54,17 @@ class ChangeClassifier
             $allChanges = $this->attachSnippets($allChanges, $newSource);
         }
 
+        $classLineMap = $this->buildClassLineMap($comparison);
+        $primaryClassLine = $classLineMap === [] ? 1 : min($classLineMap);
+        $allChanges = $this->backfillLines($allChanges, $classLineMap, $primaryClassLine);
+
         usort($allChanges, fn (ClassifiedChange $a, ClassifiedChange $b) => $b->severity->score() <=> $a->severity->score());
 
         return new FileReport(
             path: $file->effectivePath(),
             status: $file->status,
             changes: $allChanges,
+            primaryClassLine: $primaryClassLine,
         );
     }
 
@@ -122,5 +129,82 @@ class ChangeClassifier
                 snippet: implode("\n", $snippetLines),
             );
         }, $changes);
+    }
+
+    /**
+     * Ensure every change carries a line number. Findings tied to a class member
+     * (a non-null location) anchor to their class declaration line; file-level
+     * findings (no location) anchor to line 1.
+     *
+     * @param  list<ClassifiedChange>  $changes
+     * @param  array<string, int>  $classLineMap
+     * @return list<ClassifiedChange>
+     */
+    private function backfillLines(array $changes, array $classLineMap, int $primaryClassLine): array
+    {
+        return array_map(function (ClassifiedChange $change) use ($classLineMap, $primaryClassLine) {
+            if ($change->line !== null) {
+                return $change;
+            }
+
+            return new ClassifiedChange(
+                category: $change->category,
+                severity: $change->severity,
+                description: $change->description,
+                location: $change->location,
+                line: $this->resolveFallbackLine($change->location, $classLineMap, $primaryClassLine),
+                snippet: $change->snippet,
+            );
+        }, $changes);
+    }
+
+    /**
+     * Map every class-like declaration name to its starting line, preferring the
+     * new source and falling back to the old source (e.g. for deleted files).
+     *
+     * @param  array<string, mixed>  $comparison
+     * @return array<string, int>
+     */
+    private function buildClassLineMap(array $comparison): array
+    {
+        $nodes = $comparison['new_nodes'] ?? $comparison['old_nodes'] ?? null;
+
+        if ($nodes === null) {
+            return [];
+        }
+
+        $map = [];
+        foreach ((new NodeFinder)->findInstanceOf($nodes, ClassLike::class) as $classLike) {
+            $name = $classLike->name?->toString();
+            if ($name !== null) {
+                $map[$name] = $classLike->getStartLine();
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  array<string, int>  $classLineMap
+     */
+    private function resolveFallbackLine(?string $location, array $classLineMap, int $primaryClassLine): int
+    {
+        // File-level findings have no member location — anchor them to line 1.
+        if ($location === null) {
+            return 1;
+        }
+
+        // Class member findings (e.g. "ClassName::method") anchor to the class declaration.
+        if (str_contains($location, '::')) {
+            $className = explode('::', $location, 2)[0];
+            if (isset($classLineMap[$className])) {
+                return $classLineMap[$className];
+            }
+        }
+
+        // Location names a member but the class could not be resolved precisely;
+        // fall back to the file's first class declaration (defaults to line 1
+        // when the file has no class).
+        return $primaryClassLine;
     }
 }

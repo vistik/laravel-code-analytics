@@ -15,6 +15,7 @@ readonly class FileReport
         public string $path,
         public FileStatus $status,
         public array $changes = [],
+        public int $primaryClassLine = 1,
     ) {}
 
     public function hasCategory(ChangeCategory $category): bool
