@@ -910,6 +910,16 @@ class AnalyzeCode
             $clusterNames[$id] = $this->clusterNameFromPaths($paths);
         }
 
+        // Deduplicate: when a name appears more than once, number all occurrences (1, 2, 3 …).
+        $nameCounts = array_count_values($clusterNames);
+        $nameCounters = [];
+        foreach ($clusterNames as $id => $name) {
+            if ($nameCounts[$name] > 1) {
+                $nameCounters[$name] = ($nameCounters[$name] ?? 0) + 1;
+                $clusterNames[$id] = $name . ' ' . $nameCounters[$name];
+            }
+        }
+
         foreach ($nodes as &$node) {
             $node['clusterName'] = $node['clusterId'] !== null
                 ? ($clusterNames[$node['clusterId']] ?? null)

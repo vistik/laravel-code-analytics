@@ -2318,6 +2318,29 @@ describe('clusterName on nodes', function () {
 
         expect($result[0][0]['clusterName'])->toBeNull();
     });
+
+    it('deduplicates cluster names by appending a number when two clusters share the same derived name', function () {
+        // Two separate pairs, both resolving to the same directory name "Models".
+        [$obj, $method] = makeClusterObj();
+        $method->setAccessible(true);
+        // Both app/ and src/ are generic prefixes that get stripped, so both clusters derive "Models".
+        $nodes = [
+            ['id' => 'a', 'path' => 'app/Models/Foo.php', 'isConnected' => false],
+            ['id' => 'b', 'path' => 'app/Models/Bar.php', 'isConnected' => false],
+            ['id' => 'c', 'path' => 'src/Models/Baz.php', 'isConnected' => false],
+            ['id' => 'd', 'path' => 'src/Models/Qux.php', 'isConnected' => false],
+        ];
+        injectEdges($obj, [['a', 'b'], ['c', 'd']]);
+
+        [$result] = $method->invoke($obj, $nodes);
+        $clusterNames = array_filter(array_column($result, 'clusterName'));
+
+        expect(count($clusterNames))->toBe(4);
+        // Both clusters derived "Models"; all occurrences get numbered → "Models 1" and "Models 2".
+        $unique = array_values(array_unique($clusterNames));
+        sort($unique);
+        expect($unique)->toBe(['Models 1', 'Models 2']);
+    });
 });
 
 // ── computeSignalScores — _signalBreakdown ────────────────────────────────────
