@@ -1081,9 +1081,9 @@ function computeSignalScoresWithEdges(array $nodes, array $edges, int $baseScore
     {
         public function __construct(private int $base) {}
 
-        public function calculate(array $node, array $findings, ?array $metrics): int
+        public function calculate(array $node, array $findings, ?array $metrics): array
         {
-            return $this->base;
+            return ['score' => $this->base, 'breakdown' => ['findings' => 0, 'change_size' => 0, 'cc' => 0, 'mi' => 0, 'lloc' => 0]];
         }
     };
 
@@ -2317,5 +2317,130 @@ describe('clusterName on nodes', function () {
         ]);
 
         expect($result[0][0]['clusterName'])->toBeNull();
+    });
+});
+
+// ── computeSignalScores — _signalBreakdown ────────────────────────────────────
+
+describe('computeSignalScores — _signalBreakdown', function () {
+    it('stores _signalBreakdown on every node', function () {
+        $nodes = [makeSignalNode('Foo')];
+        $result = computeSignalScoresWithEdges($nodes, []);
+
+        expect($result[0])->toHaveKey('_signalBreakdown');
+    });
+
+    it('breakdown contains the five base components from the scorer', function () {
+        $nodes = [makeSignalNode('Foo')];
+        $result = computeSignalScoresWithEdges($nodes, []);
+
+        expect($result[0]['_signalBreakdown'])->toHaveKeys(['findings', 'change_size', 'cc', 'mi', 'lloc']);
+    });
+
+    it('breakdown reflects values returned by the scorer', function () {
+        $scorer = new class implements FileSignalScoring
+        {
+            public function calculate(array $node, array $findings, ?array $metrics): array
+            {
+                return ['score' => 42, 'breakdown' => ['findings' => 10, 'change_size' => 20, 'cc' => 8, 'mi' => 3, 'lloc' => 1]];
+            }
+        };
+        $obj = new AnalyzeCode(fileSignalScorer: $scorer);
+        $method = new ReflectionMethod($obj, 'computeSignalScores');
+        $method->setAccessible(true);
+        $result = $method->invoke($obj, [makeSignalNode('Foo')], [], []);
+
+        expect($result[0]['_signalBreakdown'])->toMatchArray(['findings' => 10, 'change_size' => 20, 'cc' => 8, 'mi' => 3, 'lloc' => 1]);
+    });
+
+    it('adds cycle_boost to breakdown when node is in a cycle', function () {
+        $nodes = [array_merge(makeSignalNode('Foo'), ['cycleId' => 1, 'cycleColor' => '#f0883e'])];
+        $result = computeSignalScoresWithEdges($nodes, [], baseScore: 0);
+
+        expect($result[0]['_signalBreakdown'])->toHaveKey('cycle_boost')
+            ->and($result[0]['_signalBreakdown']['cycle_boost'])->toBeInt();
+    });
+
+    it('does not add cycle_boost to breakdown when node has no cycle', function () {
+        $nodes = [makeSignalNode('Foo')];
+        $result = computeSignalScoresWithEdges($nodes, []);
+
+        expect($result[0]['_signalBreakdown'])->not->toHaveKey('cycle_boost');
+    });
+
+    it('adds connection_boost to breakdown when node has internal connections', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar')];
+        $result = computeSignalScoresWithEdges($nodes, [['Foo', 'Bar', 'use']]);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['Foo']['_signalBreakdown'])->toHaveKey('connection_boost')
+            ->and($byId['Foo']['_signalBreakdown']['connection_boost'])->toBe(5);
+    });
+
+    it('does not add connection_boost to breakdown when there are no internal edges', function () {
+        $nodes = [makeSignalNode('Foo')];
+        $result = computeSignalScoresWithEdges($nodes, []);
+
+        expect($result[0]['_signalBreakdown'])->not->toHaveKey('connection_boost');
+    });
+});
+
+// ── computeSignalScores — fileSignalConfig ────────────────────────────────────
+
+describe('computeSignalScores — fileSignalConfig', function () {
+    it('uses the injected scorer when fileSignalConfig is empty', function () {
+        $called = false;
+        $scorer = new class($called) implements FileSignalScoring
+        {
+            public function __construct(public bool &$called) {}
+
+            public function calculate(array $node, array $findings, ?array $metrics): array
+            {
+                $this->called = true;
+
+                return ['score' => 0, 'breakdown' => ['findings' => 0, 'change_size' => 0, 'cc' => 0, 'mi' => 0, 'lloc' => 0]];
+            }
+        };
+        $obj = new AnalyzeCode(fileSignalScorer: $scorer);
+        $method = new ReflectionMethod($obj, 'computeSignalScores');
+        $method->setAccessible(true);
+        $method->invoke($obj, [makeSignalNode('Foo')], [], [], [], []);
+
+        expect($called)->toBeTrue();
+    });
+
+    it('overrides the cycle boost base via circular_dependency config', function () {
+        $nodes = [array_merge(makeSignalNode('Foo'), ['cycleId' => 1, 'cycleColor' => '#f0883e'])];
+
+        $obj = new AnalyzeCode;
+        $graphProp = new ReflectionProperty($obj, 'graph');
+        $graphProp->setAccessible(true);
+        $graphProp->getValue($obj)->edges = [];
+        $method = new ReflectionMethod($obj, 'computeSignalScores');
+        $method->setAccessible(true);
+
+        $config = ['circular_dependency' => ['base' => 50, 'signal_pct' => 0.0]];
+        $result = $method->invoke($obj, $nodes, [], [], [], $config);
+
+        // With base=50 and signal_pct=0 the boost should be exactly 50
+        expect($result[0]['_cycleBoost'])->toBe(50);
+    });
+
+    it('overrides the pr_connections multiplier via fileSignalConfig', function () {
+        $nodes = [makeSignalNode('Foo'), makeSignalNode('Bar')];
+        $edges = [['Foo', 'Bar', 'use']];
+
+        $obj = new AnalyzeCode;
+        $graphProp = new ReflectionProperty($obj, 'graph');
+        $graphProp->setAccessible(true);
+        $graphProp->getValue($obj)->edges = $edges;
+        $method = new ReflectionMethod($obj, 'computeSignalScores');
+        $method->setAccessible(true);
+
+        $config = ['pr_connections' => ['multiplier' => 10]];
+        $result = $method->invoke($obj, $nodes, [], [], [], $config);
+
+        $byId = array_column($result, null, 'id');
+        expect($byId['Foo']['_connectionBoost'])->toBe(10);
     });
 });
