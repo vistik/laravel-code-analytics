@@ -40,6 +40,7 @@ class GenerateJsonReport implements ReportGenerator
             'cycle_boost' => $node['_cycleBoost'] ?? null,
             'connection_boost' => $node['_connectionBoost'] ?? null,
             'cluster_id' => $node['clusterId'] ?? null,
+            'cluster_name' => $node['clusterName'] ?? null,
             'cluster_size' => $node['clusterSize'] ?? null,
         ], $sorted);
 
@@ -54,7 +55,8 @@ class GenerateJsonReport implements ReportGenerator
         $clusterGroups = [];
         foreach ($nodes as $node) {
             if (($node['clusterId'] ?? null) !== null) {
-                $clusterGroups[$node['clusterId']][] = $node['path'];
+                $clusterGroups[$node['clusterId']]['name'] = $node['clusterName'] ?? (string) $node['clusterId'];
+                $clusterGroups[$node['clusterId']]['paths'][] = $node['path'];
             }
         }
         ksort($clusterGroups);
@@ -126,6 +128,7 @@ class GenerateJsonReport implements ReportGenerator
             fileDiffs: $payload->fileDiffs,
             fileContents: $payload->fileContents,
         );
+
         return json_encode([
             'title' => $pr->prTitle,
             'repo' => $pr->repo,
@@ -148,7 +151,7 @@ class GenerateJsonReport implements ReportGenerator
                 array_values($cycleGroups),
             ),
             'review_clusters' => array_map(
-                fn ($id, $paths) => ['cluster_id' => $id, 'size' => count($paths), 'files' => $paths],
+                fn ($id, $group) => ['cluster_id' => $id, 'name' => $group['name'], 'size' => count($group['paths']), 'files' => $group['paths']],
                 array_keys($clusterGroups),
                 array_values($clusterGroups),
             ),

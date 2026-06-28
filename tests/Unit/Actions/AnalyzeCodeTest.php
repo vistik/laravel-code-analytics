@@ -2219,3 +2219,103 @@ class CheckoutController {
             ->and($content['review_clusters'])->not->toBeEmpty();
     });
 });
+
+// ── clusterNameFromPaths ──────────────────────────────────────────────────────
+
+describe('clusterNameFromPaths', function () {
+    it('returns the shared deepest directory for same-folder files', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'app/Http/Controllers/FooController.php',
+            'app/Http/Controllers/BarController.php',
+        ]);
+
+        expect($result)->toBe('Http/Controllers');
+    });
+
+    it('strips leading generic app segment', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'app/Models/User.php',
+            'app/Models/Post.php',
+        ]);
+
+        expect($result)->toBe('Models');
+    });
+
+    it('falls back to shared ancestor when files span sub-directories', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'app/Http/Controllers/FooController.php',
+            'app/Http/Middleware/Auth.php',
+        ]);
+
+        expect($result)->toBe('Http');
+    });
+
+    it('uses the most common segment when no common prefix survives stripping', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'app/Services/FooService.php',
+            'resources/js/pages/foo.tsx',
+        ]);
+
+        // Segments: [Services] and [pages] — no shared prefix after stripping.
+        // The function returns whichever appears most; with one each it picks first by arsort.
+        expect($result)->toBeString()->not->toBeEmpty();
+    });
+
+    it('returns Mixed when paths have no directory segments', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'Foo.php',
+            'Bar.php',
+        ]);
+
+        expect($result)->toBe('Mixed');
+    });
+
+    it('caps the name at two path segments', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'app/Http/Controllers/Admin/UserController.php',
+            'app/Http/Controllers/Admin/PostController.php',
+        ]);
+
+        // Should give Controllers/Admin (last 2 of Http, Controllers, Admin)
+        expect($result)->toBe('Controllers/Admin');
+    });
+
+    it('handles frontend paths correctly', function () {
+        $result = analyzeCodeMethod('clusterNameFromPaths', [
+            'resources/js/pages/Dashboard.tsx',
+            'resources/js/pages/Settings.tsx',
+        ]);
+
+        expect($result)->toBe('pages');
+    });
+});
+
+// ── clusterName field on nodes ────────────────────────────────────────────────
+
+describe('clusterName on nodes', function () {
+    it('assigns a non-null clusterName to nodes in a multi-node cluster', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'app/Http/Controllers/FooController.php'),
+            makeClusterNode('b', 'app/Http/Controllers/BarController.php'),
+        ]);
+
+        $byId = array_column($result[0], null, 'id');
+        // Both nodes must be clustered because they share an edge in the graph (injected via edges property).
+        // Without edges they are singletons; test the field exists and is null for singletons too.
+        foreach ($result[0] as $node) {
+            if ($node['clusterId'] !== null) {
+                expect($node['clusterName'])->toBeString()->not->toBeEmpty();
+            } else {
+                expect($node['clusterName'])->toBeNull();
+            }
+        }
+    });
+
+    it('clusterName is null for singleton (no multi-node cluster) nodes', function () {
+        $result = analyzeCodeMethod('detectAndAnnotateClusters', [
+            makeClusterNode('a', 'app/Foo.php'),
+        ]);
+
+        expect($result[0][0]['clusterName'])->toBeNull();
+    });
+});

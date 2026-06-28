@@ -896,12 +896,104 @@ class AnalyzeCode
         }
         unset($node);
 
+        // Compute a descriptive name for each surviving cluster from its file paths.
+        $clusterPaths = [];
+        foreach ($nodes as $node) {
+            if ($node['clusterId'] !== null) {
+                $clusterPaths[$node['clusterId']][] = $node['path'];
+            }
+        }
+
+        $clusterNames = [];
+        foreach ($clusterPaths as $id => $paths) {
+            $clusterNames[$id] = $this->clusterNameFromPaths($paths);
+        }
+
+        foreach ($nodes as &$node) {
+            $node['clusterName'] = $node['clusterId'] !== null
+                ? ($clusterNames[$node['clusterId']] ?? null)
+                : null;
+        }
+        unset($node);
+
         $multiCount = count(array_filter($multiNodeClusters, fn ($c) => $c > 1));
         if ($multiCount > 0) {
             $this->progress('line', "  Detected {$multiCount} review cluster(s) among changed files.");
         }
 
         return [$nodes, $clusterMap];
+    }
+
+    /**
+     * Derive a short, human-readable name for a cluster from its constituent file paths.
+     *
+     * Strategy:
+     *  1. Find the longest common directory prefix across all paths.
+     *  2. Strip generic leading segments (app, src, resources, js, ts) that carry no domain meaning.
+     *  3. Return the last 1-2 remaining segments as a slash-separated label (e.g. "Http/Controllers").
+     *  4. If no common prefix survives, fall back to the most frequently occurring directory segment.
+     *
+     * @param  list<string>  $paths
+     */
+    private function clusterNameFromPaths(array $paths): string
+    {
+        if (empty($paths)) {
+            return 'Mixed';
+        }
+
+        $generic = ['app', 'src', 'resources', 'js', 'ts', 'lib', 'source'];
+
+        $allDirSegs = array_map(function (string $path) use ($generic): array {
+            $dir = dirname($path);
+            if ($dir === '.' || $dir === '') {
+                return [];
+            }
+            $segs = explode('/', $dir);
+            // Strip generic leading segments (e.g. app/Http/... → Http/...)
+            while (! empty($segs) && in_array($segs[0], $generic, true)) {
+                array_shift($segs);
+            }
+
+            return $segs;
+        }, $paths);
+
+        // Longest common prefix of the (already-stripped) dir segment arrays.
+        $common = $allDirSegs[0];
+        foreach (array_slice($allDirSegs, 1) as $segs) {
+            $newCommon = [];
+            $limit = min(count($common), count($segs));
+            for ($i = 0; $i < $limit; $i++) {
+                if ($common[$i] !== $segs[$i]) {
+                    break;
+                }
+                $newCommon[] = $common[$i];
+            }
+            $common = $newCommon;
+        }
+
+        if (! empty($common)) {
+            // Keep at most the last 2 segments so names stay short.
+            return implode('/', array_slice($common, -2));
+        }
+
+        // Fallback: pick the most common individual directory segment.
+        $freq = [];
+        $skip = array_merge($generic, ['.', '']);
+        foreach ($allDirSegs as $segs) {
+            foreach ($segs as $seg) {
+                if (! in_array($seg, $skip, true)) {
+                    $freq[$seg] = ($freq[$seg] ?? 0) + 1;
+                }
+            }
+        }
+
+        if (! empty($freq)) {
+            arsort($freq);
+
+            return (string) array_key_first($freq);
+        }
+
+        return 'Mixed';
     }
 
     /**

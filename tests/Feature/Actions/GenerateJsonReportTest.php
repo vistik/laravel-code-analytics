@@ -4,7 +4,7 @@ use Vistik\LaravelCodeAnalytics\Actions\GenerateJsonReport;
 use Vistik\LaravelCodeAnalytics\Reports\GraphPayload;
 use Vistik\LaravelCodeAnalytics\Reports\PullRequestContext;
 
-function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null, ?int $baseSignal = null): array
+function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int $cycleBoost = null, ?string $severity = null, ?int $connectionBoost = null, ?int $connections = null, ?int $clusterId = null, ?int $clusterSize = null, ?int $baseSignal = null, ?string $clusterName = null): array
 {
     return [
         'id' => $path,
@@ -21,6 +21,7 @@ function makeJsonNode(string $path, ?int $cycleId = null, int $signal = 10, ?int
         '_connectionBoost' => $connectionBoost,
         '_connections' => $connections,
         'clusterId' => $clusterId,
+        'clusterName' => $clusterName ?? ($clusterId !== null ? 'Controllers' : null),
         'clusterSize' => $clusterSize,
         'veryHighCount' => 0, 'highCount' => 0, 'mediumCount' => 0, 'lowCount' => 0, 'infoCount' => 0, 'analysisCount' => 0,
     ];
@@ -238,6 +239,29 @@ test('review_clusters groups are ordered by cluster id', function () {
     expect($data['review_clusters'][0]['cluster_id'])->toBe(1);
     expect($data['review_clusters'][1]['cluster_id'])->toBe(2);
     expect($data['review_clusters'][2]['cluster_id'])->toBe(3);
+});
+
+// ── cluster_name field ────────────────────────────────────────────────────────
+
+test('file entry includes cluster_name when node is in a cluster', function () {
+    $data = generateJson([makeJsonNode('app/Foo.php', clusterId: 1, clusterSize: 2, clusterName: 'Http/Controllers')]);
+
+    expect($data['files'][0]['cluster_name'])->toBe('Http/Controllers');
+});
+
+test('file entry cluster_name is null when node has no cluster', function () {
+    $data = generateJson([makeJsonNode('app/Bar.php')]);
+
+    expect($data['files'][0]['cluster_name'])->toBeNull();
+});
+
+test('review_clusters entries include name', function () {
+    $data = generateJson([
+        makeJsonNode('app/Foo.php', clusterId: 1, clusterSize: 2, clusterName: 'Models'),
+        makeJsonNode('app/Bar.php', clusterId: 1, clusterSize: 2, clusterName: 'Models'),
+    ]);
+
+    expect($data['review_clusters'][0]['name'])->toBe('Models');
 });
 
 // ── graph_index ───────────────────────────────────────────────────────────────
