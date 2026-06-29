@@ -2996,12 +2996,10 @@ class AnalyzeCode
     private function enrichWithMethodMetrics(array $metricsData, array $headContents, array $oldSources): array
     {
         $calculator = new PhpMethodMetricsCalculator;
+        $relevantPaths = array_flip(array_keys($metricsData));
 
         // Single parse pass per file yields both method- and class-level metrics.
-        foreach ($calculator->calculateAll($headContents) as $path => $metrics) {
-            if (! isset($metricsData[$path])) {
-                continue;
-            }
+        foreach ($calculator->calculateAll(array_intersect_key($headContents, $relevantPaths)) as $path => $metrics) {
             if (! empty($metrics['methods'])) {
                 $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $metrics['methods']);
                 $metricsData[$path]['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $metrics['methods'])), 1);
@@ -3012,10 +3010,7 @@ class AnalyzeCode
         }
 
         if (! empty($oldSources)) {
-            foreach ($calculator->calculateAll($oldSources) as $path => $metrics) {
-                if (! isset($metricsData[$path])) {
-                    continue;
-                }
+            foreach ($calculator->calculateAll(array_intersect_key($oldSources, $relevantPaths)) as $path => $metrics) {
                 if (! empty($metrics['methods'])) {
                     $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $metrics['methods']);
                     $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $metrics['methods'])), 1);

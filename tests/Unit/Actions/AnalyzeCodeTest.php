@@ -2467,3 +2467,97 @@ describe('computeSignalScores — fileSignalConfig', function () {
         expect($byId['Foo']['_connectionBoost'])->toBe(10);
     });
 });
+
+// ── enrichWithMethodMetrics ───────────────────────────────────────────────────
+
+describe('enrichWithMethodMetrics', function () {
+    $phpWithMethod = '<?php
+namespace App\\Services;
+class Foo {
+    public function handle(): void {
+        if (true) { return; }
+    }
+}';
+
+    $phpWithMethodB = '<?php
+namespace App\\Services;
+class Bar {
+    public function run(): void {}
+}';
+
+    it('populates method_metrics and flog for a file that is in metricsData', function () use ($phpWithMethod) {
+        $metricsData = ['app/Services/Foo.php' => []];
+        $result = analyzeCodeMethod(
+            'enrichWithMethodMetrics',
+            $metricsData,
+            ['app/Services/Foo.php' => $phpWithMethod],
+            [],
+        );
+
+        expect($result['app/Services/Foo.php'])->toHaveKey('method_metrics')
+            ->and($result['app/Services/Foo.php']['method_metrics'])->not->toBeEmpty()
+            ->and($result['app/Services/Foo.php'])->toHaveKey('flog');
+    });
+
+    it('populates class_metrics for a file that is in metricsData', function () use ($phpWithMethod) {
+        $metricsData = ['app/Services/Foo.php' => []];
+        $result = analyzeCodeMethod(
+            'enrichWithMethodMetrics',
+            $metricsData,
+            ['app/Services/Foo.php' => $phpWithMethod],
+            [],
+        );
+
+        expect($result['app/Services/Foo.php'])->toHaveKey('class_metrics')
+            ->and($result['app/Services/Foo.php']['class_metrics'])->not->toBeEmpty();
+    });
+
+    it('does not add entries for files that are in headContents but absent from metricsData', function () use ($phpWithMethod, $phpWithMethodB) {
+        // Only Foo.php is a changed file; Bar.php is an unrelated file that happens to
+        // be in headContents (e.g. --full-files includes the entire repo).
+        $metricsData = ['app/Services/Foo.php' => []];
+        $headContents = [
+            'app/Services/Foo.php' => $phpWithMethod,
+            'app/Services/Bar.php' => $phpWithMethodB,
+        ];
+
+        $result = analyzeCodeMethod('enrichWithMethodMetrics', $metricsData, $headContents, []);
+
+        expect($result)->toHaveKey('app/Services/Foo.php')
+            ->and($result)->not->toHaveKey('app/Services/Bar.php');
+    });
+
+    it('leaves metricsData entries untouched for files absent from headContents', function () {
+        $metricsData = [
+            'app/Services/Foo.php' => ['existing_key' => 'preserved'],
+        ];
+
+        $result = analyzeCodeMethod('enrichWithMethodMetrics', $metricsData, [], []);
+
+        expect($result['app/Services/Foo.php'])->toBe(['existing_key' => 'preserved']);
+    });
+
+    it('populates before_method_metrics from oldSources for files in metricsData', function () use ($phpWithMethod) {
+        $metricsData = ['app/Services/Foo.php' => []];
+
+        $result = analyzeCodeMethod(
+            'enrichWithMethodMetrics',
+            $metricsData,
+            ['app/Services/Foo.php' => $phpWithMethod],
+            ['app/Services/Foo.php' => $phpWithMethod],
+        );
+
+        expect($result['app/Services/Foo.php'])->toHaveKey('before_method_metrics')
+            ->and($result['app/Services/Foo.php']['before']['flog'])->toBeFloat();
+    });
+
+    it('does not process oldSources entries absent from metricsData', function () use ($phpWithMethodB) {
+        // Bar.php is in oldSources but not in metricsData — must not create a new key.
+        $metricsData = ['app/Services/Foo.php' => []];
+        $oldSources = ['app/Services/Bar.php' => $phpWithMethodB];
+
+        $result = analyzeCodeMethod('enrichWithMethodMetrics', $metricsData, [], $oldSources);
+
+        expect($result)->not->toHaveKey('app/Services/Bar.php');
+    });
+});
