@@ -98,6 +98,9 @@ class AnalyzeCode
 
     private float $analyzeStart = 0.0;
 
+    /** @var array<string, float> step label → accumulated seconds, for the timing breakdown */
+    private array $stepTimings = [];
+
     private bool $groupResolverIsDefault;
 
     public function __construct(
@@ -144,6 +147,7 @@ class AnalyzeCode
     ): array {
         $this->onProgress = $onProgress;
         $this->analyzeStart = microtime(true);
+        $this->stepTimings = [];
         $this->resetState();
 
         $t = microtime(true);
@@ -158,7 +162,7 @@ class AnalyzeCode
         } else {
             $init = $this->initLocalMode($repoPath, $baseBranch ?? 'main', $title, $full);
         }
-        $this->progress('timing', '  ↳ init: '.$this->elapsed($t));
+        $this->recordStep('init (diff/PR fetch)', $t);
 
         $files = $init['files'];
         $totalAdditions = $init['totalAdditions'];
@@ -186,15 +190,15 @@ class AnalyzeCode
 
         $t = microtime(true);
         $nodes = $this->buildNodes($files, $fileDiffMap, $this->resolveWatchedFiles($watchedFiles));
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $this->recordStep('classify + build nodes', $t);
 
         $t = microtime(true);
         [$phpFiles, $frontendFiles, $headContents] = $this->resolveHeadContents($nodes);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $this->recordStep('read head file contents', $t);
 
         $t = microtime(true);
         [$fqcnToFilePath, $fileReferences] = $this->buildDependencyGraph($nodes, $phpFiles, $frontendFiles, $headContents);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $this->recordStep('build dependency graph', $t);
 
         if ($this->graph->connectedNodes !== []) {
             $nodes = array_merge($nodes, array_values($this->graph->connectedNodes));
@@ -206,11 +210,11 @@ class AnalyzeCode
         $t = microtime(true);
         [$nodes, $cycleMap] = $this->detectAndAnnotateCycles($nodes);
         [$nodes] = $this->detectAndAnnotateClusters($nodes);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $this->recordStep('detect cycles + clusters', $t);
 
         $t = microtime(true);
         [$fileReports, $oldSources] = $this->runAstAnalysis($phpFiles, $headContents, $fileDiffMap, $criticalTables);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $this->recordStep('AST analysis', $t);
 
         $nodes = $this->enrichNodesWithAnalysis($nodes, $fileReports);
 
@@ -221,12 +225,18 @@ class AnalyzeCode
         [$nodes, $analysisData] = $this->injectComposerAuditFindings($nodes, $analysisData);
 
         $t = microtime(true);
-        ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics($headContents, $oldSources, $fqcnToFilePath);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $externalMetrics = $this->runExternalMetrics($headContents, $oldSources, $frontendFiles);
+        $this->recordStep('external metrics (php+js, concurrent)', $t);
 
         $t = microtime(true);
-        ['hotSpots' => $jsHotSpots, 'metricsData' => $jsMetricsData] = $this->computeJsMetrics($frontendFiles, $headContents, $oldSources);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        ['hotSpots' => $phpHotSpots, 'metricsData' => $metricsData] = $this->computePhpMetrics(
+            $externalMetrics['php'], $externalMetrics['phpBefore'], $headContents, $oldSources, $fqcnToFilePath,
+        );
+        $this->recordStep('php metrics (build + method metrics)', $t);
+
+        ['hotSpots' => $jsHotSpots, 'metricsData' => $jsMetricsData] = $this->computeJsMetrics(
+            $externalMetrics['js'], $externalMetrics['jsBefore'], $frontendFiles,
+        );
 
         $metricsData = array_merge($metricsData, $jsMetricsData);
 
@@ -237,7 +247,7 @@ class AnalyzeCode
             if (! empty($fileDiffs)) {
                 // Diff mode: collect contents of changed files only.
                 $fileContents = $this->collectFileContents($fileDiffs, $headContents);
-                $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading diff file contents');
+                $this->recordStep('read diff file contents', $t);
             } else {
                 // Full/repo mode: scope to PHP/frontend files already in headContents.
                 // Fetching all 700+ node paths (JSON, YAML, markdown, etc.) wastes memory
@@ -247,7 +257,7 @@ class AnalyzeCode
                     '',
                 );
                 $fileContents = $this->collectFileContents($analyzedPaths, $headContents);
-                $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading full-repo file contents');
+                $this->recordStep('read full-repo file contents', $t);
             }
         } else {
             $fileContents = [];
@@ -260,18 +270,18 @@ class AnalyzeCode
             $t = microtime(true);
             if ($this->repoDir !== null) {
                 $this->prefetchBlobs($this->repoDir, $this->headCommit, $connectedPaths);
-                $this->progress('timing', '  ↳ '.$this->elapsed($t).' prefetching '.count($connectedPaths).' connected node blobs');
+                $this->recordStep('prefetch connected node blobs', $t, ' ('.count($connectedPaths).')');
                 $t = microtime(true);
             }
             $connectedContents = $this->loadConnectedNodeContents($connectedPaths);
             $fileContents = array_merge($fileContents, $connectedContents);
-            $this->progress('timing', '  ↳ '.$this->elapsed($t).' reading connected node contents');
+            $this->recordStep('read connected node contents', $t);
             $nodes = $this->enrichNodesWithKind($nodes, $connectedContents);
         }
 
         $t = microtime(true);
         $nodes = $this->computeSignalScores($nodes, $analysisData, $metricsData, $cycleMap, $fileSignalConfig);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' computing signal scores');
+        $this->recordStep('compute signal scores', $t);
 
         if ($minSeverity !== null) {
             $t = microtime(true);
@@ -279,28 +289,24 @@ class AnalyzeCode
                 'fileDiffs' => $fileDiffs, 'fileContents' => $fileContents,
                 'fileCount' => $fileCount, 'totalAdditions' => $totalAdditions, 'totalDeletions' => $totalDeletions]
                 = $this->applyMinSeverityFilter($nodes, $analysisData, $metricsData, $fileDiffs, $fileContents, $minSeverity);
-            $this->progress('timing', '  ↳ '.$this->elapsed($t).' severity filter');
+            $this->recordStep('severity filter', $t);
         }
 
         $t = microtime(true);
         $riskResult = $this->computeRiskScore($nodes, $totalAdditions, $totalDeletions, $fileCount, $phpHotSpots + $jsHotSpots, $riskScoringConfig);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' computing risk score');
+        $this->recordStep('compute risk score', $t);
 
-        $t = microtime(true);
         $this->progress('info', "Generating {$format->value} report...");
 
         $t = microtime(true);
         $affectedEndpoints = $this->findAffectedEndpoints($nodes, $this->graph->edges, $fqcnToFilePath);
-        if (! empty($affectedEndpoints)) {
-            $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected endpoints ('.count($affectedEndpoints).')');
-        }
+        $this->recordStep('find affected endpoints', $t, ' ('.count($affectedEndpoints).')');
 
         $t = microtime(true);
         $affectedScheduledJobs = $this->findAffectedScheduledJobs($nodes, $this->graph->edges, $fqcnToFilePath);
-        if (! empty($affectedScheduledJobs)) {
-            $this->progress('timing', '  ↳ '.$this->elapsed($t).' finding affected scheduled jobs ('.count($affectedScheduledJobs).')');
-        }
+        $this->recordStep('find affected scheduled jobs', $t, ' ('.count($affectedScheduledJobs).')');
 
+        $t = microtime(true);
         $layerStack = LayerStack::fromConfig($this->projectType);
         $payload = new GraphPayload(
             nodes: $nodes,
@@ -339,7 +345,7 @@ class AnalyzeCode
             pr: $pr,
             defaultView: $view,
         );
-        $this->progress('timing', '  ↳ '.$this->elapsed($t));
+        $this->recordStep('generate report', $t);
 
         if ($raw) {
             return ['files' => [], 'risk' => $riskResult, 'content' => $content];
@@ -367,6 +373,7 @@ class AnalyzeCode
             $rateLimitSuffix = $this->formatRateLimitSuffix();
             $this->progress('timing', "  GitHub API/fetch calls: {$this->githubCallCount}{$rateLimitSuffix}");
         }
+        $this->logTimingBreakdown();
         $this->progress('info', 'Done! ('.$this->elapsed($this->analyzeStart).' total)');
 
         return ['files' => ['all' => $outputPath], 'risk' => $riskResult];
@@ -1126,16 +1133,79 @@ class AnalyzeCode
     {
         $this->progress('info', 'Running AST analysis...');
 
-        $astComparer = new AstComparer;
-        $changeClassifier = new ChangeClassifier($astComparer, $this->projectType, $this->repoPath ?: null, $criticalTables);
-
         $t = microtime(true);
         $oldSources = $this->fetchOldSources($phpFiles, $fileDiffMap);
         $this->progress('timing', '  ↳ '.$this->elapsed($t).' fetching base sources ('.count($oldSources).' files)');
 
+        // Only files with a parsed diff get classified.
+        $workable = array_values(array_filter(
+            $phpFiles,
+            fn ($node) => isset($fileDiffMap[$node['path']]),
+        ));
+
         $t = microtime(true);
-        $fileReports = [];
-        foreach ($phpFiles as $node) {
+        $fileReports = $this->classifyFiles($workable, $headContents, $fileDiffMap, $oldSources, $criticalTables);
+        $this->progress('line', '  Analyzed '.count($fileReports).' PHP files.');
+        $this->progress('timing', '  ↳ '.$this->elapsed($t).' AST parse + classify');
+
+        return [$this->correlateWithMigrations($fileReports, $headContents), $oldSources];
+    }
+
+    /**
+     * Classify every PHP file, forking worker processes when there are enough
+     * files for the parallelism to pay off. AST parsing + the ~50 classifier
+     * rules are pure CPU work per file, so forking (which inherits the booted
+     * framework copy-on-write — no re-bootstrap, no argument marshalling) scales
+     * it across cores. Falls back to a serial pass when pcntl is unavailable,
+     * the file count is small, or any worker fails.
+     *
+     * @param  list<array>  $nodes
+     * @param  array<string, string|null>  $headContents
+     * @param  array<string, mixed>  $fileDiffMap
+     * @param  array<string, string>  $oldSources
+     * @param  list<string>  $criticalTables
+     * @return array<string, \Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport>
+     */
+    private function classifyFiles(array $nodes, array $headContents, array $fileDiffMap, array $oldSources, array $criticalTables): array
+    {
+        $workers = $this->astWorkerCount(count($nodes));
+
+        if ($workers < 2) {
+            return $this->classifyChunk($nodes, $headContents, $fileDiffMap, $oldSources, $criticalTables);
+        }
+
+        $chunks = array_chunk($nodes, (int) ceil(count($nodes) / $workers));
+
+        $parallel = $this->classifyChunksForked($chunks, $headContents, $fileDiffMap, $oldSources, $criticalTables);
+        if ($parallel !== null) {
+            $this->progress('timing', '  ↳ classified across '.count($chunks).' worker process(es)');
+
+            return $parallel;
+        }
+
+        // A worker failed to fork or return usable data — recompute serially.
+        $this->progress('warn', '  Parallel AST workers unavailable; falling back to serial.');
+
+        return $this->classifyChunk($nodes, $headContents, $fileDiffMap, $oldSources, $criticalTables);
+    }
+
+    /**
+     * Classify a list of file nodes in the current process.
+     *
+     * @param  list<array>  $nodes
+     * @param  array<string, string|null>  $headContents
+     * @param  array<string, mixed>  $fileDiffMap
+     * @param  array<string, string>  $oldSources
+     * @param  list<string>  $criticalTables
+     * @return array<string, \Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport>
+     */
+    private function classifyChunk(array $nodes, array $headContents, array $fileDiffMap, array $oldSources, array $criticalTables): array
+    {
+        $astComparer = new AstComparer;
+        $changeClassifier = new ChangeClassifier($astComparer, $this->projectType, $this->repoPath ?: null, $criticalTables);
+
+        $reports = [];
+        foreach ($nodes as $node) {
             $filePath = $node['path'];
             $fileDiff = $fileDiffMap[$filePath] ?? null;
             if ($fileDiff === null) {
@@ -1144,14 +1214,146 @@ class AnalyzeCode
             $oldSource = $oldSources[$filePath] ?? null;
             $newSource = $fileDiff->status !== FileStatus::DELETED ? ($headContents[$filePath] ?? null) : null;
             $comparison = $astComparer->compare($oldSource, $newSource);
-            $fileReport = $changeClassifier->classify($fileDiff, $comparison, $newSource);
-            $fileReports[$filePath] = $fileReport;
+            $reports[$filePath] = $changeClassifier->classify($fileDiff, $comparison, $newSource);
         }
 
-        $this->progress('line', '  Analyzed '.count($fileReports).' PHP files.');
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' AST parse + classify');
+        return $reports;
+    }
 
-        return [$this->correlateWithMigrations($fileReports, $headContents), $oldSources];
+    /**
+     * Fork one worker per chunk, classify in parallel, and merge the serialized
+     * FileReports. Success is judged by each worker's output file being present
+     * and unserializing to an array — so workers can hard-exit (skipping the
+     * parent's shutdown handlers) without the exit status mattering.
+     *
+     * @param  list<list<array>>  $chunks
+     * @param  array<string, string|null>  $headContents
+     * @param  array<string, mixed>  $fileDiffMap
+     * @param  array<string, string>  $oldSources
+     * @param  list<string>  $criticalTables
+     * @return array<string, \Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport>|null
+     */
+    private function classifyChunksForked(array $chunks, array $headContents, array $fileDiffMap, array $oldSources, array $criticalTables): ?array
+    {
+        $tmpDir = sys_get_temp_dir().'/lca_ast_'.uniqid();
+        if (! @mkdir($tmpDir, 0700, true) && ! is_dir($tmpDir)) {
+            return null;
+        }
+
+        $children = []; // pid => output file
+        foreach ($chunks as $i => $chunk) {
+            $outFile = $tmpDir.'/'.$i.'.bin';
+            $pid = pcntl_fork();
+
+            if ($pid === -1) {
+                // Fork failed mid-loop: reap whatever started, then bail to serial.
+                foreach (array_keys($children) as $startedPid) {
+                    $st = 0;
+                    pcntl_waitpid($startedPid, $st);
+                }
+                $this->cleanupTmpDir($tmpDir, $children);
+
+                return null;
+            }
+
+            if ($pid === 0) {
+                // ── Child ──
+                try {
+                    $reports = $this->classifyChunk($chunk, $headContents, $fileDiffMap, $oldSources, $criticalTables);
+                    file_put_contents($outFile, serialize($reports));
+                } catch (\Throwable) {
+                    // Leave the output file absent → the parent falls back to serial.
+                }
+                $this->terminateChild();
+            }
+
+            $children[$pid] = $outFile;
+        }
+
+        // ── Parent: wait for every worker ──
+        foreach (array_keys($children) as $pid) {
+            $status = 0;
+            pcntl_waitpid($pid, $status);
+        }
+
+        $reports = [];
+        foreach ($children as $outFile) {
+            $data = is_file($outFile) ? file_get_contents($outFile) : false;
+            $chunkReports = ($data !== false && $data !== '') ? @unserialize($data) : false;
+
+            if (! is_array($chunkReports)) {
+                $this->cleanupTmpDir($tmpDir, $children);
+
+                return null;
+            }
+
+            // Keys are file paths, unique across chunks.
+            $reports += $chunkReports;
+        }
+
+        $this->cleanupTmpDir($tmpDir, $children);
+
+        return $reports;
+    }
+
+    /**
+     * Number of worker processes to use for AST classification. Returns 1 (serial)
+     * when forking is unavailable or the file count is too small to be worth it.
+     */
+    private function astWorkerCount(int $fileCount): int
+    {
+        // Escape hatch / override: LCA_AST_WORKERS=1 forces serial.
+        $override = getenv('LCA_AST_WORKERS');
+        if ($override !== false && is_numeric($override)) {
+            return max(1, (int) $override);
+        }
+
+        if ($fileCount < 8 || ! function_exists('pcntl_fork')) {
+            return 1;
+        }
+
+        // Aim for ~4+ files per worker, capped at the available CPU cores.
+        return max(1, min($this->cpuCount(), intdiv($fileCount, 4)));
+    }
+
+    private function cpuCount(): int
+    {
+        $nproc = (int) trim((string) @shell_exec('nproc 2>/dev/null'));
+        if ($nproc > 0) {
+            return $nproc;
+        }
+
+        $sysctl = (int) trim((string) @shell_exec('sysctl -n hw.ncpu 2>/dev/null'));
+
+        return $sysctl > 0 ? $sysctl : 4;
+    }
+
+    /**
+     * Terminate a forked worker. Results are already flushed to disk, so skip the
+     * parent's shutdown handlers / destructors to avoid duplicated side effects.
+     */
+    private function terminateChild(): never
+    {
+        if (function_exists('posix_kill') && function_exists('posix_getpid')) {
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+
+        exit(0);
+    }
+
+    /**
+     * @param  array<int, string>  $children  pid => output file
+     */
+    private function cleanupTmpDir(string $tmpDir, array $children): void
+    {
+        foreach ($children as $outFile) {
+            if (is_file($outFile)) {
+                @unlink($outFile);
+            }
+        }
+        if (is_dir($tmpDir)) {
+            @rmdir($tmpDir);
+        }
     }
 
     private function correlateWithMigrations(array $fileReports, array $headContents): array
@@ -2621,27 +2823,83 @@ class AnalyzeCode
     // ── PHP metrics ──────────────────────────────────────────────────────────
 
     /**
-     * Run PhpMetrics on head and base sources and build per-file metrics entries.
+     * Run all four external metric tool invocations (PhpMetrics head/base,
+     * jsmetrics head/base) concurrently. They are independent OS processes, so
+     * launching them in one Process pool collapses four serial subprocess
+     * startups + parses into a single wall-clock slot.
      *
+     * @param  array<string, string|null>  $headContents
+     * @param  array<string, string>  $oldSources
+     * @param  array<int, array>  $frontendFiles
+     * @return array{php: array<string, PhpMetrics>, phpBefore: array<string, PhpMetrics>, js: array<string, JsMetrics>, jsBefore: array<string, JsMetrics>}
+     */
+    private function runExternalMetrics(array $headContents, array $oldSources, array $frontendFiles): array
+    {
+        $phpRunner = new PhpMetricsRunner;
+        $jsRunner = new JsMetricsRunner;
+
+        $jsContents = $this->collectJsContents($frontendFiles, $headContents);
+        $oldJsContents = $jsContents !== [] ? array_intersect_key($oldSources, $jsContents) : [];
+
+        // Prepare each job (write temp files + build command). null = nothing to run.
+        $jobs = array_filter([
+            'php' => $headContents !== [] ? $phpRunner->prepare($headContents) : null,
+            'phpBefore' => $oldSources !== [] ? $phpRunner->prepare($oldSources) : null,
+            'js' => $jsContents !== [] ? $jsRunner->prepare($jsContents) : null,
+            'jsBefore' => $oldJsContents !== [] ? $jsRunner->prepare($oldJsContents) : null,
+        ]);
+
+        if ($jobs === []) {
+            return ['php' => [], 'phpBefore' => [], 'js' => [], 'jsBefore' => []];
+        }
+
+        $this->progress('info', 'Running PhpMetrics + JS complexity analysis (concurrent)...');
+
+        $results = Process::pool(function ($pool) use ($jobs): void {
+            foreach ($jobs as $key => $job) {
+                $pool->as($key)->command($job['cmd']);
+            }
+        })->start()->wait();
+
+        // Drain the pool, keyed by the job names registered above.
+        $raw = ['php' => null, 'phpBefore' => null, 'js' => null, 'jsBefore' => null];
+        foreach ($results->collect() as $name => $result) {
+            $raw[$name] = ['output' => $result->output(), 'exit' => $result->exitCode()];
+        }
+
+        return [
+            'php' => $raw['php'] !== null
+                ? $phpRunner->collect($jobs['php'], $raw['php']['exit'])
+                : [],
+            'phpBefore' => $raw['phpBefore'] !== null
+                ? $phpRunner->collect($jobs['phpBefore'], $raw['phpBefore']['exit'])
+                : [],
+            'js' => $raw['js'] !== null
+                ? $jsRunner->collect($jobs['js'], $raw['js']['output'], $raw['js']['exit'])
+                : [],
+            'jsBefore' => $raw['jsBefore'] !== null
+                ? $jsRunner->collect($jobs['jsBefore'], $raw['jsBefore']['output'], $raw['jsBefore']['exit'])
+                : [],
+        ];
+    }
+
+    /**
+     * Build per-file PHP metric entries from already-computed PhpMetrics.
+     *
+     * @param  array<string, PhpMetrics>  $metricsByFqcn  Head metrics, keyed by FQCN
+     * @param  array<string, PhpMetrics>  $metricsBeforeByFqcn  Base metrics, keyed by FQCN
      * @param  array<string, string|null>  $headContents
      * @param  array<string, string>  $oldSources
      * @param  array<string, string>  $fqcnToFilePath
      * @return array{hotSpots: int, metricsData: array<string, array>}
      */
-    private function computePhpMetrics(array $headContents, array $oldSources, array $fqcnToFilePath): array
+    private function computePhpMetrics(array $metricsByFqcn, array $metricsBeforeByFqcn, array $headContents, array $oldSources, array $fqcnToFilePath): array
     {
         if (empty($headContents)) {
             return ['hotSpots' => 0, 'metricsData' => []];
         }
 
-        $this->progress('info', 'Running PhpMetrics...');
-
-        $t = microtime(true);
-        $metricsBefore = $this->buildBeforePhpMetrics($oldSources);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' base metrics ('.count($metricsBefore).' classes)');
-
-        $t = microtime(true);
-        $metricsByFqcn = (new PhpMetricsRunner)->run($headContents);
+        $metricsBefore = $this->buildBeforePhpMetrics($metricsBeforeByFqcn, $oldSources);
         $hotSpots = $this->countHotSpots($metricsByFqcn);
         $metricsData = [];
 
@@ -2657,7 +2915,6 @@ class AnalyzeCode
         }
 
         $this->progress('line', '  Metrics computed for '.count($metricsByFqcn).' classes.');
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' head metrics');
 
         $t = microtime(true);
         $metricsData = $this->enrichWithMethodMetrics($metricsData, $headContents, $oldSources);
@@ -2666,9 +2923,16 @@ class AnalyzeCode
         return compact('hotSpots', 'metricsData');
     }
 
-    private function buildBeforePhpMetrics(array $oldSources): array
+    /**
+     * Map already-computed base metrics (keyed by FQCN) to file paths.
+     *
+     * @param  array<string, PhpMetrics>  $metricsBeforeByFqcn
+     * @param  array<string, string>  $oldSources
+     * @return array<string, PhpMetrics>
+     */
+    private function buildBeforePhpMetrics(array $metricsBeforeByFqcn, array $oldSources): array
     {
-        if (empty($oldSources)) {
+        if (empty($metricsBeforeByFqcn) || empty($oldSources)) {
             return [];
         }
 
@@ -2681,7 +2945,7 @@ class AnalyzeCode
         }
 
         $metricsBefore = [];
-        foreach ((new PhpMetricsRunner)->run($oldSources) as $fqcn => $m) {
+        foreach ($metricsBeforeByFqcn as $fqcn => $m) {
             $path = $oldFqcnToPath[$fqcn] ?? $this->psr4Resolver()->pathForFqcn($fqcn);
             if ($path !== null) {
                 $metricsBefore[$path] = $m;
@@ -2721,34 +2985,33 @@ class AnalyzeCode
 
     private function enrichWithMethodMetrics(array $metricsData, array $headContents, array $oldSources): array
     {
-        $methodMetrics = (new PhpMethodMetricsCalculator)->calculate($headContents);
-        foreach ($methodMetrics as $path => $methods) {
-            if (isset($metricsData[$path]) && ! empty($methods)) {
-                $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
-                $metricsData[$path]['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
-            }
-        }
+        $calculator = new PhpMethodMetricsCalculator;
 
-        $classMetrics = (new PhpMethodMetricsCalculator)->calculateClasses($headContents);
-        foreach ($classMetrics as $path => $classes) {
-            if (isset($metricsData[$path]) && ! empty($classes)) {
-                $metricsData[$path]['class_metrics'] = array_map(fn ($c) => $c->toArray(), $classes);
+        // Single parse pass per file yields both method- and class-level metrics.
+        foreach ($calculator->calculateAll($headContents) as $path => $metrics) {
+            if (! isset($metricsData[$path])) {
+                continue;
+            }
+            if (! empty($metrics['methods'])) {
+                $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $metrics['methods']);
+                $metricsData[$path]['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $metrics['methods'])), 1);
+            }
+            if (! empty($metrics['classes'])) {
+                $metricsData[$path]['class_metrics'] = array_map(fn ($c) => $c->toArray(), $metrics['classes']);
             }
         }
 
         if (! empty($oldSources)) {
-            $beforeMethodMetrics = (new PhpMethodMetricsCalculator)->calculate($oldSources);
-            foreach ($beforeMethodMetrics as $path => $methods) {
-                if (isset($metricsData[$path]) && ! empty($methods)) {
-                    $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
-                    $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
+            foreach ($calculator->calculateAll($oldSources) as $path => $metrics) {
+                if (! isset($metricsData[$path])) {
+                    continue;
                 }
-            }
-
-            $beforeClassMetrics = (new PhpMethodMetricsCalculator)->calculateClasses($oldSources);
-            foreach ($beforeClassMetrics as $path => $classes) {
-                if (isset($metricsData[$path]) && ! empty($classes)) {
-                    $metricsData[$path]['before_class_metrics'] = array_map(fn ($c) => $c->toArray(), $classes);
+                if (! empty($metrics['methods'])) {
+                    $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $metrics['methods']);
+                    $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $metrics['methods'])), 1);
+                }
+                if (! empty($metrics['classes'])) {
+                    $metricsData[$path]['before_class_metrics'] = array_map(fn ($c) => $c->toArray(), $metrics['classes']);
                 }
             }
         }
@@ -2759,34 +3022,20 @@ class AnalyzeCode
     // ── JS metrics ───────────────────────────────────────────────────────────
 
     /**
-     * Run JS complexity analysis on head and base sources and build per-file metrics entries.
+     * Build per-file JS metric entries from already-computed JsMetrics.
      *
+     * @param  array<string, JsMetrics>  $jsMetricsByPath  Head metrics, keyed by path
+     * @param  array<string, JsMetrics>  $jsMetricsBefore  Base metrics, keyed by path
      * @param  array<int, array>  $frontendFiles
-     * @param  array<string, string|null>  $headContents
-     * @param  array<string, string>  $oldSources
      * @return array{hotSpots: int, metricsData: array<string, array>}
      */
-    private function computeJsMetrics(array $frontendFiles, array $headContents, array $oldSources): array
+    private function computeJsMetrics(array $jsMetricsByPath, array $jsMetricsBefore, array $frontendFiles): array
     {
-        if (empty($frontendFiles)) {
+        if (empty($frontendFiles) || empty($jsMetricsByPath)) {
             return ['hotSpots' => 0, 'metricsData' => []];
         }
 
-        $jsContents = $this->collectJsContents($frontendFiles, $headContents);
-        if (empty($jsContents)) {
-            return ['hotSpots' => 0, 'metricsData' => []];
-        }
-
-        $this->progress('info', 'Running JS complexity analysis...');
-
-        $t = microtime(true);
-        $jsMetricsByPath = (new JsMetricsRunner)->run($jsContents);
         $this->progress('line', '  JS metrics computed for '.count($jsMetricsByPath).' files.');
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' head metrics');
-
-        $t = microtime(true);
-        $jsMetricsBefore = $this->computeJsMetricsBefore($jsContents, $oldSources);
-        $this->progress('timing', '  ↳ '.$this->elapsed($t).' base metrics');
 
         $hotSpots = $this->countJsHotSpots($jsMetricsByPath);
         $metricsData = [];
@@ -2812,20 +3061,6 @@ class AnalyzeCode
         }
 
         return $jsContents;
-    }
-
-    private function computeJsMetricsBefore(array $jsContents, array $oldSources): array
-    {
-        if (empty($oldSources)) {
-            return [];
-        }
-
-        $oldJsContents = array_intersect_key($oldSources, $jsContents);
-        if (empty($oldJsContents)) {
-            return [];
-        }
-
-        return (new JsMetricsRunner)->run($oldJsContents);
     }
 
     private function buildJsMetricsEntry(JsMetrics $m, ?JsMetrics $before): array
@@ -3076,11 +3311,48 @@ class AnalyzeCode
 
     private function elapsed(float $start): string
     {
-        $sec = microtime(true) - $start;
+        return $this->formatDuration(microtime(true) - $start);
+    }
 
+    private function formatDuration(float $sec): string
+    {
         return $sec >= 1.0
             ? sprintf('%.2fs', $sec)
             : sprintf('%dms', (int) round($sec * 1000));
+    }
+
+    /**
+     * Log a pipeline step's elapsed time and record it for the end-of-run breakdown.
+     *
+     * Durations accumulate per label, so a step that runs more than once (or in a
+     * loop) sums into a single breakdown entry.
+     */
+    private function recordStep(string $label, float $start, string $suffix = ''): void
+    {
+        $sec = microtime(true) - $start;
+        $this->stepTimings[$label] = ($this->stepTimings[$label] ?? 0.0) + $sec;
+        $this->progress('timing', '  ↳ '.$this->formatDuration($sec).' '.$label.$suffix);
+    }
+
+    /**
+     * Print the recorded pipeline steps sorted slowest-first, with each step's
+     * share of the measured total, so the bottleneck is obvious at a glance.
+     */
+    private function logTimingBreakdown(): void
+    {
+        if ($this->stepTimings === []) {
+            return;
+        }
+
+        $timings = $this->stepTimings;
+        arsort($timings);
+        $total = array_sum($timings);
+
+        $this->progress('line', '  Timing breakdown (slowest first, '.$this->formatDuration($total).' measured):');
+        foreach ($timings as $label => $sec) {
+            $pct = $total > 0.0 ? (int) round($sec / $total * 100) : 0;
+            $this->progress('line', sprintf('    %8s  %3d%%  %s', $this->formatDuration($sec), $pct, $label));
+        }
     }
 
     private function matchesWatchPattern(string $path, string $pattern): bool

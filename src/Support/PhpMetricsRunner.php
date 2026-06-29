@@ -14,22 +14,31 @@ class PhpMetricsRunner
      */
     public function run(array $pathToContent): array
     {
-        $tmpDir = sys_get_temp_dir().'/phpmetrics_'.uniqid();
-        $reportPath = $tmpDir.'_report.json';
-
-        try {
-            return $this->runInTmpDir($pathToContent, $tmpDir, $reportPath);
-        } finally {
-            $this->cleanup($tmpDir, $reportPath);
+        $handle = $this->prepare($pathToContent);
+        if ($handle === null) {
+            return [];
         }
+
+        exec($handle['cmd'], $output, $exitCode);
+
+        return $this->collect($handle, $exitCode);
     }
 
     /**
+     * Write the given sources to a temp dir and build the phpmetrics command.
+     *
+     * The caller is responsible for executing the returned command (e.g.
+     * concurrently via Process::pool) and then passing the handle to collect().
+     * Returns null when there is nothing to analyze.
+     *
      * @param  array<string, string|null>  $pathToContent
-     * @return array<string, PhpMetrics>
+     * @return array{cmd: string, reportPath: string, tmpDir: string}|null
      */
-    private function runInTmpDir(array $pathToContent, string $tmpDir, string $reportPath): array
+    public function prepare(array $pathToContent): ?array
     {
+        $tmpDir = sys_get_temp_dir().'/phpmetrics_'.uniqid();
+        $reportPath = $tmpDir.'_report.json';
+
         mkdir($tmpDir, 0700, true);
 
         $written = 0;
@@ -49,7 +58,9 @@ class PhpMetricsRunner
         }
 
         if ($written === 0) {
-            return [];
+            $this->cleanup($tmpDir, $reportPath);
+
+            return null;
         }
 
         $binary = realpath(__DIR__.'/../../vendor/bin/phpmetrics') ?: base_path('vendor/bin/phpmetrics');
@@ -58,33 +69,46 @@ class PhpMetricsRunner
             .' '.escapeshellarg($tmpDir)
             .' 2>/dev/null';
 
-        exec($cmd, $output, $exitCode);
+        return ['cmd' => $cmd, 'reportPath' => $reportPath, 'tmpDir' => $tmpDir];
+    }
 
-        if (! file_exists($reportPath)) {
-            Log::warning('PhpMetrics report not generated', ['cmd' => $cmd, 'exit' => $exitCode]);
+    /**
+     * Parse the JSON report produced by a prepared command, then clean up.
+     *
+     * @param  array{cmd: string, reportPath: string, tmpDir: string}  $handle
+     * @return array<string, PhpMetrics>
+     */
+    public function collect(array $handle, int $exitCode = 0): array
+    {
+        try {
+            if (! file_exists($handle['reportPath'])) {
+                Log::warning('PhpMetrics report not generated', ['cmd' => $handle['cmd'], 'exit' => $exitCode]);
 
-            return [];
+                return [];
+            }
+
+            $json = file_get_contents($handle['reportPath']);
+            $data = json_decode($json, associative: true);
+
+            if (! is_array($data)) {
+                return [];
+            }
+
+            $skip = ['tree', 'composer', 'searches'];
+
+            $filtered = array_filter(
+                $data,
+                fn ($key) => ! in_array($key, $skip, strict: true)
+                    && ! str_ends_with($key, '\\')
+                    && isset($data[$key]['_type'])
+                    && $data[$key]['_type'] === 'Hal\\Metric\\ClassMetric',
+                ARRAY_FILTER_USE_KEY,
+            );
+
+            return array_map(fn (array $raw) => PhpMetrics::fromRaw($raw), $filtered);
+        } finally {
+            $this->cleanup($handle['tmpDir'], $handle['reportPath']);
         }
-
-        $json = file_get_contents($reportPath);
-        $data = json_decode($json, associative: true);
-
-        if (! is_array($data)) {
-            return [];
-        }
-
-        $skip = ['tree', 'composer', 'searches'];
-
-        $filtered = array_filter(
-            $data,
-            fn ($key) => ! in_array($key, $skip, strict: true)
-                && ! str_ends_with($key, '\\')
-                && isset($data[$key]['_type'])
-                && $data[$key]['_type'] === 'Hal\\Metric\\ClassMetric',
-            ARRAY_FILTER_USE_KEY,
-        );
-
-        return array_map(fn (array $raw) => PhpMetrics::fromRaw($raw), $filtered);
     }
 
     private function cleanup(string $tmpDir, string $reportPath): void
