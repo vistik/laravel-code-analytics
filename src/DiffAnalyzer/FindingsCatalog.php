@@ -961,6 +961,30 @@ class FindingsCatalog
                     // file total CC = 54 (bad)
                     PHP,
             ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::MEDIUM,
+                'title' => 'DB query where condition removed',
+                'description' => 'A where/whereNull/whereNotNull clause was removed from a DB query — the query now returns a broader result set, which may expose unintended rows.',
+                'before' => <<<'PHP'
+                    DB::table('sessions')->where('user_id', $id)->where('active', 1)->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('sessions')->where('user_id', $id)->get();
+                    PHP,
+            ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::MEDIUM,
+                'title' => 'DB query join removed',
+                'description' => 'A join clause was removed from a DB query — the result set structure changes and downstream code relying on the joined columns will break.',
+                'before' => <<<'PHP'
+                    DB::table('orders')->join('users', 'orders.user_id', '=', 'users.id')->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('orders')->get();
+                    PHP,
+            ],
         ];
     }
 
@@ -992,6 +1016,42 @@ class FindingsCatalog
                     PHP,
                 'after' => <<<'PHP'
                     return DB::select('select * from users where active = 1');
+                    PHP,
+            ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::LOW,
+                'title' => 'DB query select field removed',
+                'description' => 'A field was dropped from a ->select([...]) clause — code that reads that column from the result will receive null or throw an undefined key error.',
+                'before' => <<<'PHP'
+                    DB::table('users')->select(['id', 'name', 'email'])->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('users')->select(['id', 'name'])->get();
+                    PHP,
+            ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::LOW,
+                'title' => 'DB query where condition added',
+                'description' => 'A new where clause was added to a DB query — the query now filters more strictly and may return fewer rows than callers expect.',
+                'before' => <<<'PHP'
+                    DB::table('users')->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('users')->where('active', 1)->get();
+                    PHP,
+            ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::LOW,
+                'title' => 'DB query join added',
+                'description' => 'A join clause was added to a DB query — the result set now includes columns from the joined table and row count may change if the join is not 1:1.',
+                'before' => <<<'PHP'
+                    DB::table('orders')->select(['id', 'total'])->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('orders')->select(['id', 'total', 'users.name'])->join('users', 'orders.user_id', '=', 'users.id')->get();
                     PHP,
             ],
             [
@@ -1140,6 +1200,30 @@ class FindingsCatalog
                     PHP,
                 'after' => <<<'PHP'
                     // file total CC = 19 (good, methods extracted or simplified)
+                    PHP,
+            ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::INFO,
+                'title' => 'DB query select field added',
+                'description' => 'A new field was added to a ->select([...]) clause — more data is returned from the query.',
+                'before' => <<<'PHP'
+                    DB::table('users')->select(['id', 'name'])->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('users')->select(['id', 'name', 'email'])->get();
+                    PHP,
+            ],
+            [
+                'rule' => 'LaravelQueryBuilderRule',
+                'severity' => Severity::INFO,
+                'title' => 'DB query ordering added or removed',
+                'description' => 'An orderBy/orderByDesc/latest clause was added or removed — the sort order of results has changed.',
+                'before' => <<<'PHP'
+                    DB::table('users')->get();
+                    PHP,
+                'after' => <<<'PHP'
+                    DB::table('users')->orderBy('created_at', 'desc')->get();
                     PHP,
             ],
         ];

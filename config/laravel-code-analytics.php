@@ -26,6 +26,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelConsoleSignatureChange
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDataMigrationRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelDbFacadeRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEloquentRule;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelQueryBuilderRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelEnvironmentRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelLivewireRule;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\LaravelMigrationRule;
@@ -149,6 +150,7 @@ return [
             LaravelEnvironmentRule::class,
             LaravelCacheRule::class,
             LaravelDbFacadeRule::class,
+            LaravelQueryBuilderRule::class,
         ],
 
         ProjectType::LaravelPackage->value => [
