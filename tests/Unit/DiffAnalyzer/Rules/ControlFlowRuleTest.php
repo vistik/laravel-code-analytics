@@ -7,7 +7,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\Severity;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Rules\ControlFlowRule;
 
-it('detects if statement added', function () {
+it('detects if condition added', function () {
     $old = '<?php class Foo { public function bar() { $x = 1; } }';
     $new = '<?php class Foo { public function bar() { $x = 1; if ($x > 0) { return true; } } }';
 
@@ -19,12 +19,33 @@ it('detects if statement added', function () {
 
     $ifChanges = array_values(array_filter(
         $changes,
-        fn ($c) => str_contains($c->description, 'if statement(s) added'),
+        fn ($c) => str_contains($c->description, 'If condition added'),
     ));
 
     expect($ifChanges)->toHaveCount(1)
         ->and($ifChanges[0]->category)->toBe(ChangeCategory::CONDITIONAL)
-        ->and($ifChanges[0]->severity)->toBe(Severity::LOW);
+        ->and($ifChanges[0]->severity)->toBe(Severity::INFO)
+        ->and($ifChanges[0]->description)->toContain('$x > 0');
+});
+
+it('does not report condition changed when an if is inserted before an existing one', function () {
+    $old = '<?php class Foo { public function bar() { if ($x > 0) { return true; } } }';
+    $new = '<?php class Foo { public function bar() { if ($y === null) { return false; } if ($x > 0) { return true; } } }';
+
+    $comparer = new AstComparer;
+    $comparison = $comparer->compare($old, $new);
+    $file = new FileDiff('app/Foo.php', 'app/Foo.php', FileStatus::MODIFIED);
+
+    $changes = (new ControlFlowRule($comparer))->analyze($file, $comparison);
+
+    $addedChanges = array_values(array_filter($changes, fn ($c) => str_contains($c->description, 'If condition added')));
+    $changedChanges = array_values(array_filter($changes, fn ($c) => str_contains($c->description, 'If condition changed')));
+
+    expect($addedChanges)->toHaveCount(1)
+        ->and($addedChanges[0]->category)->toBe(ChangeCategory::CONDITIONAL)
+        ->and($addedChanges[0]->severity)->toBe(Severity::INFO)
+        ->and($addedChanges[0]->description)->toContain('$y === null')
+        ->and($changedChanges)->toHaveCount(0);
 });
 
 it('detects if condition changed', function () {

@@ -70,43 +70,76 @@ class ControlFlowRule implements Rule
         $oldIfs = $this->finder->findInstanceOf([$old], Stmt\If_::class);
         $newIfs = $this->finder->findInstanceOf([$new], Stmt\If_::class);
 
-        $countDiff = count($newIfs) - count($oldIfs);
+        $oldConds = array_map(fn ($if) => $this->printer->prettyPrintExpr($if->cond), $oldIfs);
+        $newConds = array_map(fn ($if) => $this->printer->prettyPrintExpr($if->cond), $newIfs);
 
-        if ($countDiff > 0) {
+        // Match old ifs to new ifs by identical condition string (first available match).
+        // This avoids false "condition changed" reports when a new if is inserted and shifts
+        // existing ifs to new positional indices.
+        $usedNewIndices = [];
+        $identityPairs = [];
+        $unmatchedOldIndices = [];
+
+        foreach ($oldIfs as $oi => $oldIf) {
+            $matched = false;
+            foreach ($newIfs as $ni => $newIf) {
+                if (! in_array($ni, $usedNewIndices) && $oldConds[$oi] === $newConds[$ni]) {
+                    $identityPairs[] = ['oi' => $oi, 'ni' => $ni];
+                    $usedNewIndices[] = $ni;
+                    $matched = true;
+                    break;
+                }
+            }
+            if (! $matched) {
+                $unmatchedOldIndices[] = $oi;
+            }
+        }
+
+        $unmatchedNewIndices = array_values(array_filter(
+            array_keys($newIfs),
+            fn ($ni) => ! in_array($ni, $usedNewIndices),
+        ));
+
+        // Pair unmatched old+new positionally — these had their condition changed
+        $changedPairCount = min(count($unmatchedOldIndices), count($unmatchedNewIndices));
+        for ($i = 0; $i < $changedPairCount; $i++) {
+            $oi = $unmatchedOldIndices[$i];
+            $ni = $unmatchedNewIndices[$i];
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::CONDITIONAL,
-                severity: Severity::LOW,
-                description: "{$countDiff} if statement(s) added in {$key}",
+                severity: Severity::MEDIUM,
+                description: "If condition changed in {$key}: `{$this->summarizeExpr($oldIfs[$oi]->cond)}` -> `{$this->summarizeExpr($newIfs[$ni]->cond)}`",
                 location: $key,
+                line: $newIfs[$ni]->getStartLine(),
             );
-        } elseif ($countDiff < 0) {
+        }
+
+        // Extra unmatched new ifs are newly added — report each with its condition
+        foreach (array_slice($unmatchedNewIndices, $changedPairCount) as $ni) {
+            $changes[] = new ClassifiedChange(
+                category: ChangeCategory::CONDITIONAL,
+                severity: Severity::INFO,
+                description: "If condition added in {$key}: `{$this->summarizeExpr($newIfs[$ni]->cond)}`",
+                location: $key,
+                line: $newIfs[$ni]->getStartLine(),
+            );
+        }
+
+        // Extra unmatched old ifs were removed
+        $removedCount = count($unmatchedOldIndices) - $changedPairCount;
+        if ($removedCount > 0) {
             $changes[] = new ClassifiedChange(
                 category: ChangeCategory::CONDITIONAL,
                 severity: Severity::HIGH,
-                description: abs($countDiff).' if statement(s) removed in '.$key,
+                description: "{$removedCount} if statement(s) removed in {$key}",
                 location: $key,
             );
         }
 
-        // Check for changed conditions in existing if statements
-        $minCount = min(count($oldIfs), count($newIfs));
-        for ($i = 0; $i < $minCount; $i++) {
-            $oldCond = $this->printer->prettyPrintExpr($oldIfs[$i]->cond);
-            $newCond = $this->printer->prettyPrintExpr($newIfs[$i]->cond);
-
-            if ($oldCond !== $newCond) {
-                $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::CONDITIONAL,
-                    severity: Severity::MEDIUM,
-                    description: "If condition changed in {$key}: `{$this->summarizeExpr($oldIfs[$i]->cond)}` -> `{$this->summarizeExpr($newIfs[$i]->cond)}`",
-                    location: $key,
-                    line: $newIfs[$i]->getStartLine(),
-                );
-            }
-
-            // Check for added/removed elseif/else branches
-            $oldElseifs = count($oldIfs[$i]->elseifs);
-            $newElseifs = count($newIfs[$i]->elseifs);
+        // Check elseif/else changes only for identity-matched pairs
+        foreach ($identityPairs as ['oi' => $oi, 'ni' => $ni]) {
+            $oldElseifs = count($oldIfs[$oi]->elseifs);
+            $newElseifs = count($newIfs[$ni]->elseifs);
 
             if ($oldElseifs !== $newElseifs) {
                 $changes[] = new ClassifiedChange(
@@ -114,12 +147,12 @@ class ControlFlowRule implements Rule
                     severity: Severity::HIGH,
                     description: "Elseif branches changed in {$key}: {$oldElseifs} -> {$newElseifs}",
                     location: $key,
-                    line: $newIfs[$i]->getStartLine(),
+                    line: $newIfs[$ni]->getStartLine(),
                 );
             }
 
-            $hadElse = $oldIfs[$i]->else !== null;
-            $hasElse = $newIfs[$i]->else !== null;
+            $hadElse = $oldIfs[$oi]->else !== null;
+            $hasElse = $newIfs[$ni]->else !== null;
 
             if ($hadElse !== $hasElse) {
                 $action = $hasElse ? 'added' : 'removed';
@@ -128,7 +161,7 @@ class ControlFlowRule implements Rule
                     severity: Severity::HIGH,
                     description: "Else branch {$action} in {$key}",
                     location: $key,
-                    line: $newIfs[$i]->getStartLine(),
+                    line: $newIfs[$ni]->getStartLine(),
                 );
             }
         }
