@@ -75,6 +75,66 @@ class PhpMethodMetricsCalculator
     }
 
     /**
+     * Calculate both per-method and per-class metrics in a single parse pass.
+     *
+     * Equivalent to calling calculate() and calculateClasses() on the same input,
+     * but parses each file (and computes its method metrics) only once.
+     *
+     * @param  array<string, string|null>  $pathToContent  Relative file path → PHP source
+     * @return array<string, array{methods: list<PhpMethodMetrics>, classes: list<PhpClassMetrics>}>
+     */
+    public function calculateAll(array $pathToContent): array
+    {
+        $results = [];
+
+        foreach ($pathToContent as $path => $content) {
+            if ($content === null || $content === '') {
+                continue;
+            }
+
+            $classLikes = $this->parseClassLikes($content);
+            if ($classLikes === []) {
+                continue;
+            }
+
+            $methods = [];
+            $classes = [];
+
+            foreach ($classLikes as $classLike) {
+                $classMethods = $this->methodMetricsFor($classLike);
+
+                foreach ($classMethods as $method) {
+                    $methods[] = $method;
+                }
+
+                $name = $classLike->name?->toString();
+                if ($name === null) {
+                    continue;
+                }
+
+                $ccValues = array_map(fn (PhpMethodMetrics $m) => $m->cc, $classMethods);
+                $wmc = (int) array_sum($ccValues);
+                $count = count($classMethods);
+
+                $classes[] = new PhpClassMetrics(
+                    name: $name,
+                    kind: $this->classKind($classLike),
+                    line: max(0, $classLike->getStartLine()),
+                    methods: $count,
+                    wmc: $wmc,
+                    ccAvg: $count > 0 ? round($wmc / $count, 1) : 0.0,
+                    maxCc: $ccValues === [] ? 0 : max($ccValues),
+                    lloc: $this->lineSpan($classLike),
+                );
+            }
+
+            $results[$path] = ['methods' => $methods, 'classes' => $classes];
+        }
+
+        return $results;
+    }
+
+    /**
      * @return list<PhpMethodMetrics>
      */
     private function analyzeFile(string $content): array

@@ -17,21 +17,31 @@ class JsMetricsRunner
      */
     public function run(array $pathToContent): array
     {
-        $tmpDir = sys_get_temp_dir().'/jsmetrics_'.uniqid();
-
-        try {
-            return $this->runInTmpDir($pathToContent, $tmpDir);
-        } finally {
-            $this->cleanup($tmpDir);
+        $handle = $this->prepare($pathToContent);
+        if ($handle === null) {
+            return [];
         }
+
+        exec($handle['cmd'], $output, $exitCode);
+
+        return $this->collect($handle, implode("\n", $output), $exitCode);
     }
 
     /**
+     * Write the given sources to a temp dir and build the jsmetrics command.
+     *
+     * The caller is responsible for executing the returned command (e.g.
+     * concurrently via Process::pool) and then passing the handle plus the
+     * captured stdout to collect(). Returns null when there is nothing to run
+     * or the node runtime / bundled script is unavailable.
+     *
      * @param  array<string, string|null>  $pathToContent
-     * @return array<string, JsMetrics>
+     * @return array{cmd: string, tmpDir: string, pathToContent: array<string, string|null>}|null
      */
-    private function runInTmpDir(array $pathToContent, string $tmpDir): array
+    public function prepare(array $pathToContent): ?array
     {
+        $tmpDir = sys_get_temp_dir().'/jsmetrics_'.uniqid();
+
         mkdir($tmpDir, 0700, true);
 
         $written = 0;
@@ -51,14 +61,17 @@ class JsMetricsRunner
         }
 
         if ($written === 0) {
-            return [];
+            $this->cleanup($tmpDir);
+
+            return null;
         }
 
         $node = $this->findNode();
         if ($node === null) {
             Log::info('node binary not found, skipping JS metrics.');
+            $this->cleanup($tmpDir);
 
-            return [];
+            return null;
         }
 
         // Resolve script path relative to this file (works in both dev and vendor installs).
@@ -66,8 +79,9 @@ class JsMetricsRunner
         $script = dirname(__DIR__, 2).'/bin/jsmetrics.bundle.js';
         if (! file_exists($script)) {
             Log::info('bin/jsmetrics.js not found, skipping JS metrics.');
+            $this->cleanup($tmpDir);
 
-            return [];
+            return null;
         }
 
         $cmd = escapeshellarg($node)
@@ -75,38 +89,51 @@ class JsMetricsRunner
             .' '.escapeshellarg($tmpDir)
             .' 2>/dev/null';
 
-        exec($cmd, $output, $exitCode);
+        return ['cmd' => $cmd, 'tmpDir' => $tmpDir, 'pathToContent' => $pathToContent];
+    }
 
-        $json = implode("\n", $output);
-        $data = json_decode($json, associative: true);
+    /**
+     * Parse the JSON emitted on stdout by a prepared command, then clean up.
+     *
+     * @param  array{cmd: string, tmpDir: string, pathToContent: array<string, string|null>}  $handle
+     * @return array<string, JsMetrics>
+     */
+    public function collect(array $handle, string $output, int $exitCode = 0): array
+    {
+        try {
+            $data = json_decode($output, associative: true);
 
-        if (! is_array($data) || empty($data['reports'])) {
-            if ($exitCode !== 0) {
-                Log::warning('jsmetrics.js failed', ['exit' => $exitCode]);
+            if (! is_array($data) || empty($data['reports'])) {
+                if ($exitCode !== 0) {
+                    Log::warning('jsmetrics.js failed', ['exit' => $exitCode]);
+                }
+
+                return [];
             }
 
-            return [];
-        }
+            $pathToContent = $handle['pathToContent'];
+            $tmpDirPrefix = rtrim($handle['tmpDir'], '/').'/';
+            $results = [];
 
-        $tmpDirPrefix = rtrim($tmpDir, '/').'/';
-        $results = [];
+            foreach ($data['reports'] as $report) {
+                $reportPath = $report['path'] ?? '';
 
-        foreach ($data['reports'] as $report) {
-            $reportPath = $report['path'] ?? '';
+                // Strip absolute tmp prefix if present (shouldn't be, but guard anyway)
+                $relativePath = str_starts_with($reportPath, $tmpDirPrefix)
+                    ? substr($reportPath, strlen($tmpDirPrefix))
+                    : $reportPath;
 
-            // Strip absolute tmp prefix if present (shouldn't be, but guard anyway)
-            $relativePath = str_starts_with($reportPath, $tmpDirPrefix)
-                ? substr($reportPath, strlen($tmpDirPrefix))
-                : $reportPath;
+                if ($relativePath === '' || ! isset($pathToContent[$relativePath])) {
+                    continue;
+                }
 
-            if ($relativePath === '' || ! isset($pathToContent[$relativePath])) {
-                continue;
+                $results[$relativePath] = JsMetrics::fromRaw($report);
             }
 
-            $results[$relativePath] = JsMetrics::fromRaw($report);
+            return $results;
+        } finally {
+            $this->cleanup($handle['tmpDir']);
         }
-
-        return $results;
     }
 
     /**
