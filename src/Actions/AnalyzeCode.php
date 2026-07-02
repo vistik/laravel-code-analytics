@@ -15,6 +15,7 @@ use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ArrayFileGroupResolver;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\AstComparer;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\ChangeClassifier;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Contracts\FileGroupResolver;
+use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\DiffParser;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\ChangeCategory;
 use Vistik\LaravelCodeAnalytics\DiffAnalyzer\Enums\FileStatus;
@@ -923,7 +924,7 @@ class AnalyzeCode
         foreach ($clusterNames as $id => $name) {
             if ($nameCounts[$name] > 1) {
                 $nameCounters[$name] = ($nameCounters[$name] ?? 0) + 1;
-                $clusterNames[$id] = $name . ' ' . $nameCounters[$name];
+                $clusterNames[$id] = $name.' '.$nameCounters[$name];
             }
         }
 
@@ -1174,7 +1175,7 @@ class AnalyzeCode
      * @param  array<string, mixed>  $fileDiffMap
      * @param  array<string, string>  $oldSources
      * @param  list<string>  $criticalTables
-     * @return array<string, \Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport>
+     * @return array<string, FileReport>
      */
     private function classifyFiles(array $nodes, array $headContents, array $fileDiffMap, array $oldSources, array $criticalTables): array
     {
@@ -1207,7 +1208,7 @@ class AnalyzeCode
      * @param  array<string, mixed>  $fileDiffMap
      * @param  array<string, string>  $oldSources
      * @param  list<string>  $criticalTables
-     * @return array<string, \Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport>
+     * @return array<string, FileReport>
      */
     private function classifyChunk(array $nodes, array $headContents, array $fileDiffMap, array $oldSources, array $criticalTables): array
     {
@@ -1241,7 +1242,7 @@ class AnalyzeCode
      * @param  array<string, mixed>  $fileDiffMap
      * @param  array<string, string>  $oldSources
      * @param  list<string>  $criticalTables
-     * @return array<string, \Vistik\LaravelCodeAnalytics\DiffAnalyzer\Data\FileReport>|null
+     * @return array<string, FileReport>|null
      */
     private function classifyChunksForked(array $chunks, array $headContents, array $fileDiffMap, array $oldSources, array $criticalTables): ?array
     {
