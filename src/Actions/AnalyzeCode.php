@@ -2721,33 +2721,31 @@ class AnalyzeCode
 
     private function enrichWithMethodMetrics(array $metricsData, array $headContents, array $oldSources): array
     {
-        $methodMetrics = (new PhpMethodMetricsCalculator)->calculate($headContents);
-        foreach ($methodMetrics as $path => $methods) {
-            if (isset($metricsData[$path]) && ! empty($methods)) {
+        $headMetrics = (new PhpMethodMetricsCalculator)->calculateAll($headContents);
+        foreach ($headMetrics as $path => ['methods' => $methods, 'classes' => $classes]) {
+            if (! isset($metricsData[$path])) {
+                continue;
+            }
+            if (! empty($methods)) {
                 $metricsData[$path]['method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
                 $metricsData[$path]['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
             }
-        }
-
-        $classMetrics = (new PhpMethodMetricsCalculator)->calculateClasses($headContents);
-        foreach ($classMetrics as $path => $classes) {
-            if (isset($metricsData[$path]) && ! empty($classes)) {
+            if (! empty($classes)) {
                 $metricsData[$path]['class_metrics'] = array_map(fn ($c) => $c->toArray(), $classes);
             }
         }
 
         if (! empty($oldSources)) {
-            $beforeMethodMetrics = (new PhpMethodMetricsCalculator)->calculate($oldSources);
-            foreach ($beforeMethodMetrics as $path => $methods) {
-                if (isset($metricsData[$path]) && ! empty($methods)) {
+            $beforeMetrics = (new PhpMethodMetricsCalculator)->calculateAll($oldSources);
+            foreach ($beforeMetrics as $path => ['methods' => $methods, 'classes' => $classes]) {
+                if (! isset($metricsData[$path])) {
+                    continue;
+                }
+                if (! empty($methods)) {
                     $metricsData[$path]['before_method_metrics'] = array_map(fn ($m) => $m->toArray(), $methods);
                     $metricsData[$path]['before']['flog'] = round(array_sum(array_map(fn ($m) => $m->flog, $methods)), 1);
                 }
-            }
-
-            $beforeClassMetrics = (new PhpMethodMetricsCalculator)->calculateClasses($oldSources);
-            foreach ($beforeClassMetrics as $path => $classes) {
-                if (isset($metricsData[$path]) && ! empty($classes)) {
+                if (! empty($classes)) {
                     $metricsData[$path]['before_class_metrics'] = array_map(fn ($c) => $c->toArray(), $classes);
                 }
             }
