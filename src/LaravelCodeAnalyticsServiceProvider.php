@@ -4,6 +4,7 @@ namespace Vistik\LaravelCodeAnalytics;
 
 use Illuminate\Support\ServiceProvider;
 use Laravel\Ai\AiServiceProvider;
+use Vistik\LaravelCodeAnalytics\Console\Commands\ClearGitCacheCommand;
 use Vistik\LaravelCodeAnalytics\Console\Commands\CodeAnalyzeCommand;
 use Vistik\LaravelCodeAnalytics\Console\Commands\CodeFileCommand;
 use Vistik\LaravelCodeAnalytics\Console\Commands\CodeReviewCommand;
@@ -16,6 +17,7 @@ class LaravelCodeAnalyticsServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                ClearGitCacheCommand::class,
                 CodeAnalyzeCommand::class,
                 CodeFileCommand::class,
                 CodeReviewCommand::class,
