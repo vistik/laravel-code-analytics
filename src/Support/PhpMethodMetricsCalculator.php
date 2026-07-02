@@ -102,30 +102,12 @@ class PhpMethodMetricsCalculator
 
             foreach ($classLikes as $classLike) {
                 $classMethods = $this->methodMetricsFor($classLike);
+                array_push($methods, ...$classMethods);
 
-                foreach ($classMethods as $method) {
-                    $methods[] = $method;
+                $class = $this->classMetricsFor($classLike, $classMethods);
+                if ($class !== null) {
+                    $classes[] = $class;
                 }
-
-                $name = $classLike->name?->toString();
-                if ($name === null) {
-                    continue;
-                }
-
-                $ccValues = array_map(fn (PhpMethodMetrics $m) => $m->cc, $classMethods);
-                $wmc = (int) array_sum($ccValues);
-                $count = count($classMethods);
-
-                $classes[] = new PhpClassMetrics(
-                    name: $name,
-                    kind: $this->classKind($classLike),
-                    line: max(0, $classLike->getStartLine()),
-                    methods: $count,
-                    wmc: $wmc,
-                    ccAvg: $count > 0 ? round($wmc / $count, 1) : 0.0,
-                    maxCc: $ccValues === [] ? 0 : max($ccValues),
-                    lloc: $this->lineSpan($classLike),
-                );
             }
 
             $results[$path] = ['methods' => $methods, 'classes' => $classes];
@@ -162,30 +144,40 @@ class PhpMethodMetricsCalculator
         $classes = [];
 
         foreach ($classLikes as $classLike) {
-            $name = $classLike->name?->toString();
-
-            if ($name === null) {
-                continue;
+            $class = $this->classMetricsFor($classLike, $this->methodMetricsFor($classLike));
+            if ($class !== null) {
+                $classes[] = $class;
             }
-
-            $methods = $this->methodMetricsFor($classLike);
-            $ccValues = array_map(fn (PhpMethodMetrics $m) => $m->cc, $methods);
-            $wmc = (int) array_sum($ccValues);
-            $count = count($methods);
-
-            $classes[] = new PhpClassMetrics(
-                name: $name,
-                kind: $this->classKind($classLike),
-                line: max(0, $classLike->getStartLine()),
-                methods: $count,
-                wmc: $wmc,
-                ccAvg: $count > 0 ? round($wmc / $count, 1) : 0.0,
-                maxCc: $ccValues === [] ? 0 : max($ccValues),
-                lloc: $this->lineSpan($classLike),
-            );
         }
 
         return $classes;
+    }
+
+    /**
+     * @param  list<PhpMethodMetrics>  $methods
+     */
+    private function classMetricsFor(Stmt\ClassLike $classLike, array $methods): ?PhpClassMetrics
+    {
+        $name = $classLike->name?->toString();
+
+        if ($name === null) {
+            return null;
+        }
+
+        $ccValues = array_map(fn (PhpMethodMetrics $m) => $m->cc, $methods);
+        $wmc = (int) array_sum($ccValues);
+        $count = count($methods);
+
+        return new PhpClassMetrics(
+            name: $name,
+            kind: $this->classKind($classLike),
+            line: max(0, $classLike->getStartLine()),
+            methods: $count,
+            wmc: $wmc,
+            ccAvg: $count > 0 ? round($wmc / $count, 1) : 0.0,
+            maxCc: $ccValues === [] ? 0 : max($ccValues),
+            lloc: $this->lineSpan($classLike),
+        );
     }
 
     /**
