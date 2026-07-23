@@ -39,7 +39,7 @@ class CodeAnalyzeCommand extends Command
         {--title= : Custom title for the analysis report}
         {--view= : Default graph view to show (force, tree, grouped, cake, arch)}
         {--config= : Path to a JSON config file (supports: repo_path, output, base, pr, title, view, format, open, file_groups, min_severity, file, full)}
-        {--format=html : Output format: html, md, json, metrics, llm, or github}
+        {--format= : Output format: html, md, json, metrics, llm, or github (default: html, or from --config)}
         {--output= : Output file or directory path (alternative to the positional output argument)}
         {--min-severity= : Minimum severity to include (info, low, medium, high, very_high) — files with only lower-severity changes are excluded}
         {--file=* : Only analyze files matching this path or glob pattern (can be repeated)}
