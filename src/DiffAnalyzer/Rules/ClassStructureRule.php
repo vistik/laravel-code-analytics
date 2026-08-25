@@ -34,24 +34,35 @@ class ClassStructureRule implements Rule
 
         // Properties
         foreach ($comparison['properties'] as $key => $pair) {
-            if ($pair['old'] !== null && $pair['new'] === null) {
-                $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::CLASS_STRUCTURE,
-                    severity: Severity::HIGH,
-                    description: "Property removed: {$key}",
-                    location: $key,
-                );
-            } elseif ($pair['old'] === null && $pair['new'] !== null) {
+            $old = $pair['old'];
+            $new = $pair['new'];
+
+            if ($new === null) {
+                if ($old !== null) {
+                    $changes[] = new ClassifiedChange(
+                        category: ChangeCategory::CLASS_STRUCTURE,
+                        severity: Severity::HIGH,
+                        description: "Property removed: {$key}",
+                        location: $key,
+                    );
+                }
+
+                continue;
+            }
+
+            if ($old === null) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::CLASS_STRUCTURE,
                     severity: Severity::INFO,
                     description: "Property added: {$key}",
                     location: $key,
-                    line: $pair['new']->getStartLine(),
+                    line: $new->getStartLine(),
                 );
-            } elseif ($pair['old'] !== null && $pair['new'] !== null) {
-                $this->comparePropertyModifiers($key, $pair['old'], $pair['new'], $changes);
+
+                continue;
             }
+
+            $this->comparePropertyModifiers($key, $old, $new, $changes);
         }
 
         // Class constants
@@ -101,34 +112,35 @@ class ClassStructureRule implements Rule
                 continue;
             }
 
-            if ($pair['old'] !== null && $pair['new'] === null) {
-                $changes[] = new ClassifiedChange(
-                    category: ChangeCategory::CLASS_STRUCTURE,
-                    severity: Severity::VERY_HIGH,
-                    description: "{$label} removed: {$name}",
-                    location: $name,
-                );
+            $old = $pair['old'];
+            $new = $pair['new'];
+
+            if ($new === null) {
+                if ($old !== null) {
+                    $changes[] = new ClassifiedChange(
+                        category: ChangeCategory::CLASS_STRUCTURE,
+                        severity: Severity::VERY_HIGH,
+                        description: "{$label} removed: {$name}",
+                        location: $name,
+                    );
+                }
 
                 continue;
             }
 
-            if ($pair['old'] === null && $pair['new'] !== null) {
+            if ($old === null) {
                 $changes[] = new ClassifiedChange(
                     category: ChangeCategory::CLASS_STRUCTURE,
                     severity: Severity::INFO,
                     description: "{$label} added: {$name}",
                     location: $name,
-                    line: $pair['new']->getStartLine(),
+                    line: $new->getStartLine(),
                 );
 
                 continue;
             }
 
-            if ($pair['old'] === null || $pair['new'] === null) {
-                continue;
-            }
-
-            $this->compareClassLike($name, $pair['old'], $pair['new'], $changes);
+            $this->compareClassLike($name, $old, $new, $changes);
         }
     }
 

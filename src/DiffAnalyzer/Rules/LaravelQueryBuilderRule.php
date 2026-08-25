@@ -302,9 +302,7 @@ class LaravelQueryBuilderRule implements Rule
 
         if ($expr instanceof Expr\Array_) {
             foreach ($expr->items as $item) {
-                if ($item !== null) {
-                    $this->collectStringValues($item->value, $out);
-                }
+                $this->collectStringValues($item->value, $out);
             }
         }
     }
@@ -379,7 +377,7 @@ class LaravelQueryBuilderRule implements Rule
         if ($expr instanceof Expr\Array_) {
             $items = [];
             foreach ($expr->items as $item) {
-                $items[] = $item !== null ? $this->exprToString($item->value) : '?';
+                $items[] = $this->exprToString($item->value);
             }
 
             return '['.implode(', ', $items).']';

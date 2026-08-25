@@ -443,7 +443,7 @@ class GraphIndexBuilder
      * implementeeIndex["concreteNodeId"]   = ["interfaceNodeId", …]
      *
      * @param  array<int, array<string, mixed>>  $nodes
-     * @param  array<int, array{0: string, 1: string, 2: string, 3?: int|null}>  $edges
+     * @param  array<int, array{0: string, 1: string, 2?: string, 3?: int|null}>  $edges
      * @return array{
      *   0: array<string, list<array{nodeId: string}>>,
      *   1: array<string, list<string>>,
